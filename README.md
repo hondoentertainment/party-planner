@@ -1,0 +1,130 @@
+# Party Planner
+
+A collaborative party planning app. Plan multiple events, track every detail
+from menu to music, and work together in real-time. Integrates with
+[Partiful](https://partiful.com/) by linking events and tracking RSVPs.
+
+## Features
+
+- **Multiple events** — keep all your parties in one workspace
+- **Calendar view** — see every event at a glance
+- **Real-time collaboration** — invite friends to plan together via Supabase
+- **Three planning phases** — pre-party, day-of, and post-party tasks
+- **Partiful integration** — link your Partiful event URL and track RSVP count
+- **Rich category tooling**:
+  - 🍽️ Food (menu builder by course with dietary tags & servings)
+  - 🥂 Beverages (cocktails, beer, wine, non-alc, with quantities/units)
+  - 🛒 Food purchasing (shopping list grouped by store, est vs actual cost)
+  - 🚚 Logistics (vendors, parking, transport)
+  - 🪧 Signs (text + location)
+  - 🎲 Games (supplies + station)
+  - 🎵 Music (playlists + per-set tracks)
+  - 🚻 Restrooms (supplies + signage)
+  - 🎨 Decorations (areas + quantities)
+  - 🛋️ Setup & teardown (with timing)
+- **Assignments** — assign any item to any team member
+- **Per-category progress** — see how each area is going on the overview
+- **Budgets** — set a budget; track shopping spend vs estimate
+
+## Stack
+
+- **Vite + React + TypeScript + Tailwind CSS**
+- **Supabase** (Postgres, Auth, Realtime, Row Level Security)
+- **react-router-dom** for routing, **date-fns** for dates, **lucide-react** for icons
+
+## Setup
+
+### 1. Create a Supabase project
+
+1. Go to [supabase.com](https://supabase.com) and create a free project.
+2. In the SQL editor, paste and run the contents of
+   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
+   This sets up tables, row-level-security policies, the auto-profile trigger,
+   and the `invite_collaborator` RPC.
+3. (Optional but recommended) In **Authentication → Providers**, leave the
+   default email/password provider on. If you'd like magic links to work
+   reliably for testing, also disable "Confirm email" in
+   **Authentication → Email Templates → Settings**.
+4. In **Project Settings → API**, copy the **Project URL** and the
+   **anon public** key.
+
+### 2. Local development
+
+```bash
+cp .env.example .env.local
+# then edit .env.local and paste your Supabase URL + anon key
+
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. Sign up with any email/password, then click
+**New event** to start planning.
+
+### 3. Inviting collaborators
+
+1. Open an event → **Settings & Team**.
+2. Type your friend's email and pick a role (editor / viewer).
+3. The invitee must already have a Party Planner account. Once added, they'll
+   see the event on their dashboard and can edit it in real time.
+
+## Deploy to Vercel
+
+The repo includes [`vercel.json`](./vercel.json) configured for Vite.
+
+```bash
+# install the CLI once
+npm i -g vercel
+
+# from the project root
+vercel
+# (follow prompts; choose "other" framework preset if asked, vercel.json wins)
+```
+
+Set these environment variables in Vercel **Project Settings → Environment Variables**:
+
+| Name                    | Value                                |
+| ----------------------- | ------------------------------------ |
+| `VITE_SUPABASE_URL`     | your Supabase project URL            |
+| `VITE_SUPABASE_ANON_KEY`| your Supabase anon public key        |
+
+Then `vercel --prod`.
+
+## Partiful integration
+
+Partiful does not currently expose a public API, so this app integrates by
+**linking out**:
+
+- Each event can store a Partiful event URL (e.g. `https://partiful.com/e/…`).
+- The Overview tab shows a one-click link to your Partiful page.
+- Update the **RSVP count** field manually after checking Partiful — the
+  number is shown on the dashboard and overview.
+
+If Partiful publishes an API in the future, the integration can be extended
+to auto-sync guests and RSVPs.
+
+## Database schema
+
+A single `event_items` table powers all category modules, distinguished by a
+`kind` column (`task`, `food`, `beverage`, `shopping`, …). Category-specific
+fields live in a `meta jsonb` column. This lets the schema stay tiny and
+makes adding new categories trivial.
+
+See [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
+for the full schema, RLS policies, and helper functions.
+
+## Project layout
+
+```
+src/
+  components/      Reusable UI (modals, app shell, dialogs)
+  lib/             Supabase client, auth context, hooks, formatters
+  modules/         One file per event category (Food, Beverages, …)
+  pages/           Top-level routes (Dashboard, Calendar, EventPage, AuthPage)
+supabase/
+  migrations/      SQL migration(s) — run in the Supabase SQL editor
+```
+
+## License
+
+MIT
