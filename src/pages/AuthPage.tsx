@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { PartyPopper, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { PartyPopper, Loader2, ArrowLeft } from "lucide-react";
 import { useAuth } from "../lib/auth";
 
-type Mode = "signin" | "signup" | "magic";
+type Mode = "signin" | "signup" | "magic" | "forgot";
 
-export function AuthPage() {
-  const { signInWithPassword, signUp, signInWithMagicLink } = useAuth();
-  const [mode, setMode] = useState<Mode>("signin");
+export function AuthPage({ startMode = "signin" }: { startMode?: "signin" | "forgot" }) {
+  const { signInWithPassword, signUp, signInWithMagicLink, sendPasswordResetEmail } = useAuth();
+  const [mode, setMode] = useState<Mode>(startMode === "forgot" ? "forgot" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -20,7 +21,14 @@ export function AuthPage() {
     setInfo(null);
     setLoading(true);
     try {
-      if (mode === "signin") {
+      if (mode === "forgot") {
+        const { error } = await sendPasswordResetEmail(email);
+        if (error) setError(error);
+        else
+          setInfo(
+            "If an account exists for that email, you will receive a reset link shortly. Check your spam folder too."
+          );
+      } else if (mode === "signin") {
         const { error } = await signInWithPassword(email, password);
         if (error) setError(error);
       } else if (mode === "signup") {
@@ -50,24 +58,41 @@ export function AuthPage() {
           </div>
         </div>
 
-        <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 text-sm">
-          {(["signin", "signup", "magic"] as Mode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => {
-                setMode(m);
-                setError(null);
-                setInfo(null);
-              }}
-              className={
-                "flex-1 py-1.5 rounded-md font-medium " +
-                (mode === m ? "bg-white shadow-sm text-slate-900" : "text-slate-600")
-              }
+        {mode === "forgot" ? (
+          <div className="mb-6">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1 text-sm text-brand-600 hover:underline"
             >
-              {m === "signin" ? "Sign in" : m === "signup" ? "Sign up" : "Magic link"}
-            </button>
-          ))}
-        </div>
+              <ArrowLeft size={14} /> Back to sign in
+            </Link>
+            <h2 className="font-display text-lg font-bold text-slate-900 mt-3">Reset your password</h2>
+            <p className="text-slate-500 text-sm mt-1">
+              We will email you a one-time link to set a new password. It expires after a while for
+              security.
+            </p>
+          </div>
+        ) : (
+          <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 text-sm">
+            {(["signin", "signup", "magic"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setMode(m);
+                  setError(null);
+                  setInfo(null);
+                }}
+                className={
+                  "flex-1 py-1.5 rounded-md font-medium " +
+                  (mode === m ? "bg-white shadow-sm text-slate-900" : "text-slate-600")
+                }
+              >
+                {m === "signin" ? "Sign in" : m === "signup" ? "Sign up" : "Magic link"}
+              </button>
+            ))}
+          </div>
+        )}
 
         <form className="space-y-4" onSubmit={onSubmit}>
           {mode === "signup" && (
@@ -93,7 +118,7 @@ export function AuthPage() {
               required
             />
           </div>
-          {mode !== "magic" && (
+          {mode !== "magic" && mode !== "forgot" && (
             <div>
               <label className="label">Password</label>
               <input
@@ -113,8 +138,21 @@ export function AuthPage() {
 
           <button className="btn-primary w-full" disabled={loading}>
             {loading && <Loader2 size={16} className="animate-spin" />}
-            {mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send link"}
+            {mode === "forgot"
+              ? "Send reset link"
+              : mode === "signin"
+                ? "Sign in"
+                : mode === "signup"
+                  ? "Create account"
+                  : "Send link"}
           </button>
+          {mode === "signin" && (
+            <p className="text-center text-sm text-slate-500">
+              <Link to="/forgot" className="text-brand-600 hover:underline">
+                Forgot password?
+              </Link>
+            </p>
+          )}
         </form>
       </div>
     </div>

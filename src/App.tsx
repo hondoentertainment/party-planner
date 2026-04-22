@@ -10,6 +10,9 @@ const CalendarPage = lazy(() =>
   import("./pages/CalendarPage").then((m) => ({ default: m.CalendarPage }))
 );
 const EventPage = lazy(() => import("./pages/EventPage").then((m) => ({ default: m.EventPage })));
+const UpdatePasswordPage = lazy(() =>
+  import("./pages/UpdatePasswordPage").then((m) => ({ default: m.UpdatePasswordPage }))
+);
 
 const Loading = () => (
   <div className="h-full flex items-center justify-center text-slate-500 py-16">
@@ -18,15 +21,27 @@ const Loading = () => (
 );
 
 export function App() {
-  const { configured, loading, user } = useAuth();
+  const { configured, loading, user, passwordRecovery } = useAuth();
 
   if (!configured) return <SetupNotice />;
   if (loading) return <Loading />;
+
+  if (user && passwordRecovery) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <Routes>
+          <Route path="/update-password" element={<UpdatePasswordPage />} />
+          <Route path="*" element={<UpdatePasswordPage />} />
+        </Routes>
+      </Suspense>
+    );
+  }
 
   if (!user) {
     return (
       <Suspense fallback={<Loading />}>
         <Routes>
+          <Route path="/forgot" element={<AuthPage startMode="forgot" />} />
           <Route path="*" element={<AuthPage />} />
         </Routes>
       </Suspense>
@@ -40,6 +55,7 @@ export function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/events/:eventId/*" element={<EventPage />} />
+          <Route path="/update-password" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

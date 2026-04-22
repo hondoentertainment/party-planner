@@ -59,6 +59,12 @@ from menu to music, and work together in real-time. Integrates with
    **Authentication → Email Templates → Settings**.
 4. In **Project Settings → API**, copy the **Project URL** and the
    **anon public** key.
+5. **Password reset (recommended):** in **Authentication → URL Configuration**,
+   set the **Site URL** to your deployed app (e.g. `https://yourapp.vercel.app`) and
+   add these **Redirect URLs** so the reset link from email can return to the app:
+   - `https://yourapp.vercel.app/update-password`
+   - `http://localhost:5173/update-password` (local dev)  
+   Users can request a reset from **Sign in** → *Forgot password?* or `/forgot`.
 
 ### 2. Local development
 
