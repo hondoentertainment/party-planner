@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { AssigneePicker } from "./ChecklistModule";
 import { formatMoney } from "../lib/format";
+import { SortableList, SortableRow } from "../components/Sortable";
 
 interface ShopMeta {
   store?: string;
@@ -128,11 +129,21 @@ export function ShoppingModule({ event }: { event: EventRow }) {
               <h3 className="font-display font-bold">{s}</h3>
               <span className="text-xs text-slate-500">{list.length} items · {formatMoney(groupTotal)}</span>
             </div>
-            <ul className="space-y-2">
-              {filtered.map((item) => (
-                <ShopRow key={item.id} item={item} members={members} />
-              ))}
-            </ul>
+            <div className="space-y-2">
+              <SortableList items={filtered}>
+                {(item) => (
+                  <SortableRow
+                    key={item.id}
+                    id={item.id}
+                    className="flex items-stretch gap-1"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <ShopRow item={item} members={members} />
+                    </div>
+                  </SortableRow>
+                )}
+              </SortableList>
+            </div>
           </div>
         );
       })}
@@ -170,7 +181,7 @@ function ShopRow({
   const purchased = item.status === "done";
 
   return (
-    <li className="card p-3 flex items-center gap-2 flex-wrap">
+    <div className="card p-3 flex items-center gap-2 flex-wrap">
       <button onClick={togglePurchased}>
         <span
           className={`w-5 h-5 rounded grid place-items-center border-2 ${
@@ -227,9 +238,9 @@ function ShopRow({
         current={assignee}
         onChange={(id) => update({ assignee_id: id })}
       />
-      <button onClick={remove} className="btn-ghost text-rose-500 py-1 px-2">
+      <button onClick={remove} aria-label="Delete item" className="btn-ghost text-rose-500 py-1 px-2">
         <Trash2 size={14} />
       </button>
-    </li>
+    </div>
   );
 }

@@ -5,6 +5,7 @@ import { useEventItems, useEventMembers } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { AssigneePicker } from "./ChecklistModule";
+import { SortableList, SortableRow } from "../components/Sortable";
 
 interface MusicMeta {
   artist?: string;
@@ -144,11 +145,21 @@ export function MusicModule({ event }: { event: EventRow }) {
               <h3 className="font-display font-bold">{s.label}</h3>
               <span className="text-xs text-slate-500">{list.length}</span>
             </div>
-            <ul className="space-y-1.5">
-              {list.map((item) => (
-                <TrackRow key={item.id} item={item} members={members} />
-              ))}
-            </ul>
+            <div className="space-y-1.5">
+              <SortableList items={list}>
+                {(item) => (
+                  <SortableRow
+                    key={item.id}
+                    id={item.id}
+                    className="flex items-stretch gap-1"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <TrackRow item={item} members={members} />
+                    </div>
+                  </SortableRow>
+                )}
+              </SortableList>
+            </div>
           </div>
         );
       })}
@@ -214,7 +225,7 @@ function TrackRow({
   const assignee = members.find((m) => m.id === item.assignee_id);
 
   return (
-    <li className="card p-2 flex items-center gap-2 flex-wrap">
+    <div className="card p-2 flex items-center gap-2 flex-wrap">
       <Music size={14} className="text-slate-400 ml-1" />
       <input
         className="flex-1 min-w-[140px] bg-transparent border-0 focus:outline-none text-sm font-medium"
@@ -253,9 +264,9 @@ function TrackRow({
         current={assignee}
         onChange={(id) => update({ assignee_id: id })}
       />
-      <button onClick={remove} className="btn-ghost text-rose-500 py-1 px-2">
+      <button onClick={remove} aria-label="Delete track" className="btn-ghost text-rose-500 py-1 px-2">
         <Trash2 size={14} />
       </button>
-    </li>
+    </div>
   );
 }

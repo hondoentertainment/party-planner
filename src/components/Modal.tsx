@@ -29,7 +29,7 @@ export function Modal({
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h2 className="font-display text-lg font-bold">{title}</h2>
-          <button onClick={onClose} className="btn-ghost -mr-2">
+          <button onClick={onClose} aria-label="Close dialog" className="btn-ghost -mr-2">
             <X size={18} />
           </button>
         </div>

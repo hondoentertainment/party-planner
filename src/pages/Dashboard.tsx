@@ -1,9 +1,20 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { CalendarDays, MapPin, Plus, Users, Sparkles } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  CalendarDays,
+  Copy,
+  MapPin,
+  MoreVertical,
+  Plus,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { useMyEvents } from "../lib/hooks";
 import { formatEventDate, daysUntil } from "../lib/format";
 import { NewEventDialog } from "../components/NewEventDialog";
+import { useAuth } from "../lib/auth";
+import { duplicateEvent } from "../lib/duplicateEvent";
+import type { EventRow } from "../lib/database.types";
 
 export function Dashboard() {
   const { events, loading } = useMyEvents();
@@ -32,55 +43,9 @@ export function Dashboard() {
         <EmptyState onCreate={() => setCreating(true)} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {upcoming.map((ev) => {
-            const d = daysUntil(ev.starts_at);
-            return (
-              <Link
-                key={ev.id}
-                to={`/events/${ev.id}`}
-                className="card overflow-hidden hover:shadow-pop transition-shadow group"
-              >
-                <div
-                  className="h-24 flex items-center justify-center text-4xl"
-                  style={{
-                    background: `linear-gradient(135deg, ${ev.cover_color}22, ${ev.cover_color}55)`,
-                  }}
-                >
-                  <span className="drop-shadow-sm">{ev.cover_emoji}</span>
-                </div>
-                <div className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-display font-bold text-lg group-hover:text-brand-700">
-                      {ev.name}
-                    </h3>
-                    {d != null && d >= 0 && d <= 30 && (
-                      <span className="chip bg-amber-50 text-amber-700">
-                        {d === 0 ? "Today" : `in ${d}d`}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-slate-600 space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <CalendarDays size={14} />
-                      <span>{formatEventDate(ev.starts_at)}</span>
-                    </div>
-                    {ev.location && (
-                      <div className="flex items-center gap-1.5">
-                        <MapPin size={14} />
-                        <span className="truncate">{ev.location}</span>
-                      </div>
-                    )}
-                    {ev.rsvp_count > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <Users size={14} />
-                        <span>{ev.rsvp_count} RSVPs</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+          {upcoming.map((ev) => (
+            <EventCard key={ev.id} ev={ev} />
+          ))}
         </div>
       )}
 
@@ -114,6 +79,104 @@ export function Dashboard() {
   );
 }
 
+function EventCard({ ev }: { ev: EventRow }) {
+  const { user } = useAuth();
+  const nav = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const d = daysUntil(ev.starts_at);
+
+  const onDuplicate = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(false);
+    if (!user) return;
+    setDuplicating(true);
+    const newId = await duplicateEvent(ev, user.id);
+    setDuplicating(false);
+    if (newId) nav(`/events/${newId}`);
+  };
+
+  return (
+    <div className="relative">
+      <Link
+        to={`/events/${ev.id}`}
+        className="card overflow-hidden hover:shadow-pop transition-shadow group block"
+      >
+        <div
+          className="h-24 flex items-center justify-center text-4xl"
+          style={{
+            background: `linear-gradient(135deg, ${ev.cover_color}22, ${ev.cover_color}55)`,
+          }}
+        >
+          <span className="drop-shadow-sm">{ev.cover_emoji}</span>
+        </div>
+        <div className="p-4 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-display font-bold text-lg group-hover:text-brand-700">
+              {ev.name}
+            </h3>
+            {d != null && d >= 0 && d <= 30 && (
+              <span className="chip bg-amber-50 text-amber-700">
+                {d === 0 ? "Today" : `in ${d}d`}
+              </span>
+            )}
+          </div>
+          <div className="text-sm text-slate-600 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <CalendarDays size={14} />
+              <span>{formatEventDate(ev.starts_at)}</span>
+            </div>
+            {ev.location && (
+              <div className="flex items-center gap-1.5">
+                <MapPin size={14} />
+                <span className="truncate">{ev.location}</span>
+              </div>
+            )}
+            {ev.rsvp_count > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Users size={14} />
+                <span>{ev.rsvp_count} RSVPs</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </Link>
+
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setMenuOpen((v) => !v);
+        }}
+        aria-label="Event actions"
+        className="absolute top-2 right-2 p-2 rounded-lg bg-white/80 backdrop-blur hover:bg-white text-slate-700 shadow-sm"
+      >
+        <MoreVertical size={16} />
+      </button>
+
+      {menuOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div className="absolute top-12 right-2 z-20 card p-1 min-w-[160px]">
+            <button
+              onClick={onDuplicate}
+              disabled={duplicating}
+              className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
+            >
+              <Copy size={14} />
+              {duplicating ? "Duplicating…" : "Duplicate event"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="card p-10 text-center">
@@ -122,8 +185,8 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       </div>
       <h2 className="font-display text-xl font-bold">Throw your first party</h2>
       <p className="text-slate-500 text-sm mt-1 max-w-md mx-auto">
-        Create an event, invite collaborators, and start checking off the menu, music,
-        decorations, setup, and more — together.
+        Pick a template (BBQ, birthday, cocktail party, holiday dinner) or
+        start from scratch. Then invite friends to plan together.
       </p>
       <button onClick={onCreate} className="btn-primary mt-5">
         <Plus size={16} /> New event

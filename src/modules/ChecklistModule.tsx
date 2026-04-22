@@ -191,7 +191,12 @@ function ChecklistRow({
           >
             {expanded ? "Hide" : "More"}
           </button>
-          <button onClick={remove} className="btn-ghost text-rose-500 py-1 px-2" title="Delete">
+          <button
+            onClick={remove}
+            aria-label="Delete item"
+            className="btn-ghost text-rose-500 py-1 px-2"
+            title="Delete"
+          >
             <Trash2 size={14} />
           </button>
         </div>

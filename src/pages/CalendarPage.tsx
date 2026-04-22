@@ -47,13 +47,21 @@ export function CalendarPage() {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-3xl font-bold">Calendar</h1>
         <div className="flex items-center gap-2">
-          <button onClick={() => setCursor(subMonths(cursor, 1))} className="btn-secondary">
+          <button
+            onClick={() => setCursor(subMonths(cursor, 1))}
+            aria-label="Previous month"
+            className="btn-secondary"
+          >
             <ChevronLeft size={16} />
           </button>
-          <div className="font-display font-semibold text-lg w-40 text-center">
+          <div className="font-display font-semibold text-lg w-40 text-center" aria-live="polite">
             {format(cursor, "MMMM yyyy")}
           </div>
-          <button onClick={() => setCursor(addMonths(cursor, 1))} className="btn-secondary">
+          <button
+            onClick={() => setCursor(addMonths(cursor, 1))}
+            aria-label="Next month"
+            className="btn-secondary"
+          >
             <ChevronRight size={16} />
           </button>
           <button onClick={() => setCursor(new Date())} className="btn-ghost ml-1 text-sm">

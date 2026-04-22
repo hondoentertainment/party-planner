@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,21 +12,34 @@ import {
   Music,
   Paintbrush,
   ShoppingCart,
-  Sofa,
   Signpost,
+  Sofa,
   ToyBrick,
   Truck,
 } from "lucide-react";
 import clsx from "clsx";
 import { useEvent } from "../lib/hooks";
-import { Overview } from "../modules/Overview";
-import { TimelineModule } from "../modules/TimelineModule";
 import { ChecklistModule } from "../modules/ChecklistModule";
-import { FoodModule } from "../modules/FoodModule";
-import { BeveragesModule } from "../modules/BeveragesModule";
-import { ShoppingModule } from "../modules/ShoppingModule";
-import { MusicModule } from "../modules/MusicModule";
-import { EventSettings } from "../modules/EventSettings";
+
+const Overview = lazy(() => import("../modules/Overview").then((m) => ({ default: m.Overview })));
+const TimelineModule = lazy(() =>
+  import("../modules/TimelineModule").then((m) => ({ default: m.TimelineModule }))
+);
+const FoodModule = lazy(() =>
+  import("../modules/FoodModule").then((m) => ({ default: m.FoodModule }))
+);
+const BeveragesModule = lazy(() =>
+  import("../modules/BeveragesModule").then((m) => ({ default: m.BeveragesModule }))
+);
+const ShoppingModule = lazy(() =>
+  import("../modules/ShoppingModule").then((m) => ({ default: m.ShoppingModule }))
+);
+const MusicModule = lazy(() =>
+  import("../modules/MusicModule").then((m) => ({ default: m.MusicModule }))
+);
+const EventSettings = lazy(() =>
+  import("../modules/EventSettings").then((m) => ({ default: m.EventSettings }))
+);
 
 interface TabDef {
   to: string;
@@ -68,7 +82,6 @@ export function EventPage() {
 
   return (
     <div>
-      {/* Banner */}
       <div
         className="relative"
         style={{
@@ -76,7 +89,10 @@ export function EventPage() {
         }}
       >
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
-          <Link to="/" className="inline-flex items-center gap-1 text-sm text-slate-700 hover:text-slate-900 mb-2">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1 text-sm text-slate-700 hover:text-slate-900 mb-2"
+          >
             <ArrowLeft size={14} /> All events
           </Link>
           <div className="flex items-center gap-3">
@@ -89,10 +105,12 @@ export function EventPage() {
         </div>
       </div>
 
-      {/* Tab strip */}
       <div className="bg-white border-b border-slate-200 sticky top-14 z-20">
         <div className="max-w-7xl mx-auto px-2 sm:px-4">
-          <nav className="flex overflow-x-auto gap-1 py-2 scrollbar-thin">
+          <nav
+            className="flex overflow-x-auto gap-1 py-2 scrollbar-thin"
+            aria-label="Event sections"
+          >
             {TABS.map((t) => (
               <NavLink
                 key={t.to}
@@ -111,122 +129,115 @@ export function EventPage() {
       </div>
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
-        <Routes>
-          <Route index element={<Overview event={event} />} />
-          <Route path="timeline" element={<TimelineModule event={event} />} />
-          <Route
-            path="food"
-            element={<FoodModule event={event} />}
-          />
-          <Route
-            path="beverages"
-            element={<BeveragesModule event={event} />}
-          />
-          <Route
-            path="shopping"
-            element={<ShoppingModule event={event} />}
-          />
-          <Route
-            path="logistics"
-            element={
-              <ChecklistModule
-                event={event}
-                kind="logistics"
-                title="Logistics"
-                description="Vendors, parking, permits, transport, timing — anything operational."
-                placeholder="Reserve parking spots…"
-                fields={["due", "assignee", "notes"]}
-              />
-            }
-          />
-          <Route
-            path="signs"
-            element={
-              <ChecklistModule
-                event={event}
-                kind="sign"
-                title="Signs"
-                description="Welcome signs, directions, drink labels, table numbers."
-                placeholder="Bathroom sign with arrow…"
-                fields={["assignee", "status_chip", "notes"]}
-                metaFields={[
-                  { key: "content", label: "Sign text", placeholder: "Drinks → that way" },
-                  { key: "location", label: "Where it goes", placeholder: "Front gate" },
-                ]}
-              />
-            }
-          />
-          <Route
-            path="games"
-            element={
-              <ChecklistModule
-                event={event}
-                kind="game"
-                title="Games"
-                description="Activities to keep guests entertained."
-                placeholder="Beer pong, charades, photo booth…"
-                fields={["assignee", "notes"]}
-                metaFields={[
-                  { key: "supplies", label: "Supplies needed", placeholder: "10 cups, 2 balls" },
-                  { key: "area", label: "Area / station", placeholder: "Backyard" },
-                ]}
-              />
-            }
-          />
-          <Route path="music" element={<MusicModule event={event} />} />
-          <Route
-            path="restrooms"
-            element={
-              <ChecklistModule
-                event={event}
-                kind="restroom"
-                title="Restrooms"
-                description="Supplies, signage, and any porta-potty arrangements."
-                placeholder="Stock TP & paper towels…"
-                fields={["assignee", "status_chip", "notes"]}
-                metaFields={[
-                  { key: "location", label: "Restroom", placeholder: "Upstairs / Porta #1" },
-                  { key: "qty", label: "Quantity", placeholder: "3 rolls" },
-                ]}
-              />
-            }
-          />
-          <Route
-            path="decorations"
-            element={
-              <ChecklistModule
-                event={event}
-                kind="decoration"
-                title="Decorations"
-                description="Theme items, lighting, balloons, table settings."
-                placeholder="String lights along fence…"
-                fields={["assignee", "status_chip", "notes"]}
-                metaFields={[
-                  { key: "area", label: "Area", placeholder: "Entry, table, bar…" },
-                  { key: "qty", label: "Quantity", placeholder: "12" },
-                ]}
-              />
-            }
-          />
-          <Route
-            path="setup"
-            element={
-              <ChecklistModule
-                event={event}
-                kind="setup"
-                title="Setup & Teardown"
-                description="Day-of setup tasks and cleanup. Use phases on the timeline for time-based ordering."
-                placeholder="Set up tables on the lawn…"
-                fields={["due", "assignee", "status_chip", "notes"]}
-                metaFields={[
-                  { key: "duration_min", label: "Time needed (min)", placeholder: "30" },
-                ]}
-              />
-            }
-          />
-          <Route path="settings" element={<EventSettings event={event} />} />
-          <Route path="*" element={<Navigate to="" replace />} />
-        </Routes>
+        <Suspense fallback={<div className="text-slate-500 text-sm">Loading…</div>}>
+          <Routes>
+            <Route index element={<Overview event={event} />} />
+            <Route path="timeline" element={<TimelineModule event={event} />} />
+            <Route path="food" element={<FoodModule event={event} />} />
+            <Route path="beverages" element={<BeveragesModule event={event} />} />
+            <Route path="shopping" element={<ShoppingModule event={event} />} />
+            <Route
+              path="logistics"
+              element={
+                <ChecklistModule
+                  event={event}
+                  kind="logistics"
+                  title="Logistics"
+                  description="Vendors, parking, permits, transport, timing — anything operational."
+                  placeholder="Reserve parking spots…"
+                  fields={["due", "assignee", "notes"]}
+                />
+              }
+            />
+            <Route
+              path="signs"
+              element={
+                <ChecklistModule
+                  event={event}
+                  kind="sign"
+                  title="Signs"
+                  description="Welcome signs, directions, drink labels, table numbers."
+                  placeholder="Bathroom sign with arrow…"
+                  fields={["assignee", "status_chip", "notes"]}
+                  metaFields={[
+                    { key: "content", label: "Sign text", placeholder: "Drinks → that way" },
+                    { key: "location", label: "Where it goes", placeholder: "Front gate" },
+                  ]}
+                />
+              }
+            />
+            <Route
+              path="games"
+              element={
+                <ChecklistModule
+                  event={event}
+                  kind="game"
+                  title="Games"
+                  description="Activities to keep guests entertained."
+                  placeholder="Beer pong, charades, photo booth…"
+                  fields={["assignee", "notes"]}
+                  metaFields={[
+                    { key: "supplies", label: "Supplies needed", placeholder: "10 cups, 2 balls" },
+                    { key: "area", label: "Area / station", placeholder: "Backyard" },
+                  ]}
+                />
+              }
+            />
+            <Route path="music" element={<MusicModule event={event} />} />
+            <Route
+              path="restrooms"
+              element={
+                <ChecklistModule
+                  event={event}
+                  kind="restroom"
+                  title="Restrooms"
+                  description="Supplies, signage, and any porta-potty arrangements."
+                  placeholder="Stock TP & paper towels…"
+                  fields={["assignee", "status_chip", "notes"]}
+                  metaFields={[
+                    { key: "location", label: "Restroom", placeholder: "Upstairs / Porta #1" },
+                    { key: "qty", label: "Quantity", placeholder: "3 rolls" },
+                  ]}
+                />
+              }
+            />
+            <Route
+              path="decorations"
+              element={
+                <ChecklistModule
+                  event={event}
+                  kind="decoration"
+                  title="Decorations"
+                  description="Theme items, lighting, balloons, table settings."
+                  placeholder="String lights along fence…"
+                  fields={["assignee", "status_chip", "notes"]}
+                  metaFields={[
+                    { key: "area", label: "Area", placeholder: "Entry, table, bar…" },
+                    { key: "qty", label: "Quantity", placeholder: "12" },
+                  ]}
+                />
+              }
+            />
+            <Route
+              path="setup"
+              element={
+                <ChecklistModule
+                  event={event}
+                  kind="setup"
+                  title="Setup & Teardown"
+                  description="Day-of setup tasks and cleanup. Use phases on the timeline for time-based ordering."
+                  placeholder="Set up tables on the lawn…"
+                  fields={["due", "assignee", "status_chip", "notes"]}
+                  metaFields={[
+                    { key: "duration_min", label: "Time needed (min)", placeholder: "30" },
+                  ]}
+                />
+              }
+            />
+            <Route path="settings" element={<EventSettings event={event} />} />
+            <Route path="*" element={<Navigate to="" replace />} />
+          </Routes>
+        </Suspense>
       </div>
     </div>
   );

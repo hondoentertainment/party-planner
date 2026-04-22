@@ -166,7 +166,7 @@ function BevRow({
         current={assignee}
         onChange={(id) => update({ assignee_id: id })}
       />
-      <button onClick={remove} className="btn-ghost text-rose-500 py-1 px-2">
+      <button onClick={remove} aria-label="Delete beverage" className="btn-ghost text-rose-500 py-1 px-2">
         <Trash2 size={14} />
       </button>
     </li>

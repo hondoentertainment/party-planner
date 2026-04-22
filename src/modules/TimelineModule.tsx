@@ -16,6 +16,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { AssigneePicker } from "./ChecklistModule";
 import { format, parseISO } from "date-fns";
+import { SortableList, SortableRow } from "../components/Sortable";
 
 const PHASES: { key: Phase; label: string; description: string; icon: typeof Sun; color: string }[] = [
   {
@@ -143,9 +144,19 @@ export function TimelineModule({ event }: { event: EventRow }) {
                     + Add starter tasks
                   </button>
                 )}
-                {phaseItems.map((it) => (
-                  <TaskRow key={it.id} item={it} members={members} />
-                ))}
+                <SortableList items={phaseItems}>
+                  {(it) => (
+                    <SortableRow
+                      key={it.id}
+                      id={it.id}
+                      className="flex items-stretch gap-1"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <TaskRow item={it} members={members} />
+                      </div>
+                    </SortableRow>
+                  )}
+                </SortableList>
               </div>
               <form
                 onSubmit={(e) => {

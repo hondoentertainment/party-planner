@@ -166,6 +166,7 @@ export function EventSettings({ event }: { event: EventRow }) {
               {isOwner && (
                 <button
                   onClick={() => removeCollab(c.user_id)}
+                  aria-label="Remove collaborator"
                   className="btn-ghost text-rose-500 py-1 px-2"
                 >
                   <Trash2 size={14} />

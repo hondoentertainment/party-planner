@@ -170,7 +170,7 @@ function FoodRow({
             current={assignee}
             onChange={(id) => update({ assignee_id: id })}
           />
-          <button onClick={remove} className="btn-ghost text-rose-500 py-1 px-2">
+          <button onClick={remove} aria-label="Delete menu item" className="btn-ghost text-rose-500 py-1 px-2">
             <Trash2 size={14} />
           </button>
         </div>

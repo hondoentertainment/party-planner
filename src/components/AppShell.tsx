@@ -51,7 +51,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="text-xs text-slate-500">{profile?.email}</div>
               </div>
             </div>
-            <button onClick={signOut} className="btn-ghost" title="Sign out">
+            <button
+              onClick={signOut}
+              aria-label="Sign out"
+              className="btn-ghost"
+              title="Sign out"
+            >
               <LogOut size={16} />
             </button>
           </div>
