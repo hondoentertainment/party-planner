@@ -1,5 +1,6 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { MoreHorizontal } from "lucide-react";
 import {
   ArrowLeft,
   CalendarClock,
@@ -16,6 +17,7 @@ import {
   Sofa,
   ToyBrick,
   Truck,
+  Users,
 } from "lucide-react";
 import clsx from "clsx";
 import { useEvent } from "../lib/hooks";
@@ -40,6 +42,9 @@ const MusicModule = lazy(() =>
 const EventSettings = lazy(() =>
   import("../modules/EventSettings").then((m) => ({ default: m.EventSettings }))
 );
+const GuestModule = lazy(() =>
+  import("../modules/GuestModule").then((m) => ({ default: m.GuestModule }))
+);
 
 interface TabDef {
   to: string;
@@ -47,9 +52,10 @@ interface TabDef {
   icon: LucideIcon;
 }
 
-const TABS: TabDef[] = [
+export const TABS: TabDef[] = [
   { to: "", label: "Overview", icon: HomeIcon },
   { to: "timeline", label: "Timeline", icon: CalendarClock },
+  { to: "guests", label: "Guests", icon: Users },
   { to: "food", label: "Food", icon: Cookie },
   { to: "beverages", label: "Beverages", icon: GlassWater },
   { to: "shopping", label: "Food Purchasing", icon: ShoppingCart },
@@ -63,9 +69,14 @@ const TABS: TabDef[] = [
   { to: "settings", label: "Settings", icon: ListChecks },
 ];
 
+const PRIMARY_MOBILE_TABS: TabDef[] = TABS.filter((t) =>
+  ["", "timeline", "guests", "food", "shopping"].includes(t.to)
+);
+
 export function EventPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const { event, loading } = useEvent(eventId);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   if (loading) return <div className="p-6 text-slate-500">Loading event…</div>;
   if (!event)
@@ -105,7 +116,7 @@ export function EventPage() {
         </div>
       </div>
 
-      <div className="bg-white border-b border-slate-200 sticky top-14 z-20">
+      <div className="hidden sm:block bg-white border-b border-slate-200 sticky top-14 z-20">
         <div className="max-w-7xl mx-auto px-2 sm:px-4">
           <nav
             className="flex overflow-x-auto gap-1 py-2 scrollbar-thin"
@@ -128,11 +139,12 @@ export function EventPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-24 sm:pb-6">
         <Suspense fallback={<div className="text-slate-500 text-sm">Loading…</div>}>
           <Routes>
             <Route index element={<Overview event={event} />} />
             <Route path="timeline" element={<TimelineModule event={event} />} />
+            <Route path="guests" element={<GuestModule event={event} />} />
             <Route path="food" element={<FoodModule event={event} />} />
             <Route path="beverages" element={<BeveragesModule event={event} />} />
             <Route path="shopping" element={<ShoppingModule event={event} />} />
@@ -239,6 +251,77 @@ export function EventPage() {
           </Routes>
         </Suspense>
       </div>
+
+      {/* Mobile bottom tab bar */}
+      <nav
+        className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] safe-bottom"
+        aria-label="Event sections"
+      >
+        <div className="grid grid-cols-6">
+          {PRIMARY_MOBILE_TABS.map((t) => (
+            <NavLink
+              key={t.to}
+              to={t.to}
+              end={t.to === ""}
+              className={({ isActive }) =>
+                clsx(
+                  "flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium min-h-[56px]",
+                  isActive ? "text-brand-700" : "text-slate-500 active:bg-slate-100"
+                )
+              }
+            >
+              <t.icon size={20} />
+              <span className="leading-tight">{t.label}</span>
+            </NavLink>
+          ))}
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            className="flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium min-h-[56px] text-slate-500 active:bg-slate-100"
+            aria-label="More sections"
+          >
+            <MoreHorizontal size={20} />
+            <span className="leading-tight">More</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* "More" sheet */}
+      {moreOpen && (
+        <div
+          className="sm:hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-end"
+          onClick={() => setMoreOpen(false)}
+        >
+          <div
+            className="bg-white rounded-t-2xl w-full p-3 pb-6 shadow-xl safe-bottom max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3" aria-hidden />
+            <h3 className="font-display font-bold text-base px-2 mb-2">All sections</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {TABS.map((t) => (
+                <NavLink
+                  key={t.to}
+                  to={t.to}
+                  end={t.to === ""}
+                  onClick={() => setMoreOpen(false)}
+                  className={({ isActive }) =>
+                    clsx(
+                      "flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-xs font-medium border",
+                      isActive
+                        ? "bg-brand-50 text-brand-700 border-brand-200"
+                        : "bg-white text-slate-700 border-slate-100 active:bg-slate-50"
+                    )
+                  }
+                >
+                  <t.icon size={20} />
+                  <span className="text-center leading-tight">{t.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

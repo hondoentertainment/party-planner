@@ -107,7 +107,19 @@ export function useEventItems(eventId: string | undefined, kind: ItemKind) {
     };
   }, [eventId, kind, refresh]);
 
-  return { items, loading, refresh };
+  /** Optimistic local mutators. Each mutates the local items array immediately,
+   * so UI updates are instant. The realtime channel will re-fetch and reconcile. */
+  const optimisticUpdate = useCallback((id: string, patch: Partial<EventItem>) => {
+    setItems((arr) => arr.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  }, []);
+  const optimisticDelete = useCallback((id: string) => {
+    setItems((arr) => arr.filter((it) => it.id !== id));
+  }, []);
+  const optimisticReorder = useCallback((nextOrder: EventItem[]) => {
+    setItems(nextOrder);
+  }, []);
+
+  return { items, loading, refresh, optimisticUpdate, optimisticDelete, optimisticReorder };
 }
 
 /* ---------- All items (for overview) ---------- */

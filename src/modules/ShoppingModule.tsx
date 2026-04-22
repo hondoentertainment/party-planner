@@ -4,6 +4,9 @@ import type { EventItem, EventRow } from "../lib/database.types";
 import { useEventItems, useEventMembers } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useToast } from "../lib/toast";
+import { useDebouncedSave } from "../lib/useDebouncedSave";
+import { logActivity } from "../lib/activity";
 import { AssigneePicker } from "./ChecklistModule";
 import { formatMoney } from "../lib/format";
 import { SortableList, SortableRow } from "../components/Sortable";
@@ -19,9 +22,10 @@ interface ShopMeta {
 const STORES = ["Costco", "Trader Joe's", "Whole Foods", "Local market", "Liquor store", "Online", "Other"];
 
 export function ShoppingModule({ event }: { event: EventRow }) {
-  const { items } = useEventItems(event.id, "shopping");
+  const { items, optimisticUpdate, optimisticDelete } = useEventItems(event.id, "shopping");
   const members = useEventMembers(event.id, event.owner_id);
   const { user } = useAuth();
+  const toast = useToast();
   const [newTitle, setNewTitle] = useState("");
   const [store, setStore] = useState("Costco");
   const [filter, setFilter] = useState<"all" | "todo" | "purchased">("all");
@@ -48,14 +52,21 @@ export function ShoppingModule({ event }: { event: EventRow }) {
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !user) return;
-    await supabase.from("event_items").insert({
+    const text = newTitle.trim();
+    setNewTitle("");
+    const { error } = await supabase.from("event_items").insert({
       event_id: event.id,
       kind: "shopping",
-      title: newTitle.trim(),
+      title: text,
       created_by: user.id,
       meta: { store, qty: 1, unit: "ea", est_cost_cents: 0 } as ShopMeta,
     });
-    setNewTitle("");
+    if (error) {
+      toast.error(error.message);
+      setNewTitle(text);
+    } else {
+      logActivity(event.id, user.id, `added "${text}" to shopping list`);
+    }
   };
 
   return (
@@ -138,7 +149,13 @@ export function ShoppingModule({ event }: { event: EventRow }) {
                     className="flex items-stretch gap-1"
                   >
                     <div className="flex-1 min-w-0">
-                      <ShopRow item={item} members={members} />
+                      <ShopRow
+                        item={item}
+                        members={members}
+                        eventId={event.id}
+                        optimisticUpdate={optimisticUpdate}
+                        optimisticDelete={optimisticDelete}
+                      />
                     </div>
                   </SortableRow>
                 )}
@@ -160,29 +177,53 @@ export function ShoppingModule({ event }: { event: EventRow }) {
 function ShopRow({
   item,
   members,
+  eventId,
+  optimisticUpdate,
+  optimisticDelete,
 }: {
   item: EventItem;
   members: ReturnType<typeof useEventMembers>;
+  eventId: string;
+  optimisticUpdate: (id: string, patch: Partial<EventItem>) => void;
+  optimisticDelete: (id: string) => void;
 }) {
   const meta = (item.meta as ShopMeta) ?? {};
+  const { user } = useAuth();
+  const toast = useToast();
   const update = async (patch: Partial<EventItem>) => {
-    await supabase.from("event_items").update(patch).eq("id", item.id);
+    const { error } = await supabase.from("event_items").update(patch).eq("id", item.id);
+    if (error) toast.error(error.message);
   };
   const updateMeta = async (m: Partial<ShopMeta>) => {
     await update({ meta: { ...meta, ...m } });
   };
+  const [titleVal, setTitleVal] = useDebouncedSave(item.title, (next) => update({ title: next }));
   const togglePurchased = async () => {
-    await update({ status: item.status === "done" ? "todo" : "done" });
+    const next = item.status === "done" ? "todo" : "done";
+    optimisticUpdate(item.id, { status: next });
+    const { error } = await supabase.from("event_items").update({ status: next }).eq("id", item.id);
+    if (error) {
+      toast.error(error.message);
+      optimisticUpdate(item.id, { status: item.status });
+    } else if (next === "done" && user) {
+      logActivity(eventId, user.id, `bought "${item.title}"`);
+    }
   };
   const remove = async () => {
-    await supabase.from("event_items").delete().eq("id", item.id);
+    optimisticDelete(item.id);
+    const { error } = await supabase.from("event_items").delete().eq("id", item.id);
+    if (error) {
+      toast.error(error.message);
+    } else if (user) {
+      logActivity(eventId, user.id, `removed "${item.title}" from shopping list`);
+    }
   };
   const assignee = members.find((m) => m.id === item.assignee_id);
   const purchased = item.status === "done";
 
   return (
     <div className="card p-3 flex items-center gap-2 flex-wrap">
-      <button onClick={togglePurchased}>
+      <button onClick={togglePurchased} aria-label={purchased ? "Mark as to buy" : "Mark as purchased"}>
         <span
           className={`w-5 h-5 rounded grid place-items-center border-2 ${
             purchased ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300"
@@ -195,8 +236,8 @@ function ShopRow({
         className={`flex-1 min-w-[140px] bg-transparent border-0 focus:outline-none text-sm font-medium ${
           purchased ? "line-through text-slate-400" : ""
         }`}
-        value={item.title}
-        onChange={(e) => update({ title: e.target.value })}
+        value={titleVal}
+        onChange={(e) => setTitleVal(e.target.value)}
       />
       <input
         type="number"

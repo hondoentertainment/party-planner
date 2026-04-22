@@ -22,9 +22,15 @@ from menu to music, and work together in real-time. Integrates with
   - 🚻 Restrooms (supplies + signage)
   - 🎨 Decorations (areas + quantities)
   - 🛋️ Setup & teardown (with timing)
+- **Guest list** — paste from Partiful, track RSVP, dietary needs, plus-ones, auto-flags menu under-capacity
 - **Assignments** — assign any item to any team member
+- **Activity feed** — see who did what, in real-time
+- **Email notifications** — Resend-powered emails when you're assigned a task
+- **Templates & duplicate** — start from BBQ / Birthday / Cocktail / Holiday Dinner, or clone an existing event
+- **Drag-and-drop ordering** — reorder timeline tasks, music tracks, shopping items
 - **Per-category progress** — see how each area is going on the overview
 - **Budgets** — set a budget; track shopping spend vs estimate
+- **Mobile-first** — bottom-tab navigation on phones, optimistic UI, large touch targets
 
 ## Stack
 
@@ -102,6 +108,51 @@ Partiful does not currently expose a public API, so this app integrates by
 
 If Partiful publishes an API in the future, the integration can be extended
 to auto-sync guests and RSVPs.
+
+The **Guest list** module lets you paste names from Partiful (one per line)
+and tracks RSVP status, dietary needs, plus-ones, and notes per guest.
+
+## Email notifications (optional)
+
+The app can email a collaborator when they're assigned to a task. This uses a
+Supabase Edge Function + the `pg_net` extension + [Resend](https://resend.com).
+
+If you skip this section, the app still works — assignments just won't trigger
+emails.
+
+### Setup
+
+1. **Sign up at [resend.com](https://resend.com)** and verify a sender domain
+   (or use the sandbox `onboarding@resend.dev` for testing). Get an API key.
+2. **Install the Supabase CLI** if you haven't:
+   `npm i -g supabase` and `supabase login`.
+3. **Link your project**: `supabase link --project-ref <your-ref>`.
+4. **Deploy the function**:
+   ```bash
+   supabase functions deploy notify-assignment
+   ```
+5. **Set its secrets**:
+   ```bash
+   supabase secrets set \
+     RESEND_API_KEY=re_xxxxx \
+     FROM_EMAIL='Party Planner <hi@yourdomain.com>' \
+     APP_URL=https://your-app.vercel.app
+   ```
+6. **Run the second migration** (`supabase/migrations/0002_notifications.sql`)
+   in the SQL editor. It creates the trigger that calls the function.
+7. **Set the two custom GUCs** in the SQL editor (one-time, replace placeholders):
+   ```sql
+   alter database postgres set "app.functions_url" = 'https://<project-ref>.supabase.co/functions/v1';
+   alter database postgres set "app.service_role_key" = '<your-service-role-key>';
+   ```
+   (`Project Settings → API → service_role` key. Never expose this to the
+   browser — it's only used by the trigger to authenticate to the function.)
+
+### Test it
+
+Assign yourself to a task as user A; check user B's inbox. (Self-assignments
+do not trigger emails.) Logs are visible in the Supabase dashboard under
+**Edge Functions → notify-assignment → Logs**.
 
 ## Database schema
 

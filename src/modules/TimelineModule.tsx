@@ -14,6 +14,9 @@ import type { EventItem, EventRow, Phase } from "../lib/database.types";
 import { useEventItems, useEventMembers } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useToast } from "../lib/toast";
+import { useDebouncedSave } from "../lib/useDebouncedSave";
+import { logActivity } from "../lib/activity";
 import { AssigneePicker } from "./ChecklistModule";
 import { format, parseISO } from "date-fns";
 import { SortableList, SortableRow } from "../components/Sortable";
@@ -69,8 +72,9 @@ const STARTER_TASKS: Record<Phase, string[]> = {
 };
 
 export function TimelineModule({ event }: { event: EventRow }) {
-  const { items } = useEventItems(event.id, "task");
+  const { items, optimisticUpdate, optimisticDelete } = useEventItems(event.id, "task");
   const { user } = useAuth();
+  const toast = useToast();
   const members = useEventMembers(event.id, event.owner_id);
   const [newTitle, setNewTitle] = useState<Record<Phase, string>>({
     pre: "",
@@ -83,13 +87,19 @@ export function TimelineModule({ event }: { event: EventRow }) {
     const title = newTitle[phase].trim();
     if (!title) return;
     setNewTitle((v) => ({ ...v, [phase]: "" }));
-    await supabase.from("event_items").insert({
+    const { error } = await supabase.from("event_items").insert({
       event_id: event.id,
       kind: "task",
       phase,
       title,
       created_by: user.id,
     });
+    if (error) {
+      toast.error(`Couldn't add task: ${error.message}`);
+      setNewTitle((v) => ({ ...v, [phase]: title }));
+    } else {
+      logActivity(event.id, user.id, `added task "${title}"`);
+    }
   };
 
   const seedStarters = async (phase: Phase) => {
@@ -102,7 +112,8 @@ export function TimelineModule({ event }: { event: EventRow }) {
       created_by: user.id,
       position: i,
     }));
-    await supabase.from("event_items").insert(rows);
+    const { error } = await supabase.from("event_items").insert(rows);
+    if (error) toast.error(`Couldn't seed: ${error.message}`);
   };
 
   return (
@@ -152,7 +163,13 @@ export function TimelineModule({ event }: { event: EventRow }) {
                       className="flex items-stretch gap-1"
                     >
                       <div className="flex-1 min-w-0">
-                        <TaskRow item={it} members={members} />
+                        <TaskRow
+                          item={it}
+                          members={members}
+                          eventId={event.id}
+                          optimisticUpdate={optimisticUpdate}
+                          optimisticDelete={optimisticDelete}
+                        />
                       </div>
                     </SortableRow>
                   )}
@@ -186,19 +203,43 @@ export function TimelineModule({ event }: { event: EventRow }) {
 function TaskRow({
   item,
   members,
+  eventId,
+  optimisticUpdate,
+  optimisticDelete,
 }: {
   item: EventItem;
   members: ReturnType<typeof useEventMembers>;
+  eventId: string;
+  optimisticUpdate: (id: string, patch: Partial<EventItem>) => void;
+  optimisticDelete: (id: string) => void;
 }) {
+  const { user } = useAuth();
+  const toast = useToast();
   const update = async (patch: Partial<EventItem>) => {
-    await supabase.from("event_items").update(patch).eq("id", item.id);
+    const { error } = await supabase.from("event_items").update(patch).eq("id", item.id);
+    if (error) toast.error(error.message);
   };
+  const [titleVal, setTitleVal] = useDebouncedSave(item.title, (next) => update({ title: next }));
   const cycle = async () => {
     const order = ["todo", "in_progress", "done"] as const;
-    await update({ status: order[(order.indexOf(item.status) + 1) % order.length] });
+    const next = order[(order.indexOf(item.status) + 1) % order.length];
+    optimisticUpdate(item.id, { status: next });
+    const { error } = await supabase.from("event_items").update({ status: next }).eq("id", item.id);
+    if (error) {
+      toast.error(error.message);
+      optimisticUpdate(item.id, { status: item.status });
+    } else if (next === "done" && user) {
+      logActivity(eventId, user.id, `completed task "${item.title}"`);
+    }
   };
   const remove = async () => {
-    await supabase.from("event_items").delete().eq("id", item.id);
+    optimisticDelete(item.id);
+    const { error } = await supabase.from("event_items").delete().eq("id", item.id);
+    if (error) {
+      toast.error(error.message);
+    } else if (user) {
+      logActivity(eventId, user.id, `deleted task "${item.title}"`);
+    }
   };
   const assignee = members.find((m) => m.id === item.assignee_id);
 
@@ -218,8 +259,8 @@ function TaskRow({
           className={`w-full bg-transparent border-0 focus:outline-none text-sm ${
             item.status === "done" ? "line-through text-slate-400" : ""
           }`}
-          value={item.title}
-          onChange={(e) => update({ title: e.target.value })}
+          value={titleVal}
+          onChange={(e) => setTitleVal(e.target.value)}
         />
         <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
           <input
@@ -248,6 +289,7 @@ function TaskRow({
         />
         <button
           onClick={remove}
+          aria-label="Delete task"
           className="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-600"
           title="Delete"
         >

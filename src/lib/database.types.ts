@@ -15,7 +15,8 @@ export type ItemKind =
   | "music"
   | "restroom"
   | "decoration"
-  | "setup";
+  | "setup"
+  | "guest";
 
 export type ItemStatus = "todo" | "in_progress" | "done";
 export type Phase = "pre" | "day_of" | "post";

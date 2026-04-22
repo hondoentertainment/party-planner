@@ -4,6 +4,9 @@ import type { EventItem, EventRow, ItemKind, ItemStatus, Profile } from "../lib/
 import { useEventItems, useEventMembers } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useToast } from "../lib/toast";
+import { useDebouncedSave } from "../lib/useDebouncedSave";
+import { logActivity } from "../lib/activity";
 import { format, parseISO } from "date-fns";
 
 export type ChecklistField = "due" | "assignee" | "notes" | "status_chip";
@@ -36,8 +39,9 @@ export function ChecklistModule({
   metaFields = [],
   emptyHint,
 }: Props) {
-  const { items } = useEventItems(event.id, kind);
+  const { items, optimisticUpdate, optimisticDelete } = useEventItems(event.id, kind);
   const { user } = useAuth();
+  const toast = useToast();
   const members = useEventMembers(event.id, event.owner_id);
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
@@ -46,15 +50,22 @@ export function ChecklistModule({
     e.preventDefault();
     if (!newTitle.trim() || !user) return;
     setAdding(true);
-    await supabase.from("event_items").insert({
+    const text = newTitle.trim();
+    setNewTitle("");
+    const { error } = await supabase.from("event_items").insert({
       event_id: event.id,
       kind,
-      title: newTitle.trim(),
+      title: text,
       created_by: user.id,
       position: items.length,
     });
-    setNewTitle("");
     setAdding(false);
+    if (error) {
+      toast.error(`Couldn't add: ${error.message}`);
+      setNewTitle(text);
+    } else {
+      logActivity(event.id, user.id, `added "${text}" to ${title.toLowerCase()}`);
+    }
   };
 
   const total = items.length;
@@ -101,6 +112,9 @@ export function ChecklistModule({
             members={members}
             fields={fields}
             metaFields={metaFields}
+            eventId={event.id}
+            optimisticUpdate={optimisticUpdate}
+            optimisticDelete={optimisticDelete}
           />
         ))}
       </ul>
@@ -113,19 +127,31 @@ function ChecklistRow({
   members,
   fields,
   metaFields,
+  eventId,
+  optimisticUpdate,
+  optimisticDelete,
 }: {
   item: EventItem;
   members: Profile[];
   fields: ChecklistField[];
   metaFields: MetaField[];
+  eventId: string;
+  optimisticUpdate: (id: string, patch: Partial<EventItem>) => void;
+  optimisticDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { user } = useAuth();
+  const toast = useToast();
 
-  const update = async (patch: Partial<EventItem>) => {
-    await supabase
+  const update = async (patch: Partial<EventItem>, opts?: { optimistic?: boolean }) => {
+    if (opts?.optimistic) optimisticUpdate(item.id, patch);
+    const { error } = await supabase
       .from("event_items")
       .update({ ...patch, updated_at: new Date().toISOString() })
       .eq("id", item.id);
+    if (error) {
+      toast.error(error.message);
+    }
   };
 
   const updateMeta = async (key: string, value: unknown) => {
@@ -133,14 +159,35 @@ function ChecklistRow({
     await update({ meta });
   };
 
+  const [titleVal, setTitleVal] = useDebouncedSave(item.title, (next) => update({ title: next }));
+  const [notesVal, setNotesVal] = useDebouncedSave(item.description ?? "", (next) =>
+    update({ description: next })
+  );
+
   const cycleStatus = async () => {
     const order: ItemStatus[] = ["todo", "in_progress", "done"];
     const next = order[(order.indexOf(item.status) + 1) % order.length];
-    await update({ status: next });
+    optimisticUpdate(item.id, { status: next });
+    const { error } = await supabase
+      .from("event_items")
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .eq("id", item.id);
+    if (error) {
+      toast.error(error.message);
+      optimisticUpdate(item.id, { status: item.status });
+    } else if (next === "done" && user) {
+      logActivity(eventId, user.id, `completed "${item.title}"`);
+    }
   };
 
   const remove = async () => {
-    await supabase.from("event_items").delete().eq("id", item.id);
+    optimisticDelete(item.id);
+    const { error } = await supabase.from("event_items").delete().eq("id", item.id);
+    if (error) {
+      toast.error(`Couldn't delete: ${error.message}`);
+    } else if (user) {
+      logActivity(eventId, user.id, `deleted "${item.title}"`);
+    }
   };
 
   const assignee = members.find((m) => m.id === item.assignee_id);
@@ -162,8 +209,8 @@ function ChecklistRow({
           className={`flex-1 bg-transparent border-0 focus:outline-none text-sm ${
             item.status === "done" ? "line-through text-slate-400" : ""
           }`}
-          value={item.title}
-          onChange={(e) => update({ title: e.target.value })}
+          value={titleVal}
+          onChange={(e) => setTitleVal(e.target.value)}
         />
         <div className="flex items-center gap-1 flex-wrap">
           {fields.includes("assignee") && (
@@ -228,8 +275,8 @@ function ChecklistRow({
               <label className="label">Notes</label>
               <textarea
                 className="input min-h-[60px]"
-                value={item.description ?? ""}
-                onChange={(e) => update({ description: e.target.value })}
+                value={notesVal}
+                onChange={(e) => setNotesVal(e.target.value)}
                 placeholder="Anything else…"
               />
             </div>

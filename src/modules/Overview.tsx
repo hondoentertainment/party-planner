@@ -12,10 +12,12 @@ import type { EventRow } from "../lib/database.types";
 import { formatEventDate, daysUntil, formatMoney } from "../lib/format";
 import { useAllItems, useCollaborators } from "../lib/hooks";
 import { EditEventDialog } from "../components/EditEventDialog";
+import { ActivityFeed } from "../components/ActivityFeed";
 import { Link } from "react-router-dom";
 
 const KIND_TABS: { kind: string; label: string; route: string }[] = [
   { kind: "task", label: "Tasks", route: "timeline" },
+  { kind: "guest", label: "Guests", route: "guests" },
   { kind: "food", label: "Menu items", route: "food" },
   { kind: "beverage", label: "Beverages", route: "beverages" },
   { kind: "shopping", label: "Shopping", route: "shopping" },
@@ -45,8 +47,38 @@ export function Overview({ event }: { event: EventRow }) {
       return acc + (m.cost_cents ?? 0);
     }, 0);
 
+  const guests = items.filter((i) => i.kind === "guest");
+  const confirmedGuests = guests.reduce((acc, g) => {
+    const m = (g.meta ?? {}) as { rsvp?: string; plus_one?: boolean; plus_one_count?: number };
+    if (m.rsvp !== "yes") return acc;
+    return acc + 1 + (m.plus_one ? Math.max(0, m.plus_one_count ?? 1) : 0);
+  }, 0);
+  const totalServings = items
+    .filter((i) => i.kind === "food")
+    .reduce((acc, i) => {
+      const m = (i.meta ?? {}) as { servings?: number };
+      return acc + (m.servings ?? 0);
+    }, 0);
+  const capacityShortfall =
+    confirmedGuests > 0 && totalServings > 0 && totalServings < confirmedGuests
+      ? confirmedGuests - totalServings
+      : 0;
+
   return (
     <div className="space-y-6">
+      {capacityShortfall > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 p-4 flex items-start gap-3">
+          <Sparkles size={18} className="mt-0.5 text-amber-600 flex-shrink-0" />
+          <div className="text-sm flex-1">
+            <strong>Heads up:</strong> {confirmedGuests} guests are confirmed but you only have{" "}
+            {totalServings} servings planned across the menu. Consider adding {capacityShortfall}{" "}
+            more.{" "}
+            <Link to="food" className="underline font-medium">
+              Update menu →
+            </Link>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="card p-5 lg:col-span-2 space-y-4">
           <div className="flex items-start justify-between gap-2">
@@ -75,8 +107,18 @@ export function Overview({ event }: { event: EventRow }) {
             <Detail icon={Sparkles} label="Theme">
               {event.theme ?? "—"}
             </Detail>
-            <Detail icon={Users} label="RSVPs">
-              {event.rsvp_count ?? 0}
+            <Detail icon={Users} label="Confirmed guests">
+              {confirmedGuests > 0 ? (
+                <Link to="guests" className="text-brand-600 hover:underline">
+                  {confirmedGuests} attending
+                </Link>
+              ) : event.rsvp_count > 0 ? (
+                `${event.rsvp_count} (Partiful)`
+              ) : (
+                <Link to="guests" className="text-slate-400 hover:text-brand-600">
+                  Add guests →
+                </Link>
+              )}
             </Detail>
             <Detail icon={Wallet} label="Spent on shopping">
               {formatMoney(totalCost)}
@@ -156,33 +198,36 @@ export function Overview({ event }: { event: EventRow }) {
         </div>
       </div>
 
-      <div>
-        <h3 className="font-display text-lg font-bold mb-2">Progress by category</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {KIND_TABS.map((t) => {
-            const list = items.filter((i) => i.kind === t.kind);
-            const tDone = list.filter((i) => i.status === "done").length;
-            const tPct = list.length ? Math.round((tDone / list.length) * 100) : 0;
-            return (
-              <Link
-                to={t.route}
-                key={t.kind}
-                className="card p-3 hover:shadow-pop transition-shadow"
-              >
-                <div className="text-sm font-semibold">{t.label}</div>
-                <div className="text-xs text-slate-500 mb-2">
-                  {list.length === 0 ? "Nothing yet" : `${tDone} / ${list.length} done`}
-                </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-brand-500"
-                    style={{ width: `${tPct}%` }}
-                  />
-                </div>
-              </Link>
-            );
-          })}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <h3 className="font-display text-lg font-bold mb-2">Progress by category</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {KIND_TABS.map((t) => {
+              const list = items.filter((i) => i.kind === t.kind);
+              const tDone = list.filter((i) => i.status === "done").length;
+              const tPct = list.length ? Math.round((tDone / list.length) * 100) : 0;
+              return (
+                <Link
+                  to={t.route}
+                  key={t.kind}
+                  className="card p-3 hover:shadow-pop transition-shadow"
+                >
+                  <div className="text-sm font-semibold">{t.label}</div>
+                  <div className="text-xs text-slate-500 mb-2">
+                    {list.length === 0 ? "Nothing yet" : `${tDone} / ${list.length} done`}
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-brand-500"
+                      style={{ width: `${tPct}%` }}
+                    />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
+        <ActivityFeed eventId={event.id} />
       </div>
 
       {editing && <EditEventDialog event={event} onClose={() => setEditing(false)} />}
