@@ -4,6 +4,7 @@ import type { EventItem, EventRow } from "../lib/database.types";
 import { useEventItems, useEventMembers } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { logActivity } from "../lib/activity";
 import { AssigneePicker } from "./ChecklistModule";
 import { SortableList, SortableRow } from "../components/Sortable";
 
@@ -41,10 +42,11 @@ export function MusicModule({ event }: { event: EventRow }) {
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !user) return;
-    await supabase.from("event_items").insert({
+    const t = title.trim();
+    const { error } = await supabase.from("event_items").insert({
       event_id: event.id,
       kind: "music",
-      title: title.trim(),
+      title: t,
       created_by: user.id,
       meta: {
         artist: artist || undefined,
@@ -53,6 +55,7 @@ export function MusicModule({ event }: { event: EventRow }) {
         is_playlist: false,
       } as MusicMeta,
     });
+    if (!error) logActivity(event.id, user.id, `added track "${t}"`);
     setTitle("");
     setArtist("");
     setUrl("");
@@ -63,13 +66,14 @@ export function MusicModule({ event }: { event: EventRow }) {
     const name = prompt("Playlist name (e.g. 'Disco vibes')")?.trim();
     if (!name) return;
     const link = prompt("Spotify / Apple Music / YouTube link (optional)")?.trim();
-    await supabase.from("event_items").insert({
+    const { error } = await supabase.from("event_items").insert({
       event_id: event.id,
       kind: "music",
       title: name,
       created_by: user.id,
       meta: { url: link || undefined, is_playlist: true } as MusicMeta,
     });
+    if (!error) logActivity(event.id, user.id, `added playlist "${name}"`);
   };
 
   return (
@@ -96,7 +100,7 @@ export function MusicModule({ event }: { event: EventRow }) {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {playlists.map((p) => (
-              <PlaylistCard key={p.id} item={p} />
+              <PlaylistCard key={p.id} item={p} eventId={event.id} />
             ))}
           </div>
         </div>
@@ -154,7 +158,7 @@ export function MusicModule({ event }: { event: EventRow }) {
                     className="flex items-stretch gap-1"
                   >
                     <div className="flex-1 min-w-0">
-                      <TrackRow item={item} members={members} />
+                      <TrackRow item={item} eventId={event.id} members={members} />
                     </div>
                   </SortableRow>
                 )}
@@ -174,11 +178,13 @@ export function MusicModule({ event }: { event: EventRow }) {
   );
 }
 
-function PlaylistCard({ item }: { item: EventItem }) {
+function PlaylistCard({ item, eventId }: { item: EventItem; eventId: string }) {
+  const { user } = useAuth();
   const meta = (item.meta as MusicMeta) ?? {};
   const remove = async () => {
     if (!confirm("Remove playlist?")) return;
     await supabase.from("event_items").delete().eq("id", item.id);
+    if (user) logActivity(eventId, user.id, `removed playlist "${item.title}"`);
   };
   return (
     <div className="card p-3 flex items-center gap-3">
@@ -207,11 +213,14 @@ function PlaylistCard({ item }: { item: EventItem }) {
 
 function TrackRow({
   item,
+  eventId,
   members,
 }: {
   item: EventItem;
+  eventId: string;
   members: ReturnType<typeof useEventMembers>;
 }) {
+  const { user } = useAuth();
   const meta = (item.meta as MusicMeta) ?? {};
   const update = async (patch: Partial<EventItem>) => {
     await supabase.from("event_items").update(patch).eq("id", item.id);
@@ -221,6 +230,7 @@ function TrackRow({
   };
   const remove = async () => {
     await supabase.from("event_items").delete().eq("id", item.id);
+    if (user) logActivity(eventId, user.id, `removed track "${item.title}"`);
   };
   const assignee = members.find((m) => m.id === item.assignee_id);
 

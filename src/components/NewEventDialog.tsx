@@ -5,6 +5,7 @@ import { Modal } from "./Modal";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { TEMPLATES, type EventTemplate } from "../lib/templates";
+import { logActivity } from "../lib/activity";
 
 const EMOJIS = ["🎉", "🎂", "🍻", "🥂", "🎃", "🎄", "💍", "👶", "🎓", "🌮", "🍕", "🪩", "🌊", "🏕️", "🔥"];
 const COLORS = ["#cc38f5", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#8b5cf6", "#0ea5e9"];
@@ -61,9 +62,10 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
       return;
     }
 
+    const newId = (data as { id: string }).id;
     if (template) {
       const rows = template.items.map((it, i) => ({
-        event_id: (data as { id: string }).id,
+        event_id: newId,
         kind: it.kind,
         phase: it.phase ?? null,
         title: it.title,
@@ -75,9 +77,17 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
       await supabase.from("event_items").insert(rows);
     }
 
+    logActivity(
+      newId,
+      user.id,
+      template
+        ? `created "${name}" from the ${template.name} template`
+        : `created event "${name}"`
+    );
+
     setSaving(false);
     onClose();
-    nav(`/events/${(data as { id: string }).id}`);
+    nav(`/events/${newId}`);
   };
 
   if (step === "template") {

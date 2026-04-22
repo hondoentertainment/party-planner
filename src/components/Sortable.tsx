@@ -17,6 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useMatchMedia } from "../lib/useMatchMedia";
 
 export interface SortableItem {
   id: string;
@@ -36,8 +37,9 @@ export function SortableList<T extends SortableItem>({
   table?: string;
   children: (item: T) => React.ReactNode;
 }) {
+  const reduceMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: reduceMotion ? 999 : 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 

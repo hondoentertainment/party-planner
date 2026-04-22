@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { MoreHorizontal } from "lucide-react";
 import {
@@ -77,6 +77,26 @@ export function EventPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const { event, loading } = useEvent(eventId);
   const [moreOpen, setMoreOpen] = useState(false);
+  const morePanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const t = window.setTimeout(() => {
+      const el = morePanelRef.current?.querySelector<HTMLElement>("a, button");
+      el?.focus();
+    }, 0);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
 
   if (loading) return <div className="p-6 text-slate-500">Loading event…</div>;
   if (!event)
@@ -291,13 +311,20 @@ export function EventPage() {
         <div
           className="sm:hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-end"
           onClick={() => setMoreOpen(false)}
+          role="presentation"
         >
           <div
+            ref={morePanelRef}
             className="bg-white rounded-t-2xl w-full p-3 pb-6 shadow-xl safe-bottom max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="event-more-title"
           >
             <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3" aria-hidden />
-            <h3 className="font-display font-bold text-base px-2 mb-2">All sections</h3>
+            <h3 className="font-display font-bold text-base px-2 mb-2" id="event-more-title">
+              All sections
+            </h3>
             <div className="grid grid-cols-3 gap-2">
               {TABS.map((t) => (
                 <NavLink

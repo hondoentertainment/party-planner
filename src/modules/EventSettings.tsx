@@ -4,6 +4,7 @@ import type { CollabRole, EventRow } from "../lib/database.types";
 import { useCollaborators } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { logActivity } from "../lib/activity";
 
 export function EventSettings({ event }: { event: EventRow }) {
   const { collabs } = useCollaborators(event.id);
@@ -36,6 +37,13 @@ export function EventSettings({ event }: { event: EventRow }) {
         type: "ok",
         text: `Added ${result.display_name ?? email} as ${role}.`,
       });
+      if (user) {
+        void logActivity(
+          event.id,
+          user.id,
+          `invited ${result.display_name ?? email} as ${role}`
+        );
+      }
       setEmail("");
     } else {
       setMsg({
@@ -54,6 +62,7 @@ export function EventSettings({ event }: { event: EventRow }) {
       .delete()
       .eq("event_id", event.id)
       .eq("user_id", userId);
+    if (user) void logActivity(event.id, user.id, `removed a collaborator from the team`);
   };
 
   const updateRole = async (userId: string, newRole: CollabRole) => {

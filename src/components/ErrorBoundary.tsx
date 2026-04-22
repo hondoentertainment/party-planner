@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { captureException } from "@sentry/react";
 import { AlertCircle, RefreshCcw } from "lucide-react";
 
 interface State {
@@ -14,6 +15,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[ErrorBoundary]", error, info);
+    if (import.meta.env.VITE_SENTRY_DSN) {
+      captureException(error, { extra: { componentStack: info.componentStack } });
+    }
   }
 
   reset = () => this.setState({ error: null });

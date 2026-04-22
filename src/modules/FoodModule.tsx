@@ -1,9 +1,12 @@
-import { useState } from "react";
-import { Plus, Trash2, Cookie, Salad, IceCreamCone, ChefHat, Pizza } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { Plus, Trash2, Cookie, Salad, IceCreamCone, ChefHat, Pizza, Users } from "lucide-react";
 import type { EventItem, EventRow } from "../lib/database.types";
 import { useEventItems, useEventMembers } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useToast } from "../lib/toast";
+import { logActivity } from "../lib/activity";
 import { AssigneePicker } from "./ChecklistModule";
 
 const COURSES = [
@@ -25,28 +28,48 @@ interface FoodMeta {
 
 export function FoodModule({ event }: { event: EventRow }) {
   const { items } = useEventItems(event.id, "food");
+  const { items: guestItems } = useEventItems(event.id, "guest");
   const members = useEventMembers(event.id, event.owner_id);
   const { user } = useAuth();
+  const toast = useToast();
   const [newTitle, setNewTitle] = useState("");
   const [course, setCourse] = useState<string>("main");
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !user) return;
-    await supabase.from("event_items").insert({
+    const title = newTitle.trim();
+    setNewTitle("");
+    const { error } = await supabase.from("event_items").insert({
       event_id: event.id,
       kind: "food",
-      title: newTitle.trim(),
+      title,
       created_by: user.id,
       meta: { course, dietary: [], servings: 1 } as FoodMeta,
     });
-    setNewTitle("");
+    if (error) {
+      toast.error(error.message);
+      setNewTitle(title);
+    } else {
+      logActivity(event.id, user.id, `added menu item "${title}"`);
+    }
   };
 
   const totalServings = items.reduce(
     (a, i) => a + (((i.meta as FoodMeta).servings as number) || 0),
     0
   );
+
+  const confirmedGuests = useMemo(
+    () =>
+      guestItems.reduce((acc, g) => {
+        const m = (g.meta ?? {}) as { rsvp?: string; plus_one?: boolean; plus_one_count?: number };
+        if (m.rsvp !== "yes") return acc;
+        return acc + 1 + (m.plus_one ? Math.max(0, m.plus_one_count ?? 1) : 0);
+      }, 0),
+    [guestItems]
+  );
+  const needServings = confirmedGuests - totalServings;
 
   return (
     <div className="space-y-4">
@@ -61,6 +84,31 @@ export function FoodModule({ event }: { event: EventRow }) {
           {items.length} items · {totalServings} total servings
         </div>
       </div>
+
+      {confirmedGuests > 0 && (
+        <div
+          className={`rounded-xl border p-3 flex flex-wrap items-center gap-2 text-sm ${
+            needServings > 0
+              ? "border-amber-200 bg-amber-50 text-amber-900"
+              : "border-slate-200 bg-slate-50 text-slate-700"
+          }`}
+        >
+          <Users size={16} className="flex-shrink-0" />
+          <span>
+            Guest list: <strong>{confirmedGuests}</strong> confirmed to attend (incl. plus-ones). Menu
+            covers <strong>{totalServings}</strong> servings.
+            {needServings > 0 && (
+              <>
+                {" "}
+                Consider adding <strong>{needServings}</strong> more.
+              </>
+            )}{" "}
+            <Link to="../guests" className="text-brand-700 underline font-medium">
+              Open guest list
+            </Link>
+          </span>
+        </div>
+      )}
 
       <form onSubmit={add} className="card p-2 flex items-center gap-2">
         <select
@@ -96,7 +144,7 @@ export function FoodModule({ event }: { event: EventRow }) {
             </div>
             <ul className="space-y-2">
               {list.map((item) => (
-                <FoodRow key={item.id} item={item} members={members} />
+                <FoodRow key={item.id} item={item} eventId={event.id} members={members} />
               ))}
             </ul>
           </div>
@@ -114,11 +162,14 @@ export function FoodModule({ event }: { event: EventRow }) {
 
 function FoodRow({
   item,
+  eventId,
   members,
 }: {
   item: EventItem;
+  eventId: string;
   members: ReturnType<typeof useEventMembers>;
 }) {
+  const { user } = useAuth();
   const meta = (item.meta as FoodMeta) ?? {};
   const update = async (patch: Partial<EventItem>) => {
     await supabase.from("event_items").update(patch).eq("id", item.id);
@@ -128,6 +179,7 @@ function FoodRow({
   };
   const remove = async () => {
     await supabase.from("event_items").delete().eq("id", item.id);
+    if (user) logActivity(eventId, user.id, `removed menu item "${item.title}"`);
   };
   const toggleTag = (tag: string) => {
     const cur = new Set(meta.dietary ?? []);

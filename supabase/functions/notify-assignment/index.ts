@@ -1,19 +1,15 @@
 // Supabase Edge Function: notify-assignment
-// Sends an email via Resend when an event_items row gets a new assignee.
-// Triggered by the `notify_item_assignment` Postgres trigger (see migrations).
+// Email (Resend) + Web Push when an event_items row gets a new assignee.
 //
-// Required environment (set with `supabase secrets set ...`):
-//   RESEND_API_KEY   – your Resend API key
-//   FROM_EMAIL       – verified sender address (e.g. "Party Planner <hi@yourdomain.com>")
-//   APP_URL          – public URL of the app (e.g. "https://party-planner.vercel.app"), used in links
-//
-// The function uses the auto-injected SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
-// to fetch profile + event metadata.
+// Secrets: RESEND_API_KEY, FROM_EMAIL, APP_URL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
+// (VAPID keys from: npx web-push generate-vapid-keys — use the same pair in VITE_VAPID_PUBLIC_KEY on the client)
 
-// @ts-expect-error Deno-specific imports resolved at runtime in the Edge runtime.
+// @ts-expect-error Deno
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-// @ts-expect-error Deno-specific imports resolved at runtime in the Edge runtime.
+// @ts-expect-error Deno
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+// @ts-expect-error Deno npm specifier
+import webpush from "npm:web-push@3.6.7";
 
 interface AssignmentPayload {
   item_id: string;
@@ -25,7 +21,6 @@ interface AssignmentPayload {
   due_at: string | null;
 }
 
-// Deno globals declared for editor type-checking convenience.
 declare const Deno: { env: { get(name: string): string | undefined } };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -33,12 +28,14 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "Party Planner <onboarding@resend.dev>";
 const APP_URL = Deno.env.get("APP_URL") ?? "https://party-planner.vercel.app";
+const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY");
+const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY");
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
 async function sendEmail(to: string, subject: string, html: string) {
   if (!RESEND_API_KEY) {
-    console.warn("[notify-assignment] RESEND_API_KEY not set; skipping email send.");
+    console.warn("[notify-assignment] RESEND_API_KEY not set; skipping email.");
     return { skipped: true } as const;
   }
   const res = await fetch("https://api.resend.com/emails", {
@@ -54,6 +51,38 @@ async function sendEmail(to: string, subject: string, html: string) {
     throw new Error(`Resend API error ${res.status}: ${text}`);
   }
   return await res.json();
+}
+
+async function sendWebPushes(assigneeId: string, payload: { title: string; body: string; url: string }) {
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
+    console.warn("[notify-assignment] VAPID keys not set; skipping web push.");
+    return 0;
+  }
+  webpush.setVapidDetails("mailto:hi@partyplanner.local", VAPID_PUBLIC, VAPID_PRIVATE);
+
+  const { data: rows } = await supabase
+    .from("web_push_subscriptions")
+    .select("subscription")
+    .eq("user_id", assigneeId);
+
+  const body = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    url: payload.url,
+  });
+
+  let sent = 0;
+  for (const row of rows ?? []) {
+    const sub = (row as { subscription: Record<string, unknown> }).subscription;
+    if (!sub) continue;
+    try {
+      await webpush.sendNotification(sub, body);
+      sent++;
+    } catch (e) {
+      console.error("[notify-assignment] web push failed:", e);
+    }
+  }
+  return sent;
 }
 
 serve(async (req: Request) => {
@@ -81,8 +110,8 @@ serve(async (req: Request) => {
     const event = eventRes.data as { id: string; name: string; starts_at: string | null; cover_emoji: string } | null;
     const assigner = assignerRes.data as { display_name: string | null; email: string | null } | null;
 
-    if (!assignee?.email) {
-      return new Response(JSON.stringify({ skipped: "no assignee email" }), {
+    if (!assignee) {
+      return new Response(JSON.stringify({ skipped: "no assignee profile" }), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -110,13 +139,18 @@ serve(async (req: Request) => {
   </div>
 </body></html>`;
 
-    const result = await sendEmail(
-      assignee.email,
-      `New task: ${payload.title}`,
-      html
-    );
+    let emailResult: unknown = { skipped: true };
+    if (assignee.email) {
+      emailResult = await sendEmail(assignee.email, `New task: ${payload.title}`, html);
+    }
 
-    return new Response(JSON.stringify({ ok: true, result }), {
+    const pushCount = await sendWebPushes(payload.assignee_id, {
+      title: "New task assigned",
+      body: `${assignerName}: ${payload.title}`,
+      url: `/events/${payload.event_id}`,
+    });
+
+    return new Response(JSON.stringify({ ok: true, email: emailResult, webPushSent: pushCount }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {

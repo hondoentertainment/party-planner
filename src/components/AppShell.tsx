@@ -1,6 +1,7 @@
 import { Link, NavLink } from "react-router-dom";
 import { Calendar, Home, LogOut, PartyPopper } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { PushPrompt } from "./PushPrompt";
 import clsx from "clsx";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -81,6 +82,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </header>
+
+      <PushPrompt />
 
       <main className="flex-1">{children}</main>
     </div>

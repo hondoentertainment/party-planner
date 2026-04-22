@@ -26,11 +26,17 @@ from menu to music, and work together in real-time. Integrates with
 - **Assignments** — assign any item to any team member
 - **Activity feed** — see who did what, in real-time
 - **Email notifications** — Resend-powered emails when you're assigned a task
+- **Web push (optional)** — browser notifications for assignments; uses the same VAPID key pair as the Edge function (see [OPERATIONS.md](./OPERATIONS.md))
 - **Templates & duplicate** — start from BBQ / Birthday / Cocktail / Holiday Dinner, or clone an existing event
 - **Drag-and-drop ordering** — reorder timeline tasks, music tracks, shopping items
 - **Per-category progress** — see how each area is going on the overview
 - **Budgets** — set a budget; track shopping spend vs estimate
-- **Mobile-first** — bottom-tab navigation on phones, optimistic UI, large touch targets
+- **Mobile-first** — bottom-tab navigation on phones, optimistic UI, swipe-to-delete on checklist rows, large touch targets
+- **PWA** — installable, precached shell for faster loads (see `vite.config.ts`)
+- **Sentry (optional)** — set `VITE_SENTRY_DSN` for client error monitoring
+- **CI** — GitHub Actions runs build + Playwright smoke test (`e2e/smoke.spec.ts`)
+
+**Production / ops:** migrations order, custom domain, backups, and secrets are documented in [OPERATIONS.md](./OPERATIONS.md).
 
 ## Stack
 
@@ -131,15 +137,19 @@ emails.
    ```bash
    supabase functions deploy notify-assignment
    ```
-5. **Set its secrets**:
+5. **Set its secrets** (add VAPID lines only if you use **web push**; generate keys
+   with `npx web-push generate-vapid-keys` and put the **public** key in
+   `VITE_VAPID_PUBLIC_KEY` on Vercel):
    ```bash
    supabase secrets set \
      RESEND_API_KEY=re_xxxxx \
      FROM_EMAIL='Party Planner <hi@yourdomain.com>' \
-     APP_URL=https://your-app.vercel.app
+     APP_URL=https://your-app.vercel.app \
+     VAPID_PUBLIC_KEY=xxxxx \
+     VAPID_PRIVATE_KEY=xxxxx
    ```
-6. **Run the second migration** (`supabase/migrations/0002_notifications.sql`)
-   in the SQL editor. It creates the trigger that calls the function.
+6. **Run migrations** `0002_notifications.sql` and, for web push subscriptions,
+   `0003_web_push.sql`, in the SQL editor (see [OPERATIONS.md](./OPERATIONS.md)).
 7. **Set the two custom GUCs** in the SQL editor (one-time, replace placeholders):
    ```sql
    alter database postgres set "app.functions_url" = 'https://<project-ref>.supabase.co/functions/v1';

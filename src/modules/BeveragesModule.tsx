@@ -4,6 +4,7 @@ import type { EventItem, EventRow } from "../lib/database.types";
 import { useEventItems, useEventMembers } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { logActivity } from "../lib/activity";
 import { AssigneePicker } from "./ChecklistModule";
 
 const TYPES = [
@@ -33,10 +34,12 @@ export function BeveragesModule({ event }: { event: EventRow }) {
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !user) return;
-    await supabase.from("event_items").insert({
+    const title = newTitle.trim();
+    setNewTitle("");
+    const { error } = await supabase.from("event_items").insert({
       event_id: event.id,
       kind: "beverage",
-      title: newTitle.trim(),
+      title,
       created_by: user.id,
       meta: {
         type,
@@ -45,7 +48,7 @@ export function BeveragesModule({ event }: { event: EventRow }) {
         alcoholic: type !== "non_alc" && type !== "coffee",
       } as BevMeta,
     });
-    setNewTitle("");
+    if (!error) logActivity(event.id, user.id, `added beverage "${title}"`);
   };
 
   return (
@@ -91,7 +94,7 @@ export function BeveragesModule({ event }: { event: EventRow }) {
             </div>
             <ul className="space-y-2">
               {list.map((item) => (
-                <BevRow key={item.id} item={item} members={members} />
+                <BevRow key={item.id} item={item} eventId={event.id} members={members} />
               ))}
             </ul>
           </div>
@@ -109,11 +112,14 @@ export function BeveragesModule({ event }: { event: EventRow }) {
 
 function BevRow({
   item,
+  eventId,
   members,
 }: {
   item: EventItem;
+  eventId: string;
   members: ReturnType<typeof useEventMembers>;
 }) {
+  const { user } = useAuth();
   const meta = (item.meta as BevMeta) ?? {};
   const update = async (patch: Partial<EventItem>) => {
     await supabase.from("event_items").update(patch).eq("id", item.id);
@@ -123,6 +129,7 @@ function BevRow({
   };
   const remove = async () => {
     await supabase.from("event_items").delete().eq("id", item.id);
+    if (user) logActivity(eventId, user.id, `removed beverage "${item.title}"`);
   };
   const assignee = members.find((m) => m.id === item.assignee_id);
 

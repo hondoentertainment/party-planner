@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import type { EventItem, EventRow } from "./database.types";
+import { logActivity } from "./activity";
 
 /**
  * Duplicates an event the current user has access to. Copies all event_items
@@ -58,6 +59,12 @@ export async function duplicateEvent(
     }));
     await supabase.from("event_items").insert(rows);
   }
+
+  void logActivity(
+    newId,
+    ownerId,
+    `duplicated "${source.name}" as "${newName ?? `${source.name} (copy)`}"`
+  );
 
   return newId;
 }

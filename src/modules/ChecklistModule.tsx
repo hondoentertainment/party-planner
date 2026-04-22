@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
 import { useDebouncedSave } from "../lib/useDebouncedSave";
 import { logActivity } from "../lib/activity";
+import { SwipeableRow } from "../components/SwipeableRow";
 import { format, parseISO } from "date-fns";
 
 export type ChecklistField = "due" | "assignee" | "notes" | "status_chip";
@@ -193,7 +194,9 @@ function ChecklistRow({
   const assignee = members.find((m) => m.id === item.assignee_id);
 
   return (
-    <li className="card overflow-hidden">
+    <li className="list-none">
+      <SwipeableRow onDelete={remove} deleteLabel="Delete item">
+        <div className="card overflow-hidden">
       <div className="flex items-start gap-2 p-3">
         <GripVertical size={16} className="text-slate-300 mt-1 hidden sm:block" />
         <button onClick={cycleStatus} className="mt-0.5 flex-shrink-0" title={item.status}>
@@ -288,6 +291,8 @@ function ChecklistRow({
           )}
         </div>
       )}
+        </div>
+      </SwipeableRow>
     </li>
   );
 }
