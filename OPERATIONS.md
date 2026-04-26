@@ -7,6 +7,7 @@ This document covers **production** setup beyond local development: database mig
 1. Open your Supabase project → **SQL Editor**.
 2. In order, run the contents of:
    - `supabase/migrations/0001_init.sql` (if you have not already),
+   - `supabase/migrations/0004_collaborator_self_delete.sql` (so collaborators can leave an event)
    - `supabase/migrations/0002_notifications.sql` (assignment email trigger — optional),
    - `supabase/migrations/0003_web_push.sql` (web push subscription storage — optional).
 3. If you use **assignment notifications** (`0002`):
@@ -15,6 +16,18 @@ This document covers **production** setup beyond local development: database mig
 4. Re-check **Table Editor** and **RLS** if anything failed mid-run; migrations use `if not exists` / `drop policy` patterns where possible.
 
 **Tip:** For team workflows, use the Supabase CLI (`supabase db push`) linked to the same project so SQL stays versioned with the repo.
+
+**Verify `0004` (collaborator self-delete) is applied** — in the SQL editor:
+
+```sql
+select policyname
+from pg_policies
+where schemaname = 'public'
+  and tablename = 'event_collaborators'
+  and policyname = 'Collaborators can remove own membership';
+```
+
+If this returns a row, non-owners can use **Leave event** in the app. If it returns nothing, run `0004_collaborator_self_delete.sql`.
 
 ## 2. Custom domain (Vercel)
 
@@ -51,15 +64,18 @@ This document covers **production** setup beyond local development: database mig
 
 ## 7. E2E tests in CI
 
-- GitHub Actions (`.github/workflows/ci.yml`) runs `npm run build` and `npx playwright test`.
-- Optional: add repository secrets `E2E_EMAIL` and `E2E_PASSWORD` for a dedicated test user in your Supabase project so the “signs in” test is not skipped.
+- GitHub Actions (`.github/workflows/ci.yml`) runs **`npm run verify`** (lint, build, Playwright on port 4291 by default) after installing browsers.
+- Add repository secrets `E2E_EMAIL` and `E2E_PASSWORD` for a dedicated test user in your
+  Supabase project so the signed-in tests (dashboard, new event, settings) are not skipped.
+- **Local:** add the same two variables to `.env.local` (read by [playwright.config.ts](playwright.config.ts), not by Vite) and run `npm run verify` or `npm run ci` for a full pre-push check.
 
 ## 8. Checklist: new environment
 
 - [ ] `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in Vercel
-- [ ] Migrations 0001–0003 applied as needed
+- [ ] Migrations 0001, 0004, and 0002–0003 as needed
 - [ ] `VITE_SENTRY_DSN` (optional)
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 - [ ] Resend + Edge `notify-assignment` + GUCs (optional, for email)
 - [ ] `APP_URL` in Edge matches production URL
 - [ ] Custom domain and Resend domain alignment (if using custom email domain)
+- [ ] GitHub Actions secrets `E2E_EMAIL` and `E2E_PASSWORD` (optional, so CI runs signed-in E2E)

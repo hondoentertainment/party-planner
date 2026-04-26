@@ -1,7 +1,8 @@
 /**
- * Hand-maintained Supabase types matching supabase/migrations/0001_init.sql.
- * Keep in sync if you alter columns. Shaped to satisfy @supabase/postgrest-js
- * GenericSchema (Tables/Views/Functions with Relationships arrays).
+ * Hand-maintained Supabase types matching `supabase/migrations/*.sql`.
+ * After changing the schema, run `npm run db:types` (needs SUPABASE_PROJECT_ID
+ * and `npx supabase login`) to refresh `database.types.gen.ts` and merge
+ * into this file. Shaped to satisfy @supabase/postgrest-js GenericSchema.
  */
 
 export type ItemKind =

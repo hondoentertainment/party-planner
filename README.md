@@ -34,7 +34,7 @@ from menu to music, and work together in real-time. Integrates with
 - **Mobile-first** — bottom-tab navigation on phones, optimistic UI, swipe-to-delete on checklist rows, large touch targets
 - **PWA** — installable, precached shell for faster loads (see `vite.config.ts`)
 - **Sentry (optional)** — set `VITE_SENTRY_DSN` for client error monitoring
-- **CI** — GitHub Actions runs build + Playwright smoke test (`e2e/smoke.spec.ts`)
+- **CI** — GitHub Actions runs `npm run verify` (lint, build, Playwright `e2e/smoke.spec.ts`)
 
 **Production / ops:** migrations order, custom domain, backups, and secrets are documented in [OPERATIONS.md](./OPERATIONS.md).
 
@@ -49,10 +49,11 @@ from menu to music, and work together in real-time. Integrates with
 ### 1. Create a Supabase project
 
 1. Go to [supabase.com](https://supabase.com) and create a free project.
-2. In the SQL editor, paste and run the contents of
-   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
-   This sets up tables, row-level-security policies, the auto-profile trigger,
-   and the `invite_collaborator` RPC.
+2. In the SQL editor, paste and run the contents of the migration files **in order**:
+   [`0001_init.sql`](supabase/migrations/0001_init.sql) (required), then
+   [`0004_collaborator_self_delete.sql`](supabase/migrations/0004_collaborator_self_delete.sql)
+   so invited collaborators can **leave** an event. Optional: `0002_notifications.sql`,
+   `0003_web_push.sql` (see [OPERATIONS.md](./OPERATIONS.md)).
 3. (Optional but recommended) In **Authentication → Providers**, leave the
    default email/password provider on. If you'd like magic links to work
    reliably for testing, also disable "Confirm email" in
@@ -65,6 +66,38 @@ from menu to music, and work together in real-time. Integrates with
    - `https://yourapp.vercel.app/update-password`
    - `http://localhost:5173/update-password` (local dev)  
    Users can request a reset from **Sign in** → *Forgot password?* or `/forgot`.
+
+6. **Preview URLs (Vercel, etc.):** add every origin you use for sign-in and
+   password links (e.g. `https://my-app-*.vercel.app` if allowed) to
+   **Redirect URLs**; otherwise email links can fail on previews.
+
+### E2E and CI (optional)
+
+- In GitHub: **Settings → Secrets and variables → Actions**, add:
+  - `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (same as local / Vercel) so
+    the **CI build** is configured — otherwise the app shows the setup screen
+    and sign-in E2E cannot run.
+  - `E2E_EMAIL` and `E2E_PASSWORD` for a dedicated test user in that same project.
+- Create a user in **Authentication → Users** and use a strong random password
+  the repo only sees via secrets.
+- **Local** `npm run test:e2e` starts a preview on port **4291** by default (see
+  `playwright.config.ts`); set `PW_PREVIEW_PORT` or `PLAYWRIGHT_BASE_URL` to override. Use
+  `PW_REUSE_DEV_SERVER=1` if you want Playwright to attach to an already running preview
+  on that port.
+- Run **`npm run verify`** (alias **`npm run ci`**) before pushing: `lint` + `build` + `test:e2e`
+  — the same as [GitHub Actions](.github/workflows/ci.yml) with optional repo secrets. Playwright
+  reads `E2E_EMAIL` and `E2E_PASSWORD` from **`.env.local`** (see
+  [playwright.config.ts](playwright.config.ts)) so you do not need to export them manually.
+
+### Refreshing TypeScript DB types (optional)
+
+- Set `SUPABASE_PROJECT_ID` in `.env.local` to your project **Reference ID**
+  ( **Project Settings → General** ) and run `npx supabase login` once.
+- Run `npm run db:types` to write `src/lib/database.types.gen.ts` (gitignored);
+  diff it against [`src/lib/database.types.ts`](src/lib/database.types.ts) and
+  merge column changes as needed.
+- After running SQL migrations, use the **verify** query in [OPERATIONS.md](./OPERATIONS.md)
+  to confirm `0004` (leave event) is active if you use that feature.
 
 ### 2. Local development
 
@@ -177,8 +210,11 @@ A single `event_items` table powers all category modules, distinguished by a
 fields live in a `meta jsonb` column. This lets the schema stay tiny and
 makes adding new categories trivial.
 
-See [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
-for the full schema, RLS policies, and helper functions.
+Start with [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
+for the full schema, RLS policies, and helper functions, then apply any later
+`0002`–`0004` files as described in [OPERATIONS.md](./OPERATIONS.md). From
+**Settings & Team**, owners manage collaborators; non-owners with access can
+**Leave event** and download an **.ics** calendar file for the party.
 
 ## Project layout
 

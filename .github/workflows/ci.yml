@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build-and-e2e:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,11 +16,13 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci --legacy-peer-deps
-      - run: npm run build
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
-      - name: Run E2E smoke
-        run: npx playwright test
+      - name: Lint, build, and E2E
+        run: npm run verify
         env:
+          # Optional: set in repo secrets so the bundle is Supabase-configured and E2E can sign in.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}

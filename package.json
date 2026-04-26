@@ -8,7 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify": "npm run lint && npm run build && npm run test:e2e",
+    "ci": "npm run verify",
+    "db:types": "node scripts/gen-db-types.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,27 +1,13 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router-dom";
-import { MoreHorizontal } from "lucide-react";
-import {
-  ArrowLeft,
-  CalendarClock,
-  ClipboardList,
-  Cookie,
-  GlassWater,
-  Home as HomeIcon,
-  ListChecks,
-  type LucideIcon,
-  Music,
-  Paintbrush,
-  ShoppingCart,
-  Signpost,
-  Sofa,
-  ToyBrick,
-  Truck,
-  Users,
-} from "lucide-react";
+import { ArrowLeft, MoreHorizontal } from "lucide-react";
 import clsx from "clsx";
 import { useEvent } from "../lib/hooks";
 import { ChecklistModule } from "../modules/ChecklistModule";
+import {
+  EVENT_PAGE_PRIMARY_MOBILE_TABS,
+  EVENT_PAGE_TABS,
+} from "./eventPageTabs";
 
 const Overview = lazy(() => import("../modules/Overview").then((m) => ({ default: m.Overview })));
 const TimelineModule = lazy(() =>
@@ -46,67 +32,70 @@ const GuestModule = lazy(() =>
   import("../modules/GuestModule").then((m) => ({ default: m.GuestModule }))
 );
 
-interface TabDef {
-  to: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-export const TABS: TabDef[] = [
-  { to: "", label: "Overview", icon: HomeIcon },
-  { to: "timeline", label: "Timeline", icon: CalendarClock },
-  { to: "guests", label: "Guests", icon: Users },
-  { to: "food", label: "Food", icon: Cookie },
-  { to: "beverages", label: "Beverages", icon: GlassWater },
-  { to: "shopping", label: "Food Purchasing", icon: ShoppingCart },
-  { to: "logistics", label: "Logistics", icon: Truck },
-  { to: "signs", label: "Signs", icon: Signpost },
-  { to: "games", label: "Games", icon: ToyBrick },
-  { to: "music", label: "Music", icon: Music },
-  { to: "restrooms", label: "Restrooms", icon: ClipboardList },
-  { to: "decorations", label: "Decorations", icon: Paintbrush },
-  { to: "setup", label: "Setup", icon: Sofa },
-  { to: "settings", label: "Settings", icon: ListChecks },
-];
-
-const PRIMARY_MOBILE_TABS: TabDef[] = TABS.filter((t) =>
-  ["", "timeline", "guests", "food", "shopping"].includes(t.to)
-);
-
 export function EventPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const { event, loading } = useEvent(eventId);
   const [moreOpen, setMoreOpen] = useState(false);
   const morePanelRef = useRef<HTMLDivElement>(null);
 
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     if (!moreOpen) return;
+    const trigger = moreTriggerRef.current;
     const t = window.setTimeout(() => {
       const el = morePanelRef.current?.querySelector<HTMLElement>("a, button");
       el?.focus();
     }, 0);
+    const focusableSel =
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         setMoreOpen(false);
+        return;
+      }
+      if (e.key !== "Tab" || !morePanelRef.current) return;
+      const list = Array.from(
+        morePanelRef.current.querySelectorAll<HTMLElement>(focusableSel)
+      ).filter((n) => !n.hasAttribute("disabled"));
+      if (list.length === 0) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     };
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     return () => {
       window.clearTimeout(t);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
+      trigger?.focus();
     };
   }, [moreOpen]);
 
-  if (loading) return <div className="p-6 text-slate-500">Loading event…</div>;
+  if (loading) {
+    return (
+      <div className="p-6 text-slate-500" role="status" aria-live="polite">
+        Loading event…
+      </div>
+    );
+  }
   if (!event)
     return (
       <div className="p-6">
         <Link to="/" className="btn-ghost">
           <ArrowLeft size={16} /> Back to events
         </Link>
-        <div className="card p-8 mt-3 text-center">
-          <p className="text-slate-600">This event doesn't exist or you don't have access.</p>
+        <div className="card p-8 mt-3 text-center" role="region" aria-label="Event unavailable">
+          <h2 className="font-display text-lg font-bold text-slate-800">Event unavailable</h2>
+          <p className="text-slate-600 mt-1">This event does not exist or you do not have access.</p>
         </div>
       </div>
     );
@@ -142,7 +131,7 @@ export function EventPage() {
             className="flex overflow-x-auto gap-1 py-2 scrollbar-thin"
             aria-label="Event sections"
           >
-            {TABS.map((t) => (
+            {EVENT_PAGE_TABS.map((t) => (
               <NavLink
                 key={t.to}
                 to={t.to}
@@ -160,7 +149,13 @@ export function EventPage() {
       </div>
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-24 sm:pb-6">
-        <Suspense fallback={<div className="text-slate-500 text-sm">Loading…</div>}>
+        <Suspense
+          fallback={
+            <div className="text-slate-500 text-sm" role="status" aria-live="polite">
+              Loading…
+            </div>
+          }
+        >
           <Routes>
             <Route index element={<Overview event={event} />} />
             <Route path="timeline" element={<TimelineModule event={event} />} />
@@ -275,10 +270,10 @@ export function EventPage() {
       {/* Mobile bottom tab bar */}
       <nav
         className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] safe-bottom"
-        aria-label="Event sections"
+        aria-label="Event primary sections"
       >
         <div className="grid grid-cols-6">
-          {PRIMARY_MOBILE_TABS.map((t) => (
+          {EVENT_PAGE_PRIMARY_MOBILE_TABS.map((t) => (
             <NavLink
               key={t.to}
               to={t.to}
@@ -296,9 +291,12 @@ export function EventPage() {
           ))}
           <button
             type="button"
+            ref={moreTriggerRef}
             onClick={() => setMoreOpen(true)}
             className="flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium min-h-[56px] text-slate-500 active:bg-slate-100"
             aria-label="More sections"
+            aria-expanded={moreOpen}
+            aria-controls="event-more-sections"
           >
             <MoreHorizontal size={20} />
             <span className="leading-tight">More</span>
@@ -317,16 +315,17 @@ export function EventPage() {
             ref={morePanelRef}
             className="bg-white rounded-t-2xl w-full p-3 pb-6 shadow-xl safe-bottom max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
+            id="event-more-sections"
             role="dialog"
             aria-modal="true"
             aria-labelledby="event-more-title"
           >
             <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3" aria-hidden />
-            <h3 className="font-display font-bold text-base px-2 mb-2" id="event-more-title">
+            <h2 className="font-display font-bold text-base px-2 mb-2" id="event-more-title">
               All sections
-            </h3>
+            </h2>
             <div className="grid grid-cols-3 gap-2">
-              {TABS.map((t) => (
+              {EVENT_PAGE_TABS.map((t) => (
                 <NavLink
                   key={t.to}
                   to={t.to}

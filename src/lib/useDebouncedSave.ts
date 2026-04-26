@@ -20,7 +20,10 @@ export function useDebouncedSave<T>(
   const dirty = useRef(false);
   const timer = useRef<number | null>(null);
   const saveRef = useRef(save);
-  saveRef.current = save;
+
+  useEffect(() => {
+    saveRef.current = save;
+  });
 
   // If remote value changes and we are not editing, sync.
   useEffect(() => {

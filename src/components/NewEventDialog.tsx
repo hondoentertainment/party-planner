@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Sparkles } from "lucide-react";
 import { Modal } from "./Modal";
@@ -24,6 +24,11 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
   const [color, setColor] = useState("#cc38f5");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const nameId = useId();
+  const startsId = useId();
+  const locationId = useId();
+  const themeId = useId();
+  const partifulId = useId();
 
   const pickTemplate = (t: EventTemplate | null) => {
     setTemplate(t);
@@ -140,20 +145,27 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
     <Modal title={template ? `New event — ${template.name}` : "New event"} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="label">Event name</label>
+          <label className="label" htmlFor={nameId}>
+            Event name
+          </label>
           <input
+            id={nameId}
             className="input"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Summer Rooftop Party"
             required
             autoFocus
+            autoComplete="off"
           />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="label">Date & time</label>
+            <label className="label" htmlFor={startsId}>
+              Date & time
+            </label>
             <input
+              id={startsId}
               type="datetime-local"
               className="input"
               value={startsAt}
@@ -161,8 +173,11 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
             />
           </div>
           <div>
-            <label className="label">Location</label>
+            <label className="label" htmlFor={locationId}>
+              Location
+            </label>
             <input
+              id={locationId}
               className="input"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
@@ -171,8 +186,11 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div>
-          <label className="label">Theme (optional)</label>
+          <label className="label" htmlFor={themeId}>
+            Theme (optional)
+          </label>
           <input
+            id={themeId}
             className="input"
             value={theme}
             onChange={(e) => setTheme(e.target.value)}
@@ -180,8 +198,11 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
           />
         </div>
         <div>
-          <label className="label">Partiful event URL (optional)</label>
+          <label className="label" htmlFor={partifulId}>
+            Partiful event URL (optional)
+          </label>
           <input
+            id={partifulId}
             type="url"
             className="input"
             value={partifulUrl}
@@ -230,7 +251,11 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
           </p>
         )}
 
-        {error && <div className="text-sm text-rose-600">{error}</div>}
+        {error && (
+          <div className="text-sm text-rose-600" role="alert">
+            {error}
+          </div>
+        )}
 
         <div className="flex justify-between pt-2">
           <button
@@ -244,7 +269,7 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
             <button type="button" onClick={onClose} className="btn-secondary">
               Cancel
             </button>
-            <button className="btn-primary" disabled={saving}>
+            <button className="btn-primary" disabled={saving} type="submit" aria-busy={saving}>
               {saving && <Loader2 size={16} className="animate-spin" />}
               Create event
             </button>

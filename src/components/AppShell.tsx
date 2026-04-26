@@ -14,16 +14,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-full flex flex-col">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:shadow"
+      >
+        Skip to main content
+      </a>
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg">
-            <span className="w-8 h-8 rounded-lg bg-brand-600 text-white grid place-items-center shadow-pop">
+            <span className="w-8 h-8 rounded-lg bg-brand-600 text-white grid place-items-center shadow-pop" aria-hidden>
               <PartyPopper size={18} />
             </span>
             <span>Party&nbsp;Planner</span>
           </Link>
 
-          <nav className="hidden sm:flex items-center gap-1">
+          <nav className="hidden sm:flex items-center gap-1" aria-label="Main">
             {navItems.map((n) => (
               <NavLink
                 key={n.to}
@@ -63,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="sm:hidden border-t border-slate-100 px-4 py-2 flex items-center gap-1">
+        <nav className="sm:hidden border-t border-slate-100 px-4 py-2 flex items-center gap-1" aria-label="Main">
           {navItems.map((n) => (
             <NavLink
               key={n.to}
@@ -85,7 +91,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <PushPrompt />
 
-      <main className="flex-1">{children}</main>
+      <main id="main-content" className="flex-1" tabIndex={-1}>
+        {children}
+      </main>
     </div>
   );
 }

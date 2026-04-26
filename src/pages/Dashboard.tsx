@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
@@ -38,7 +38,9 @@ export function Dashboard() {
       </div>
 
       {loading ? (
-        <div className="text-slate-500 text-sm">Loading…</div>
+        <div className="text-slate-500 text-sm" role="status" aria-live="polite">
+          Loading…
+        </div>
       ) : upcoming.length === 0 ? (
         <EmptyState onCreate={() => setCreating(true)} />
       ) : (
@@ -64,7 +66,7 @@ export function Dashboard() {
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">{ev.cover_emoji}</span>
                   <div>
-                    <div className="font-semibold">{ev.name}</div>
+                    <h3 className="font-semibold text-base m-0">{ev.name}</h3>
                     <div className="text-xs text-slate-500">{formatEventDate(ev.starts_at)}</div>
                   </div>
                 </div>
@@ -85,6 +87,16 @@ function EventCard({ ev }: { ev: EventRow }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const d = daysUntil(ev.starts_at);
+  const menuId = `ev-actions-${ev.id}`;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   const onDuplicate = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -149,7 +161,11 @@ function EventCard({ ev }: { ev: EventRow }) {
           e.stopPropagation();
           setMenuOpen((v) => !v);
         }}
+        type="button"
         aria-label="Event actions"
+        aria-expanded={menuOpen}
+        aria-controls={menuId}
+        aria-haspopup="true"
         className="absolute top-2 right-2 p-2 rounded-lg bg-white/80 backdrop-blur hover:bg-white text-slate-700 shadow-sm"
       >
         <MoreVertical size={16} />
@@ -160,11 +176,20 @@ function EventCard({ ev }: { ev: EventRow }) {
           <div
             className="fixed inset-0 z-10"
             onClick={() => setMenuOpen(false)}
+            role="presentation"
+            aria-hidden
           />
-          <div className="absolute top-12 right-2 z-20 card p-1 min-w-[160px]">
+          <div
+            id={menuId}
+            role="menu"
+            className="absolute top-12 right-2 z-20 card p-1 min-w-[160px]"
+            aria-label={`Actions for ${ev.name}`}
+          >
             <button
+              type="button"
               onClick={onDuplicate}
               disabled={duplicating}
+              role="menuitem"
               className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
             >
               <Copy size={14} />
@@ -179,7 +204,11 @@ function EventCard({ ev }: { ev: EventRow }) {
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="card p-10 text-center">
+    <div
+      className="card p-10 text-center"
+      role="region"
+      aria-label="Get started with your first event"
+    >
       <div className="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 grid place-items-center mx-auto mb-4">
         <Sparkles size={26} />
       </div>
