@@ -49,11 +49,11 @@ from menu to music, and work together in real-time. Integrates with
 ### 1. Create a Supabase project
 
 1. Go to [supabase.com](https://supabase.com) and create a free project.
-2. In the SQL editor, paste and run the contents of the migration files **in order**:
-   [`0001_init.sql`](supabase/migrations/0001_init.sql) (required), then
+2. Apply migrations **in order** — either paste each file into the SQL editor (see [OPERATIONS.md](./OPERATIONS.md) §1), or use the Supabase CLI: `supabase link --project-ref <ref>` then **`npm run db:push`** from the repo root.
+   Files: [`0001_init.sql`](supabase/migrations/0001_init.sql) (required), then
    [`0004_collaborator_self_delete.sql`](supabase/migrations/0004_collaborator_self_delete.sql)
    so invited collaborators can **leave** an event. Optional: `0002_notifications.sql`,
-   `0003_web_push.sql` (see [OPERATIONS.md](./OPERATIONS.md)).
+   `0003_web_push.sql`, and `0005_notification_settings_fallback.sql` for assignment notification settings when hosted Postgres GUCs cannot be updated from the CLI. Afterward you can run [`supabase/verify_remote.sql`](supabase/verify_remote.sql) in the SQL editor to confirm optional pieces (`pg_net`, notification settings, web push table, `0004` policy).
 3. (Optional but recommended) In **Authentication → Providers**, leave the
    default email/password provider on. If you'd like magic links to work
    reliably for testing, also disable "Confirm email" in
@@ -174,8 +174,9 @@ emails.
 3. **Link your project**: `supabase link --project-ref <your-ref>`.
 4. **Deploy the function**:
    ```bash
-   supabase functions deploy notify-assignment
+   npm run functions:deploy
    ```
+   (equivalent to `supabase functions deploy notify-assignment`).
 5. **Set its secrets** (add VAPID lines only if you use **web push**; generate keys
    with `npx web-push generate-vapid-keys` and put the **public** key in
    `VITE_VAPID_PUBLIC_KEY` on Vercel):
@@ -187,8 +188,10 @@ emails.
      VAPID_PUBLIC_KEY=xxxxx \
      VAPID_PRIVATE_KEY=xxxxx
    ```
+   Optional: `VAPID_SUBJECT=mailto:you@yourdomain.com` (contact URL for Web Push; defaults inside the function if omitted).
 6. **Run migrations** `0002_notifications.sql` and, for web push subscriptions,
    `0003_web_push.sql`, in the SQL editor (see [OPERATIONS.md](./OPERATIONS.md)).
+   `0005_notification_settings_fallback.sql` lets deploy tooling store the same notification settings in a locked-down `private.app_settings` table if custom `app.*` database settings are not available.
 7. **Set the two custom GUCs** in the SQL editor (one-time, replace placeholders):
    ```sql
    alter database postgres set "app.functions_url" = 'https://<project-ref>.supabase.co/functions/v1';
@@ -225,7 +228,8 @@ src/
   modules/         One file per event category (Food, Beverages, …)
   pages/           Top-level routes (Dashboard, Calendar, EventPage, AuthPage)
 supabase/
-  migrations/      SQL migration(s) — run in the Supabase SQL editor
+  migrations/      SQL migrations — `npm run db:push` (after `supabase link`) or SQL editor
+  verify_remote.sql  Read-only checks after deploy (SQL editor)
 ```
 
 ## License

@@ -66,4 +66,25 @@ test.describe("with E2E credentials", () => {
     await expect(page).toHaveURL(/\/settings$/);
     await expect(page.getByRole("heading", { name: /settings & team/i })).toBeVisible();
   });
+
+  test("timeline starter tasks and assign picker (assignment write path)", async ({ page }) => {
+    const email = process.env.E2E_EMAIL!;
+    const stamp = `E2E assign ${Date.now()}`;
+    await page.getByRole("button", { name: /new event/i }).first().click();
+    await page.getByRole("button", { name: /blank event/i }).click();
+    await page.getByLabel(/event name/i).fill(stamp);
+    await page.getByRole("button", { name: /create event/i }).click();
+    await expect(page).toHaveURL(/\/events\/[0-9a-f-]+$/i, { timeout: 25_000 });
+
+    await page.getByRole("link", { name: /^Timeline$/i }).click();
+    await expect(page.getByRole("heading", { name: /^Timeline$/i })).toBeVisible();
+    await page.getByRole("button", { name: /add starter tasks/i }).first().click();
+    await expect(page.getByDisplayValue("Confirm guest list")).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Assign task" }).first().click();
+    await page.getByRole("button", { name: new RegExp(email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).click();
+    await expect(page.getByRole("button", { name: new RegExp(`Assigned to .+`, "i") }).first()).toBeVisible({
+      timeout: 15_000,
+    });
+  });
 });

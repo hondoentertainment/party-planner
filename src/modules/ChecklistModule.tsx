@@ -324,6 +324,9 @@ export function AssigneePicker({
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-xs"
         title={current ? `Assigned to ${current.display_name ?? current.email}` : "Assign"}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={current ? `Assigned to ${current.display_name ?? current.email ?? "member"}` : "Assign task"}
       >
         {current ? (
           <>

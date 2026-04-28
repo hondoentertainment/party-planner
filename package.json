@@ -11,7 +11,10 @@
     "test:e2e": "playwright test",
     "verify": "npm run lint && npm run build && npm run test:e2e",
     "ci": "npm run verify",
-    "db:types": "node scripts/gen-db-types.mjs"
+    "db:push": "npx supabase db push",
+    "db:types": "node scripts/gen-db-types.mjs",
+    "functions:deploy": "npx supabase functions deploy notify-assignment",
+    "functions:serve": "npx supabase functions serve notify-assignment --no-verify-jwt"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

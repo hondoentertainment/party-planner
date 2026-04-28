@@ -1,0 +1,81 @@
+-- Run after migrations / setup (read-only checks).
+-- Safe for production. Also works with: npx supabase db query --linked --file supabase/verify_remote.sql
+
+with checks as (
+  select
+    1 as sort_order,
+    '0004 leave-event policy' as check_name,
+    exists (
+      select 1 from pg_policies
+      where schemaname = 'public'
+        and tablename = 'event_collaborators'
+        and policyname = 'Collaborators can remove own membership'
+    ) as ok,
+    'run 0004_collaborator_self_delete.sql' as fix
+
+  union all
+  select
+    2,
+    '0002 assignment trigger',
+    exists (
+      select 1 from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname = 'event_items'
+        and t.tgname = 'notify_item_assignment'
+        and not t.tgisinternal
+    ),
+    'run 0002_notifications.sql'
+
+  union all
+  select
+    3,
+    'pg_net extension',
+    exists (select 1 from pg_extension where extname = 'pg_net'),
+    'enable pg_net or re-run 0002_notifications.sql'
+
+  union all
+  select
+    4,
+    'notification functions URL',
+    coalesce(current_setting('app.functions_url', true), '') <> ''
+      or exists (
+        select 1 from information_schema.tables
+        where table_schema = 'private' and table_name = 'app_settings'
+      ) and exists (
+        select 1 from private.app_settings
+        where key = 'app.functions_url' and value <> ''
+      ),
+    'set app.functions_url GUC or insert private.app_settings row'
+
+  union all
+  select
+    5,
+    'notification service role key',
+    coalesce(current_setting('app.service_role_key', true), '') <> ''
+      or exists (
+        select 1 from information_schema.tables
+        where table_schema = 'private' and table_name = 'app_settings'
+      ) and exists (
+        select 1 from private.app_settings
+        where key = 'app.service_role_key' and value <> ''
+      ),
+    'set app.service_role_key GUC or insert private.app_settings row'
+
+  union all
+  select
+    6,
+    '0003 web push table',
+    exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'web_push_subscriptions'
+    ),
+    'run 0003_web_push.sql'
+)
+select
+  check_name,
+  case when ok then 'OK' else 'MISSING' end as status,
+  case when ok then null else fix end as next_step
+from checks
+order by sort_order;

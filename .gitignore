@@ -1,3 +1,6 @@
+# Supabase CLI (e.g. `supabase link` — do not commit)
+.supabase/
+
 # Env
 .env
 .env.local

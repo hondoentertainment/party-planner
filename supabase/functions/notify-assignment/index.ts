@@ -2,6 +2,7 @@
 // Email (Resend) + Web Push when an event_items row gets a new assignee.
 //
 // Secrets: RESEND_API_KEY, FROM_EMAIL, APP_URL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
+// Optional: VAPID_SUBJECT — mailto URL for web-push (defaults to mailto:hi@partyplanner.app)
 // (VAPID keys from: npx web-push generate-vapid-keys — use the same pair in VITE_VAPID_PUBLIC_KEY on the client)
 
 // @ts-expect-error Deno
@@ -30,6 +31,9 @@ const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "Party Planner <onboarding@rese
 const APP_URL = Deno.env.get("APP_URL") ?? "https://party-planner.vercel.app";
 const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY");
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY");
+const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:hi@partyplanner.app";
+
+let webPushVapidConfigured = false;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -58,7 +62,10 @@ async function sendWebPushes(assigneeId: string, payload: { title: string; body:
     console.warn("[notify-assignment] VAPID keys not set; skipping web push.");
     return 0;
   }
-  webpush.setVapidDetails("mailto:hi@partyplanner.local", VAPID_PUBLIC, VAPID_PRIVATE);
+  if (!webPushVapidConfigured) {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+    webPushVapidConfigured = true;
+  }
 
   const { data: rows } = await supabase
     .from("web_push_subscriptions")

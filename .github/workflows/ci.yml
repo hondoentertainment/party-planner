@@ -1,5 +1,10 @@
 name: CI
 
+# Repository secrets (Settings → Secrets and variables → Actions), all optional:
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY — real app URL + anon key so the build is not the empty setup screen.
+#   E2E_EMAIL, E2E_PASSWORD — dedicated Auth user; without these, signed-in Playwright tests are skipped.
+# See README "E2E and CI" and OPERATIONS.md §7.
+
 on:
   push:
     branches: [main]
@@ -21,7 +26,6 @@ jobs:
       - name: Lint, build, and E2E
         run: npm run verify
         env:
-          # Optional: set in repo secrets so the bundle is Supabase-configured and E2E can sign in.
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}

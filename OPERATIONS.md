@@ -4,18 +4,31 @@ This document covers **production** setup beyond local development: database mig
 
 ## 1. Run database migrations in Supabase (production)
 
+### Option A — Supabase CLI (recommended)
+
+1. Install and log in: `npm i -g supabase` then `supabase login`.
+2. From the repo root: `supabase link --project-ref <your-project-ref>`.
+3. Apply migrations: `npm run db:push` (runs `supabase db push` using `supabase/migrations/`).
+4. Confirm Postgres major version in `supabase/config.toml` (`[db] major_version`) matches your project (**Database → Settings** or `select version();`); adjust if the CLI reports a version mismatch.
+
+### Option B — SQL Editor
+
 1. Open your Supabase project → **SQL Editor**.
 2. In order, run the contents of:
    - `supabase/migrations/0001_init.sql` (if you have not already),
    - `supabase/migrations/0004_collaborator_self_delete.sql` (so collaborators can leave an event)
    - `supabase/migrations/0002_notifications.sql` (assignment email trigger — optional),
-   - `supabase/migrations/0003_web_push.sql` (web push subscription storage — optional).
-3. If you use **assignment notifications** (`0002`):
-   - Enable the **pg_net** extension under **Database → Extensions**.
-   - Configure `app.functions_url` and `app.service_role_key` and deploy the `notify-assignment` Edge Function (see main **README**).
-4. Re-check **Table Editor** and **RLS** if anything failed mid-run; migrations use `if not exists` / `drop policy` patterns where possible.
+   - `supabase/migrations/0003_web_push.sql` (web push subscription storage — optional),
+   - `supabase/migrations/0005_notification_settings_fallback.sql` (optional notification settings fallback for hosted projects where custom `app.*` GUCs cannot be updated from the CLI).
 
-**Tip:** For team workflows, use the Supabase CLI (`supabase db push`) linked to the same project so SQL stays versioned with the repo.
+After either approach, run **`supabase/verify_remote.sql`** in the SQL Editor for a quick read-only checklist (policies, `pg_net`, GUCs, web push table).
+
+If you use **assignment notifications** (`0002`):
+
+- Enable the **pg_net** extension under **Database → Extensions**.
+- Configure `app.functions_url` and `app.service_role_key` and deploy the `notify-assignment` Edge Function (see main **README**). If hosted Postgres rejects custom `app.*` overrides, use `0005_notification_settings_fallback.sql` and populate `private.app_settings`; `supabase/verify_remote.sql` accepts either path.
+
+Re-check **Table Editor** and **RLS** if anything failed mid-run; migrations use `if not exists` / `drop policy` patterns where possible.
 
 **Verify `0004` (collaborator self-delete) is applied** — in the SQL editor:
 
@@ -52,7 +65,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 
 1. Generate VAPID keys: `npx web-push generate-vapid-keys` (or your preferred tool).
 2. **Client:** set `VITE_VAPID_PUBLIC_KEY` in Vercel to the **public** key.
-3. **Server:** in Supabase secrets for the Edge function, set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to the same pair.
+3. **Server:** in Supabase secrets for the Edge function, set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` to the same pair. Optional: `VAPID_SUBJECT` as a `mailto:` contact URL for the Web Push protocol (the function has a default if unset).
 4. Run `0003_web_push.sql` so `web_push_subscriptions` exists.
 5. After deploy, use the in-app **Enable** banner; subscriptions are stored per user.
 
@@ -72,7 +85,8 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 ## 8. Checklist: new environment
 
 - [ ] `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in Vercel
-- [ ] Migrations 0001, 0004, and 0002–0003 as needed
+- [ ] Migrations 0001, 0004, 0002–0003, and 0005 as needed (`npm run db:push` after `supabase link`, or SQL Editor)
+- [ ] Run `supabase/verify_remote.sql` in the SQL Editor once migrations and GUCs are in place
 - [ ] `VITE_SENTRY_DSN` (optional)
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 - [ ] Resend + Edge `notify-assignment` + GUCs (optional, for email)

@@ -31,7 +31,7 @@ npm run db:types   # optional; writes src/lib/database.types.gen.ts
 
 ## Supabase and schema
 
-- SQL lives under `supabase/migrations/` — run in order in the Supabase SQL editor (or `supabase db push`). See [OPERATIONS.md](OPERATIONS.md) for 0001, 0004 (collaborators may **leave** an event), 0002–0003, pg_net, Edge functions, and secrets.
+- SQL lives under `supabase/migrations/` — apply in order via **`npm run db:push`** after `supabase link`, or paste into the SQL editor. Post-deploy checks: `supabase/verify_remote.sql`. See [OPERATIONS.md](OPERATIONS.md) for 0001, 0004 (collaborators may **leave** an event), 0002–0003, 0005 notification settings fallback, pg_net, Edge functions, and secrets.
 - Types: hand-maintained [src/lib/database.types.ts](src/lib/database.types.ts). Run `npm run db:types` (needs `SUPABASE_PROJECT_ID` + `npx supabase login`) to write `database.types.gen.ts` for diffing.
 
 ## Auth
