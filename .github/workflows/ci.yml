@@ -2,7 +2,7 @@ name: CI
 
 # Repository secrets (Settings → Secrets and variables → Actions), all optional:
 #   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY — real app URL + anon key so the build is not the empty setup screen.
-#   E2E_EMAIL, E2E_PASSWORD — dedicated Auth user; without these, signed-in Playwright tests are skipped.
+#   E2E_EMAIL, E2E_PASSWORD, E2E_DISPLAY_NAME — dedicated Auth user; without email/password, signed-in Playwright tests are skipped.
 # See README "E2E and CI" and OPERATIONS.md §7.
 
 on:
@@ -30,3 +30,13 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_DISPLAY_NAME: ${{ secrets.E2E_DISPLAY_NAME }}
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore

@@ -6,12 +6,14 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { TEMPLATES, type EventTemplate } from "../lib/templates";
 import { logActivity } from "../lib/activity";
+import { useUserTemplates } from "../lib/hooks";
 
 const EMOJIS = ["🎉", "🎂", "🍻", "🥂", "🎃", "🎄", "💍", "👶", "🎓", "🌮", "🍕", "🪩", "🌊", "🏕️", "🔥"];
 const COLORS = ["#cc38f5", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#8b5cf6", "#0ea5e9"];
 
 export function NewEventDialog({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
+  const { templates: savedTemplates } = useUserTemplates(user?.id);
   const nav = useNavigate();
   const [step, setStep] = useState<"template" | "details">("template");
   const [template, setTemplate] = useState<EventTemplate | null>(null);
@@ -39,6 +41,23 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
       if (!name) setName(t.name);
     }
     setStep("details");
+  };
+
+  const pickSavedTemplate = (saved: (typeof savedTemplates)[number]) => {
+    pickTemplate({
+      id: saved.id,
+      name: saved.name,
+      emoji: saved.emoji ?? "🎉",
+      color: saved.color ?? "#cc38f5",
+      blurb: saved.description ?? "Saved from one of your events.",
+      items: (saved.items ?? []).map((item) => ({
+        kind: item.kind,
+        title: item.title,
+        phase: item.phase ?? undefined,
+        description: item.description ?? undefined,
+        meta: item.meta ?? {},
+      })),
+    });
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -102,6 +121,32 @@ export function NewEventDialog({ onClose }: { onClose: () => void }) {
           Start from a template — we'll pre-fill the menu, shopping list,
           timeline, and more — or start with a blank canvas.
         </p>
+        {savedTemplates.length > 0 && (
+          <>
+            <h3 className="font-display font-bold text-sm mb-2">Your saved templates</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+              {savedTemplates.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => pickSavedTemplate(t)}
+                  className="card p-4 text-left hover:shadow-pop transition-shadow"
+                >
+                  <div
+                    className="h-14 -mx-4 -mt-4 mb-3 flex items-center justify-center text-3xl rounded-t-xl"
+                    style={{ background: `linear-gradient(135deg, ${(t.color ?? "#cc38f5")}22, ${(t.color ?? "#cc38f5")}55)` }}
+                  >
+                    {t.emoji ?? "🎉"}
+                  </div>
+                  <div className="font-display font-bold">{t.name}</div>
+                  <div className="text-xs text-slate-500 mt-1">{t.description ?? "Saved template"}</div>
+                  <div className="text-xs text-brand-600 mt-2">{(t.items ?? []).length} saved items →</div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <h3 className="font-display font-bold text-sm mb-2">Starter templates</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {TEMPLATES.map((t) => (
             <button

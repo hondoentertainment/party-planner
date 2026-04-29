@@ -1,18 +1,37 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "./supabase";
-import type { EventCollaborator, EventItem, EventRow, ItemKind, Profile } from "./database.types";
+import { useAuth } from "./auth";
+import type {
+  EventBudgetItem,
+  EventCollaborator,
+  EventItem,
+  EventRow,
+  EventShareLink,
+  EventVendor,
+  EventWrapUp,
+  ItemKind,
+  Profile,
+  UserEventTemplate,
+  UserNotification,
+} from "./database.types";
 
 /* ---------- Events list ---------- */
 export function useMyEvents() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const { data } = await supabase
+    setError(null);
+    const { data, error } = await supabase
       .from("events")
       .select("*")
       .order("starts_at", { ascending: true, nullsFirst: false });
-    setEvents(data ?? []);
+    if (error) {
+      setError(error.message);
+    } else {
+      setEvents(data ?? []);
+    }
     setLoading(false);
   }, []);
 
@@ -31,18 +50,28 @@ export function useMyEvents() {
     };
   }, [refresh]);
 
-  return { events, loading, refresh };
+  return { events, loading, error, refresh };
 }
 
 /* ---------- Single event ---------- */
 export function useEvent(eventId: string | undefined) {
   const [event, setEvent] = useState<EventRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!eventId) return;
-    const { data } = await supabase.from("events").select("*").eq("id", eventId).maybeSingle();
-    setEvent(data ?? null);
+    if (!eventId) {
+      setEvent(null);
+      setLoading(false);
+      return;
+    }
+    setError(null);
+    const { data, error } = await supabase.from("events").select("*").eq("id", eventId).maybeSingle();
+    if (error) {
+      setError(error.message);
+    } else {
+      setEvent(data ?? null);
+    }
     setLoading(false);
   }, [eventId]);
 
@@ -62,24 +91,34 @@ export function useEvent(eventId: string | undefined) {
     };
   }, [eventId, refresh]);
 
-  return { event, loading, refresh };
+  return { event, loading, error, refresh };
 }
 
 /* ---------- Items by kind ---------- */
 export function useEventItems(eventId: string | undefined, kind: ItemKind) {
   const [items, setItems] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!eventId) return;
-    const { data } = await supabase
+    if (!eventId) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    setError(null);
+    const { data, error } = await supabase
       .from("event_items")
       .select("*")
       .eq("event_id", eventId)
       .eq("kind", kind)
       .order("position", { ascending: true })
       .order("created_at", { ascending: true });
-    setItems((data ?? []) as EventItem[]);
+    if (error) {
+      setError(error.message);
+    } else {
+      setItems((data ?? []) as EventItem[]);
+    }
     setLoading(false);
   }, [eventId, kind]);
 
@@ -119,7 +158,7 @@ export function useEventItems(eventId: string | undefined, kind: ItemKind) {
     setItems(nextOrder);
   }, []);
 
-  return { items, loading, refresh, optimisticUpdate, optimisticDelete, optimisticReorder };
+  return { items, loading, error, refresh, optimisticUpdate, optimisticDelete, optimisticReorder };
 }
 
 /* ---------- All items (for overview) ---------- */
@@ -225,4 +264,198 @@ export function useEventMembers(eventId: string | undefined, ownerId: string | u
     if (c.profile && !members.find((m) => m.id === c.profile!.id)) members.push(c.profile);
   });
   return members;
+}
+
+export function useEventPermissions(event: EventRow | null | undefined) {
+  const { user } = useAuth();
+  const { collabs } = useCollaborators(event?.id);
+  const currentRole = event?.owner_id === user?.id
+    ? "owner"
+    : collabs.find((c) => c.user_id === user?.id)?.role ?? null;
+  return {
+    role: currentRole,
+    isOwner: currentRole === "owner",
+    canEdit: currentRole === "owner" || currentRole === "editor",
+    canView: !!currentRole,
+  };
+}
+
+export function useNotifications(userId: string | undefined) {
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from("user_notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    setNotifications((data ?? []) as UserNotification[]);
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    refresh();
+    if (!userId) return;
+    const ch = supabase
+      .channel(`notifications-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_notifications", filter: `user_id=eq.${userId}` },
+        () => refresh()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [refresh, userId]);
+
+  const markRead = useCallback(async (id: string) => {
+    const now = new Date().toISOString();
+    setNotifications((rows) => rows.map((n) => (n.id === id ? { ...n, read_at: now } : n)));
+    await supabase.from("user_notifications").update({ read_at: now }).eq("id", id);
+  }, []);
+
+  const markAllRead = useCallback(async () => {
+    if (!userId) return;
+    const now = new Date().toISOString();
+    setNotifications((rows) => rows.map((n) => ({ ...n, read_at: n.read_at ?? now })));
+    await supabase
+      .from("user_notifications")
+      .update({ read_at: now })
+      .eq("user_id", userId)
+      .is("read_at", null);
+  }, [userId]);
+
+  return {
+    notifications,
+    loading,
+    unreadCount: notifications.filter((n) => !n.read_at).length,
+    refresh,
+    markRead,
+    markAllRead,
+  };
+}
+
+function useEventScopedRows<T extends { event_id: string }>(
+  eventId: string | undefined,
+  table: string,
+  orderColumn = "created_at"
+) {
+  const [rows, setRows] = useState<T[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!eventId) return;
+    const { data } = await supabase
+      .from(table)
+      .select("*")
+      .eq("event_id", eventId)
+      .order(orderColumn, { ascending: false });
+    setRows((data ?? []) as T[]);
+    setLoading(false);
+  }, [eventId, orderColumn, table]);
+
+  useEffect(() => {
+    refresh();
+    if (!eventId) return;
+    const ch = supabase
+      .channel(`${table}-${eventId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table, filter: `event_id=eq.${eventId}` },
+        () => refresh()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [eventId, refresh, table]);
+
+  return { rows, loading, refresh };
+}
+
+export function useBudgetItems(eventId: string | undefined) {
+  const { rows, loading, refresh } = useEventScopedRows<EventBudgetItem>(
+    eventId,
+    "event_budget_items",
+    "created_at"
+  );
+  return { items: rows, loading, refresh };
+}
+
+export function useVendors(eventId: string | undefined) {
+  const { rows, loading, refresh } = useEventScopedRows<EventVendor>(
+    eventId,
+    "event_vendors",
+    "created_at"
+  );
+  return { vendors: rows, loading, refresh };
+}
+
+export function useShareLinks(eventId: string | undefined) {
+  const { rows, loading, refresh } = useEventScopedRows<EventShareLink>(
+    eventId,
+    "event_share_links",
+    "created_at"
+  );
+  return { links: rows, loading, refresh };
+}
+
+export function useWrapUp(eventId: string | undefined) {
+  const [wrapUp, setWrapUp] = useState<EventWrapUp | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!eventId) return;
+    const { data } = await supabase
+      .from("event_wrap_ups")
+      .select("*")
+      .eq("event_id", eventId)
+      .maybeSingle();
+    setWrapUp((data ?? null) as EventWrapUp | null);
+    setLoading(false);
+  }, [eventId]);
+
+  useEffect(() => {
+    refresh();
+    if (!eventId) return;
+    const ch = supabase
+      .channel(`wrap-up-${eventId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "event_wrap_ups", filter: `event_id=eq.${eventId}` },
+        () => refresh()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [eventId, refresh]);
+
+  return { wrapUp, loading, refresh };
+}
+
+export function useUserTemplates(userId: string | undefined) {
+  const [templates, setTemplates] = useState<UserEventTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!userId) return;
+    const { data } = await supabase
+      .from("user_event_templates")
+      .select("*")
+      .eq("owner_id", userId)
+      .order("created_at", { ascending: false });
+    setTemplates((data ?? []) as UserEventTemplate[]);
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { templates, loading, refresh };
 }

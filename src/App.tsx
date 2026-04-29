@@ -13,10 +13,16 @@ const EventPage = lazy(() => import("./pages/EventPage").then((m) => ({ default:
 const UpdatePasswordPage = lazy(() =>
   import("./pages/UpdatePasswordPage").then((m) => ({ default: m.UpdatePasswordPage }))
 );
+const PublicEventPage = lazy(() =>
+  import("./pages/PublicEventPage").then((m) => ({ default: m.PublicEventPage }))
+);
 
 const Loading = () => (
-  <div className="h-full flex items-center justify-center text-slate-500 py-16">
-    Loading…
+  <div className="h-full min-h-[18rem] flex items-center justify-center py-16" role="status" aria-live="polite">
+    <div className="card p-5 flex items-center gap-3 text-slate-600 shadow-soft">
+      <span className="h-3 w-3 rounded-full bg-brand-500 animate-pulse" aria-hidden />
+      <span className="text-sm font-medium">Loading your party planner…</span>
+    </div>
   </div>
 );
 
@@ -25,6 +31,17 @@ export function App() {
 
   if (!configured) return <SetupNotice />;
   if (loading) return <Loading />;
+
+  if (window.location.pathname.startsWith("/s/")) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <Routes>
+          <Route path="/s/:token" element={<PublicEventPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    );
+  }
 
   if (user && passwordRecovery) {
     return (

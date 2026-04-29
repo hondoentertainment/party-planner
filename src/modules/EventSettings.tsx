@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarPlus, Loader2, LogOut, Mail, Trash2, UserPlus } from "lucide-react";
+import { CalendarPlus, Copy, Link as LinkIcon, Loader2, LogOut, Mail, Save, Trash2, UserPlus } from "lucide-react";
 import type { CollabRole, EventRow } from "../lib/database.types";
-import { useCollaborators } from "../lib/hooks";
+import { useAllItems, useCollaborators, useEventPermissions, useShareLinks } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { logActivity } from "../lib/activity";
-import { downloadEventIcs } from "../lib/exportIcs";
+import { downloadEventIcs, downloadEventScheduleIcs } from "../lib/exportIcs";
 
 export function EventSettings({ event }: { event: EventRow }) {
   const { collabs } = useCollaborators(event.id);
+  const { items } = useAllItems(event.id);
+  const { links, refresh: refreshLinks } = useShareLinks(event.id);
+  const perms = useEventPermissions(event);
   const { user } = useAuth();
   const nav = useNavigate();
   const [email, setEmail] = useState("");
@@ -21,6 +24,8 @@ export function EventSettings({ event }: { event: EventRow }) {
   const isOwner = user?.id === event.owner_id;
   const isCollaborator = !!(user && collabs.some((c) => c.user_id === user.id));
   const canLeave = !isOwner && isCollaborator;
+  const activeLink = links.find((link) => link.enabled);
+  const publicUrl = activeLink ? `${window.location.origin}/s/${activeLink.token}` : "";
 
   const invite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,12 +109,82 @@ export function EventSettings({ event }: { event: EventRow }) {
     nav("/");
   };
 
+  const createShareLink = async () => {
+    if (!user || !perms.canEdit) return;
+    const { error } = await supabase.rpc("create_event_share_link", {
+      _event_id: event.id,
+      _label: "Public guest page",
+    });
+    if (error) {
+      setMsg({ type: "err", text: error.message });
+      return;
+    }
+    await logActivity(event.id, user.id, "created a public share link");
+    refreshLinks();
+  };
+
+  const revokeShareLink = async () => {
+    if (!activeLink || !perms.canEdit) return;
+    if (!confirm("Revoke this public share link? Anyone with the link will lose access.")) return;
+    const { error } = await supabase
+      .from("event_share_links")
+      .update({ enabled: false, revoked_at: new Date().toISOString() })
+      .eq("id", activeLink.id);
+    if (error) {
+      setMsg({ type: "err", text: error.message });
+      return;
+    }
+    setMsg({ type: "ok", text: "Public share link revoked." });
+    refreshLinks();
+  };
+
+  const copyShareLink = async () => {
+    if (!publicUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setMsg({ type: "ok", text: "Public share link copied." });
+    } catch {
+      setMsg({ type: "err", text: "Clipboard access failed. Select and copy the link manually." });
+    }
+  };
+
+  const saveTemplate = async () => {
+    if (!user || !perms.canEdit) return;
+    const name = window.prompt("Template name", `${event.name} template`);
+    if (!name) return;
+    const templateItems = items.map((item) => ({
+      kind: item.kind,
+      phase: item.phase,
+      title: item.title,
+      description: item.description,
+      meta: item.meta,
+      position: item.position,
+    }));
+    const { error } = await supabase.from("user_event_templates").insert({
+      owner_id: user.id,
+      source_event_id: event.id,
+      name,
+      description: `Saved from ${event.name}`,
+      emoji: event.cover_emoji,
+      color: event.cover_color,
+      items: templateItems,
+    });
+    if (error) {
+      setMsg({ type: "err", text: error.message });
+      return;
+    }
+    setMsg({ type: "ok", text: `Saved "${name}" as a reusable template.` });
+    await logActivity(event.id, user.id, "saved this event as a template");
+  };
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h2 className="font-display text-2xl font-bold">Settings & Team</h2>
         <p className="text-slate-500 text-sm">Invite collaborators to plan together in real-time.</p>
       </div>
+
+      {msg && <SettingsMessage type={msg.type} text={msg.text} />}
 
       <div className="card p-5">
         <h3 className="font-display font-bold mb-3 flex items-center gap-2">
@@ -125,6 +200,55 @@ export function EventSettings({ event }: { event: EventRow }) {
         >
           <CalendarPlus size={16} />
           Download .ics file
+        </button>
+        <button
+          type="button"
+          className="btn-ghost ml-2"
+          onClick={() => downloadEventScheduleIcs(event, items)}
+        >
+          Include task due dates
+        </button>
+      </div>
+
+      <div className="card p-5">
+        <h3 className="font-display font-bold mb-3 flex items-center gap-2">
+          <LinkIcon size={18} className="text-brand-600" /> Public guest page
+        </h3>
+        <p className="text-sm text-slate-600 mb-3">
+          Share a no-login page with the event details, schedule highlights, menu, and Partiful link.
+        </p>
+        {activeLink ? (
+          <div className="space-y-3">
+            <div className="bg-slate-50 rounded-lg p-2 text-xs break-all border border-slate-200">
+              {publicUrl}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button type="button" className="btn-secondary" onClick={() => void copyShareLink()}>
+                <Copy size={16} /> Copy link
+              </button>
+              {perms.canEdit && (
+                <button type="button" className="btn-ghost text-rose-600 border border-rose-200" onClick={() => void revokeShareLink()}>
+                  Revoke
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="btn-primary" disabled={!perms.canEdit} onClick={() => void createShareLink()}>
+            <LinkIcon size={16} /> Create public link
+          </button>
+        )}
+      </div>
+
+      <div className="card p-5">
+        <h3 className="font-display font-bold mb-3 flex items-center gap-2">
+          <Save size={18} className="text-brand-600" /> Reusable template
+        </h3>
+        <p className="text-sm text-slate-600 mb-3">
+          Save this event's checklist, menu, shopping, and planning items as a template for future parties.
+        </p>
+        <button type="button" className="btn-secondary" disabled={!perms.canEdit} onClick={() => void saveTemplate()}>
+          <Save size={16} /> Save event as template
         </button>
       </div>
 
@@ -173,22 +297,6 @@ export function EventSettings({ event }: { event: EventRow }) {
               Invite
             </button>
           </form>
-        )}
-        {msg && (
-          <div
-            role={msg.type === "err" ? "alert" : "status"}
-            aria-live="polite"
-            className={
-              "text-sm mt-2 " +
-              (msg.type === "ok"
-                ? "text-emerald-600"
-                : msg.type === "err"
-                ? "text-rose-600"
-                : "text-slate-600")
-            }
-          >
-            {msg.text}
-          </div>
         )}
         <p className="text-xs text-slate-500 mt-3">
           The user must already have a Party Planner account. Once added, they can edit (or view)
@@ -273,3 +381,18 @@ export function EventSettings({ event }: { event: EventRow }) {
     </div>
   );
 }
+
+function SettingsMessage({ type, text }: { type: "ok" | "err" | "info"; text: string }) {
+  const cls =
+    type === "ok"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : type === "err"
+      ? "border-rose-200 bg-rose-50 text-rose-700"
+      : "border-slate-200 bg-slate-50 text-slate-700";
+  return (
+    <div role={type === "err" ? "alert" : "status"} aria-live="polite" className={`card p-3 text-sm border ${cls}`}>
+      {text}
+    </div>
+  );
+}
+

@@ -1,7 +1,10 @@
 import {
   CalendarClock,
+  Archive,
+  Building2,
   ClipboardList,
   Cookie,
+  DollarSign,
   GlassWater,
   Home as HomeIcon,
   ListChecks,
@@ -29,6 +32,8 @@ export const EVENT_PAGE_TABS: EventTabDef[] = [
   { to: "food", label: "Food", icon: Cookie },
   { to: "beverages", label: "Beverages", icon: GlassWater },
   { to: "shopping", label: "Food Purchasing", icon: ShoppingCart },
+  { to: "budget", label: "Budget", icon: DollarSign },
+  { to: "vendors", label: "Vendors", icon: Building2 },
   { to: "logistics", label: "Logistics", icon: Truck },
   { to: "signs", label: "Signs", icon: Signpost },
   { to: "games", label: "Games", icon: ToyBrick },
@@ -36,6 +41,7 @@ export const EVENT_PAGE_TABS: EventTabDef[] = [
   { to: "restrooms", label: "Restrooms", icon: ClipboardList },
   { to: "decorations", label: "Decorations", icon: Paintbrush },
   { to: "setup", label: "Setup", icon: Sofa },
+  { to: "wrap-up", label: "Wrap-up", icon: Archive },
   { to: "settings", label: "Settings", icon: ListChecks },
 ];
 

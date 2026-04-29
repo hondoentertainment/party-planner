@@ -18,7 +18,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMyEvents } from "../lib/hooks";
 
 export function CalendarPage() {
-  const { events } = useMyEvents();
+  const { events, loading, error, refresh } = useMyEvents();
   const [cursor, setCursor] = useState(new Date());
 
   const weeks = useMemo(() => {
@@ -41,6 +41,20 @@ export function CalendarPage() {
     });
     return map;
   }, [events]);
+
+  const upcoming = useMemo(
+    () =>
+      events
+        .filter((e) => e.starts_at && parseISO(e.starts_at) >= new Date(new Date().setHours(0, 0, 0, 0)))
+        .slice(0, 5),
+    [events]
+  );
+
+  const visibleMonthEventCount = useMemo(
+    () =>
+      events.filter((event) => event.starts_at && isSameMonth(parseISO(event.starts_at), cursor)).length,
+    [cursor, events]
+  );
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
@@ -125,16 +139,41 @@ export function CalendarPage() {
             );
           })}
         </div>
+        {!loading && !error && visibleMonthEventCount === 0 && (
+          <div className="border-t border-slate-100 bg-slate-50/70 p-4 text-sm text-slate-500">
+            No events scheduled in {format(cursor, "MMMM")} yet.
+          </div>
+        )}
       </div>
+
+      {loading && (
+        <div className="card p-4 text-sm text-slate-500" role="status" aria-live="polite">
+          Loading your calendar…
+        </div>
+      )}
+
+      {error && (
+        <div className="card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" role="alert">
+          <div>
+            <h2 className="font-display font-bold text-slate-900">Calendar couldn't load</h2>
+            <p className="text-sm text-slate-500 mt-1">{error}</p>
+          </div>
+          <button type="button" onClick={() => void refresh()} className="btn-secondary">
+            Try again
+          </button>
+        </div>
+      )}
 
       {/* Upcoming list */}
       <div className="space-y-2">
         <h2 className="font-display text-lg font-bold">Upcoming</h2>
         <div className="space-y-2">
-          {events
-            .filter((e) => e.starts_at && parseISO(e.starts_at) >= new Date(new Date().setHours(0, 0, 0, 0)))
-            .slice(0, 5)
-            .map((ev) => (
+          {!loading && !error && upcoming.length === 0 ? (
+            <div className="card p-4 text-sm text-slate-500">
+              No upcoming parties. Create an event when the next plan starts.
+            </div>
+          ) : (
+            upcoming.map((ev) => (
               <Link
                 key={ev.id}
                 to={`/events/${ev.id}`}
@@ -152,7 +191,8 @@ export function CalendarPage() {
                   <span className="chip bg-brand-50 text-brand-700">Today</span>
                 )}
               </Link>
-            ))}
+            ))
+          )}
         </div>
       </div>
     </div>

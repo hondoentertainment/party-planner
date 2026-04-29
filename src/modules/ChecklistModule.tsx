@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Plus, Trash2, GripVertical, CheckCircle2, Circle, Clock, X, User } from "lucide-react";
 import type { EventItem, EventRow, ItemKind, ItemStatus, Profile } from "../lib/database.types";
-import { useEventItems, useEventMembers } from "../lib/hooks";
+import { useEventItems, useEventMembers, useEventPermissions } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
@@ -40,16 +40,18 @@ export function ChecklistModule({
   metaFields = [],
   emptyHint,
 }: Props) {
-  const { items, optimisticUpdate, optimisticDelete } = useEventItems(event.id, kind);
+  const { items, loading, error, refresh, optimisticUpdate, optimisticDelete } = useEventItems(event.id, kind);
   const { user } = useAuth();
+  const perms = useEventPermissions(event);
   const toast = useToast();
   const members = useEventMembers(event.id, event.owner_id);
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
+  const addId = useId();
 
   const addItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !user) return;
+    if (!newTitle.trim() || !user || !perms.canEdit) return;
     setAdding(true);
     const text = newTitle.trim();
     setNewTitle("");
@@ -86,27 +88,50 @@ export function ChecklistModule({
         )}
       </div>
 
-      <form onSubmit={addItem} className="card p-2 flex items-center gap-2">
-        <Plus size={18} className="text-slate-400 ml-2" />
-        <input
-          className="flex-1 bg-transparent border-0 focus:outline-none text-sm py-1.5"
-          placeholder={placeholder}
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-        />
-        <button className="btn-primary py-1.5 px-3 text-xs" disabled={adding || !newTitle.trim()}>
-          Add
-        </button>
-      </form>
+      {perms.canEdit ? (
+        <form onSubmit={addItem} className="card p-2 flex items-center gap-2">
+          <Plus size={18} className="text-slate-400 ml-2" />
+          <label htmlFor={addId} className="sr-only">
+            Add {title.toLowerCase()} item
+          </label>
+          <input
+            id={addId}
+            className="flex-1 bg-transparent border-0 focus:outline-none text-sm py-1.5"
+            placeholder={placeholder}
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+          />
+          <button className="btn-primary py-1.5 px-3 text-xs" disabled={adding || !newTitle.trim()}>
+            Add
+          </button>
+        </form>
+      ) : (
+        <div className="card p-3 text-sm text-slate-500">Viewer access: this list is read-only.</div>
+      )}
 
-      {items.length === 0 && (
+      {loading && (
+        <div className="card p-4 text-sm text-slate-500" role="status" aria-live="polite">
+          Loading {title.toLowerCase()}…
+        </div>
+      )}
+
+      {error && (
+        <div className="card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" role="alert">
+          <p className="text-sm text-slate-600">Couldn't load {title.toLowerCase()}: {error}</p>
+          <button type="button" onClick={() => void refresh()} className="btn-secondary">
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && items.length === 0 && (
         <div className="card p-8 text-center text-slate-500 text-sm">
           {emptyHint ?? `Nothing in ${title.toLowerCase()} yet. Add your first item above.`}
         </div>
       )}
 
       <ul className="space-y-2">
-        {items.map((item) => (
+        {!loading && !error && items.map((item) => (
           <ChecklistRow
             key={item.id}
             item={item}
@@ -114,6 +139,7 @@ export function ChecklistModule({
             fields={fields}
             metaFields={metaFields}
             eventId={event.id}
+            canEdit={perms.canEdit}
             optimisticUpdate={optimisticUpdate}
             optimisticDelete={optimisticDelete}
           />
@@ -129,6 +155,7 @@ function ChecklistRow({
   fields,
   metaFields,
   eventId,
+  canEdit,
   optimisticUpdate,
   optimisticDelete,
 }: {
@@ -137,14 +164,17 @@ function ChecklistRow({
   fields: ChecklistField[];
   metaFields: MetaField[];
   eventId: string;
+  canEdit: boolean;
   optimisticUpdate: (id: string, patch: Partial<EventItem>) => void;
   optimisticDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { user } = useAuth();
   const toast = useToast();
+  const rowId = useId();
 
   const update = async (patch: Partial<EventItem>, opts?: { optimistic?: boolean }) => {
+    if (!canEdit) return;
     if (opts?.optimistic) optimisticUpdate(item.id, patch);
     const { error } = await supabase
       .from("event_items")
@@ -166,6 +196,7 @@ function ChecklistRow({
   );
 
   const cycleStatus = async () => {
+    if (!canEdit) return;
     const order: ItemStatus[] = ["todo", "in_progress", "done"];
     const next = order[(order.indexOf(item.status) + 1) % order.length];
     optimisticUpdate(item.id, { status: next });
@@ -182,6 +213,7 @@ function ChecklistRow({
   };
 
   const remove = async () => {
+    if (!canEdit) return;
     optimisticDelete(item.id);
     const { error } = await supabase.from("event_items").delete().eq("id", item.id);
     if (error) {
@@ -195,11 +227,18 @@ function ChecklistRow({
 
   return (
     <li className="list-none">
-      <SwipeableRow onDelete={remove} deleteLabel="Delete item">
+      <SwipeableRow onDelete={remove} deleteLabel="Delete item" disabled={!canEdit}>
         <div className="card overflow-hidden">
       <div className="flex items-start gap-2 p-3">
         <GripVertical size={16} className="text-slate-300 mt-1 hidden sm:block" />
-        <button onClick={cycleStatus} className="mt-0.5 flex-shrink-0" title={item.status}>
+        <button
+          type="button"
+          onClick={cycleStatus}
+          className="mt-0.5 flex-shrink-0 min-h-[44px] min-w-[44px] grid place-items-center rounded-lg hover:bg-slate-50"
+          title={item.status}
+          disabled={!canEdit}
+          aria-label={`Cycle status for ${item.title} (currently ${formatStatus(item.status)})`}
+        >
           {item.status === "done" ? (
             <CheckCircle2 size={20} className="text-emerald-500" />
           ) : item.status === "in_progress" ? (
@@ -209,11 +248,13 @@ function ChecklistRow({
           )}
         </button>
         <input
+          aria-label={`Title for ${item.title}`}
           className={`flex-1 bg-transparent border-0 focus:outline-none text-sm ${
             item.status === "done" ? "line-through text-slate-400" : ""
           }`}
           value={titleVal}
           onChange={(e) => setTitleVal(e.target.value)}
+          disabled={!canEdit}
         />
         <div className="flex items-center gap-1 flex-wrap">
           {fields.includes("assignee") && (
@@ -221,34 +262,42 @@ function ChecklistRow({
               members={members}
               current={assignee}
               onChange={(id) => update({ assignee_id: id })}
+              disabled={!canEdit}
             />
           )}
           {fields.includes("due") && (
             <input
+              aria-label={`Due date for ${item.title}`}
               type="date"
               className="text-xs px-2 py-1 rounded border border-slate-200 bg-white"
               value={item.due_at ? item.due_at.slice(0, 10) : ""}
               onChange={(e) =>
                 update({ due_at: e.target.value ? new Date(e.target.value).toISOString() : null })
               }
+              disabled={!canEdit}
             />
           )}
           {fields.includes("status_chip") && <StatusChip status={item.status} />}
           <button
+            type="button"
             onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
             className="btn-ghost py-1 px-2 text-xs"
             title="Details"
           >
             {expanded ? "Hide" : "More"}
           </button>
-          <button
-            onClick={remove}
-            aria-label="Delete item"
-            className="btn-ghost text-rose-500 py-1 px-2"
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={remove}
+              aria-label="Delete item"
+              className="btn-ghost text-rose-500 min-h-[44px] min-w-[44px] py-2 px-3"
+              title="Delete"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
       {expanded && (
@@ -257,8 +306,9 @@ function ChecklistRow({
             const value = ((item.meta as Record<string, unknown>)[mf.key] as string | number) ?? "";
             return (
               <div key={mf.key}>
-                <label className="label">{mf.label}</label>
+                <label className="label" htmlFor={`${rowId}-${mf.key}`}>{mf.label}</label>
                 <input
+                  id={`${rowId}-${mf.key}`}
                   type={mf.type ?? "text"}
                   className="input"
                   value={String(value)}
@@ -269,17 +319,20 @@ function ChecklistRow({
                       mf.type === "number" ? Number(e.target.value) || 0 : e.target.value
                     )
                   }
+                  disabled={!canEdit}
                 />
               </div>
             );
           })}
           {fields.includes("notes") && (
             <div>
-              <label className="label">Notes</label>
+              <label className="label" htmlFor={`${rowId}-notes`}>Notes</label>
               <textarea
+                id={`${rowId}-notes`}
                 className="input min-h-[60px]"
                 value={notesVal}
                 onChange={(e) => setNotesVal(e.target.value)}
+                disabled={!canEdit}
                 placeholder="Anything else…"
               />
             </div>
@@ -307,25 +360,56 @@ function StatusChip({ status }: { status: ItemStatus }) {
   return <span className={`chip ${m.cls}`}>{m.label}</span>;
 }
 
+function formatStatus(status: ItemStatus) {
+  if (status === "in_progress") return "In progress";
+  if (status === "done") return "Done";
+  return "Todo";
+}
+
 export function AssigneePicker({
   members,
   current,
   onChange,
+  disabled = false,
 }: {
   members: Profile[];
   current?: Profile;
   onChange: (id: string | null) => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    requestAnimationFrame(() => {
+      panelRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    });
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      trigger?.focus();
+    };
+  }, [open]);
+
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
         className="flex items-center gap-1 px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-xs"
         title={current ? `Assigned to ${current.display_name ?? current.email}` : "Assign"}
         aria-expanded={open}
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
+        aria-controls={panelId}
         aria-label={current ? `Assigned to ${current.display_name ?? current.email ?? "member"}` : "Assign task"}
       >
         {current ? (
@@ -346,8 +430,14 @@ export function AssigneePicker({
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-1 z-20 card p-1 min-w-[180px] max-h-60 overflow-auto">
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
+          <div
+            id={panelId}
+            ref={panelRef}
+            role="dialog"
+            aria-label="Choose assignee"
+            className="absolute right-0 mt-1 z-20 card p-1 min-w-[180px] max-h-60 overflow-auto"
+          >
             {current && (
               <button
                 type="button"

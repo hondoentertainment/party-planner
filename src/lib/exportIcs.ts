@@ -1,4 +1,4 @@
-import type { EventRow } from "./database.types";
+import type { EventItem, EventRow } from "./database.types";
 
 function icsEscape(s: string) {
   return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
@@ -55,6 +55,29 @@ export function buildEventIcs(event: EventRow) {
   return lines.map(foldIcsLine).join("\r\n") + "\r\n";
 }
 
+export function buildEventScheduleIcs(event: EventRow, items: EventItem[]) {
+  const base = buildEventIcs(event).trimEnd().replace("END:VCALENDAR", "");
+  const stamp = formatUtcIcsDate(new Date());
+  const taskEvents = items
+    .filter((item) => item.due_at)
+    .map((item) => {
+      const start = new Date(item.due_at!);
+      const end = new Date(start.getTime() + 30 * 60 * 1000);
+      const lines = [
+        "BEGIN:VEVENT",
+        `UID:${item.id}@party-planner.local`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART:${formatUtcIcsDate(start)}`,
+        `DTEND:${formatUtcIcsDate(end)}`,
+        `SUMMARY:${icsEscape(`Task: ${item.title}`)}`,
+        item.description ? `DESCRIPTION:${icsEscape(item.description)}` : "",
+        "END:VEVENT",
+      ].filter(Boolean);
+      return lines.map(foldIcsLine).join("\r\n");
+    });
+  return [base, ...taskEvents, "END:VCALENDAR"].join("\r\n") + "\r\n";
+}
+
 function formatUtcIcsDate(d: Date) {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -73,11 +96,19 @@ function formatIcsAllDayDate(d: Date) {
 }
 
 export function downloadEventIcs(event: EventRow) {
-  const blob = new Blob([buildEventIcs(event)], { type: "text/calendar;charset=utf-8" });
+  downloadIcsBlob(buildEventIcs(event), event.name);
+}
+
+export function downloadEventScheduleIcs(event: EventRow, items: EventItem[]) {
+  downloadIcsBlob(buildEventScheduleIcs(event, items), `${event.name} schedule`);
+}
+
+function downloadIcsBlob(contents: string, name: string) {
+  const blob = new Blob([contents], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${event.name.replace(/[/\\?%*:|"<>]/g, "-").slice(0, 80) || "event"}.ics`;
+  a.download = `${name.replace(/[/\\?%*:|"<>]/g, "-").slice(0, 80) || "event"}.ics`;
   a.click();
   URL.revokeObjectURL(url);
 }

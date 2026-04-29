@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { Modal } from "./Modal";
 import { supabase } from "../lib/supabase";
@@ -21,6 +21,7 @@ function toLocalDateTime(iso: string | null): string {
 export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: () => void }) {
   const nav = useNavigate();
   const { user } = useAuth();
+  const formId = useId();
   const [name, setName] = useState(event.name);
   const [startsAt, setStartsAt] = useState(toLocalDateTime(event.starts_at));
   const [location, setLocation] = useState(event.location ?? "");
@@ -74,13 +75,14 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
     <Modal title="Edit event" onClose={onClose} maxWidth="max-w-2xl">
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="label">Event name</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
+          <label className="label" htmlFor={`${formId}-name`}>Event name</label>
+          <input id={`${formId}-name`} className="input" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="label">Date & time</label>
+            <label className="label" htmlFor={`${formId}-starts-at`}>Date & time</label>
             <input
+              id={`${formId}-starts-at`}
               type="datetime-local"
               className="input"
               value={startsAt}
@@ -88,8 +90,9 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
             />
           </div>
           <div>
-            <label className="label">Location</label>
+            <label className="label" htmlFor={`${formId}-location`}>Location</label>
             <input
+              id={`${formId}-location`}
               className="input"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
@@ -98,12 +101,13 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="label">Theme</label>
-            <input className="input" value={theme} onChange={(e) => setTheme(e.target.value)} />
+            <label className="label" htmlFor={`${formId}-theme`}>Theme</label>
+            <input id={`${formId}-theme`} className="input" value={theme} onChange={(e) => setTheme(e.target.value)} />
           </div>
           <div>
-            <label className="label">Partiful URL</label>
+            <label className="label" htmlFor={`${formId}-partiful-url`}>Partiful URL</label>
             <input
+              id={`${formId}-partiful-url`}
               type="url"
               className="input"
               value={partifulUrl}
@@ -113,8 +117,9 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
           </div>
         </div>
         <div>
-          <label className="label">Description / notes</label>
+          <label className="label" htmlFor={`${formId}-description`}>Description / notes</label>
           <textarea
+            id={`${formId}-description`}
             className="input min-h-[80px]"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -123,8 +128,9 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="label">RSVP count (from Partiful)</label>
+            <label className="label" htmlFor={`${formId}-rsvp-count`}>RSVP count (from Partiful)</label>
             <input
+              id={`${formId}-rsvp-count`}
               type="number"
               min={0}
               className="input"
@@ -133,8 +139,9 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
             />
           </div>
           <div>
-            <label className="label">Budget</label>
+            <label className="label" htmlFor={`${formId}-budget`}>Budget</label>
             <input
+              id={`${formId}-budget`}
               className="input"
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
@@ -144,13 +151,15 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
         </div>
 
         <div>
-          <label className="label">Cover</label>
+          <div className="label">Cover</div>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {EMOJIS.map((em) => (
               <button
                 type="button"
                 key={em}
                 onClick={() => setEmoji(em)}
+                aria-label={`Use ${em} as cover emoji`}
+                aria-pressed={emoji === em}
                 className={`w-9 h-9 rounded-lg text-xl grid place-items-center border ${
                   emoji === em ? "border-brand-500 bg-brand-50" : "border-slate-200"
                 }`}
@@ -165,6 +174,8 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
                 type="button"
                 key={c}
                 onClick={() => setColor(c)}
+                aria-label={`Use ${c} as cover color`}
+                aria-pressed={color === c}
                 className={`w-7 h-7 rounded-full border-2 ${
                   color === c ? "border-slate-900" : "border-transparent"
                 }`}
@@ -174,8 +185,9 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
           </div>
         </div>
 
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 text-sm" htmlFor={`${formId}-archived`}>
           <input
+            id={`${formId}-archived`}
             type="checkbox"
             checked={archived}
             onChange={(e) => setArchived(e.target.checked)}
@@ -183,7 +195,7 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
           Archive this event
         </label>
 
-        {error && <div className="text-sm text-rose-600">{error}</div>}
+        {error && <div className="text-sm text-rose-600" role="alert">{error}</div>}
 
         <div className="flex justify-between items-center pt-2">
           {canDelete ? (

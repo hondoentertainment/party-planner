@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
@@ -17,7 +17,7 @@ import { duplicateEvent } from "../lib/duplicateEvent";
 import type { EventRow } from "../lib/database.types";
 
 export function Dashboard() {
-  const { events, loading } = useMyEvents();
+  const { events, loading, error, refresh } = useMyEvents();
   const [creating, setCreating] = useState(false);
 
   const upcoming = events.filter((e) => !e.archived);
@@ -38,9 +38,9 @@ export function Dashboard() {
       </div>
 
       {loading ? (
-        <div className="text-slate-500 text-sm" role="status" aria-live="polite">
-          Loading…
-        </div>
+        <EventGridSkeleton />
+      ) : error ? (
+        <LoadError message={error} onRetry={() => void refresh()} />
       ) : upcoming.length === 0 ? (
         <EmptyState onCreate={() => setCreating(true)} />
       ) : (
@@ -86,6 +86,8 @@ function EventCard({ ev }: { ev: EventRow }) {
   const nav = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const d = daysUntil(ev.starts_at);
   const menuId = `ev-actions-${ev.id}`;
 
@@ -96,6 +98,15 @@ function EventCard({ ev }: { ev: EventRow }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const trigger = triggerRef.current;
+    requestAnimationFrame(() => {
+      menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    });
+    return () => trigger?.focus();
   }, [menuOpen]);
 
   const onDuplicate = async (e: React.MouseEvent) => {
@@ -156,6 +167,7 @@ function EventCard({ ev }: { ev: EventRow }) {
       </Link>
 
       <button
+        ref={triggerRef}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -181,6 +193,7 @@ function EventCard({ ev }: { ev: EventRow }) {
           />
           <div
             id={menuId}
+            ref={menuRef}
             role="menu"
             className="absolute top-12 right-2 z-20 card p-1 min-w-[160px]"
             aria-label={`Actions for ${ev.name}`}
@@ -198,6 +211,38 @@ function EventCard({ ev }: { ev: EventRow }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function EventGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" role="status" aria-live="polite">
+      <span className="sr-only">Loading events…</span>
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div key={index} className="card overflow-hidden animate-pulse">
+          <div className="h-24 bg-slate-100" />
+          <div className="p-4 space-y-3">
+            <div className="h-5 bg-slate-100 rounded w-3/4" />
+            <div className="h-4 bg-slate-100 rounded w-1/2" />
+            <div className="h-4 bg-slate-100 rounded w-2/3" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="card p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" role="alert">
+      <div>
+        <h2 className="font-display font-bold text-slate-900">We couldn't load your events</h2>
+        <p className="text-sm text-slate-500 mt-1">{message}</p>
+      </div>
+      <button type="button" onClick={onRetry} className="btn-secondary">
+        Try again
+      </button>
     </div>
   );
 }

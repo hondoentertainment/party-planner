@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'test-results', 'playwright-report']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -31,6 +31,12 @@ export default defineConfig([
     files: ['src/lib/**/*.{ts,tsx}'],
     rules: {
       'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    files: ['e2e/**/*.{ts,tsx}', 'playwright.config.ts'],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ])

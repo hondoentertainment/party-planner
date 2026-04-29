@@ -72,6 +72,75 @@ with checks as (
       where table_schema = 'public' and table_name = 'web_push_subscriptions'
     ),
     'run 0003_web_push.sql'
+
+  union all
+  select
+    7,
+    '0006 feature expansion tables',
+    exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'user_notifications'
+    ) and exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'event_budget_items'
+    ) and exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'event_vendors'
+    ) and exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'user_event_templates'
+    ) and exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'event_share_links'
+    ) and exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'event_wrap_ups'
+    ),
+    'run 0006_feature_expansion_mvp.sql'
+
+  union all
+  select
+    8,
+    'public share RPC',
+    exists (
+      select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'get_public_event_share'
+    ),
+    'run 0006_feature_expansion_mvp.sql'
+
+  union all
+  select
+    9,
+    '0007 server-generated share links',
+    exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'event_share_links'
+        and column_name = 'revoked_at'
+    ) and exists (
+      select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'create_event_share_link'
+    ) and not exists (
+      select 1 from pg_policies
+      where schemaname = 'public'
+        and tablename = 'event_share_links'
+        and policyname = 'Editors can insert share links'
+    ) and exists (
+      select 1 from pg_policies
+      where schemaname = 'public'
+        and tablename = 'event_share_links'
+        and policyname = 'Editors can view share links'
+    ) and not exists (
+      select 1 from pg_policies
+      where schemaname = 'public'
+        and tablename = 'event_share_links'
+        and policyname = 'Members can view share links'
+    ),
+    'run 0007_production_hardening.sql'
 )
 select
   check_name,

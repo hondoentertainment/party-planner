@@ -31,10 +31,19 @@ const EventSettings = lazy(() =>
 const GuestModule = lazy(() =>
   import("../modules/GuestModule").then((m) => ({ default: m.GuestModule }))
 );
+const BudgetModule = lazy(() =>
+  import("../modules/BudgetModule").then((m) => ({ default: m.BudgetModule }))
+);
+const VendorsModule = lazy(() =>
+  import("../modules/VendorsModule").then((m) => ({ default: m.VendorsModule }))
+);
+const WrapUpModule = lazy(() =>
+  import("../modules/WrapUpModule").then((m) => ({ default: m.WrapUpModule }))
+);
 
 export function EventPage() {
   const { eventId } = useParams<{ eventId: string }>();
-  const { event, loading } = useEvent(eventId);
+  const { event, loading, error, refresh } = useEvent(eventId);
   const [moreOpen, setMoreOpen] = useState(false);
   const morePanelRef = useRef<HTMLDivElement>(null);
 
@@ -82,8 +91,29 @@ export function EventPage() {
 
   if (loading) {
     return (
-      <div className="p-6 text-slate-500" role="status" aria-live="polite">
-        Loading event…
+      <div className="p-6" role="status" aria-live="polite">
+        <div className="card p-5 flex items-center gap-3 text-slate-600 shadow-soft max-w-sm">
+          <span className="h-3 w-3 rounded-full bg-brand-500 animate-pulse" aria-hidden />
+          <span className="text-sm font-medium">Loading event workspace…</span>
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-6">
+        <Link to="/" className="btn-ghost">
+          <ArrowLeft size={16} /> Back to events
+        </Link>
+        <div className="card p-8 mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" role="alert">
+          <div>
+            <h2 className="font-display text-lg font-bold text-slate-800">We couldn't load this event</h2>
+            <p className="text-slate-600 mt-1">{error}</p>
+          </div>
+          <button type="button" className="btn-secondary" onClick={() => void refresh()}>
+            Try again
+          </button>
+        </div>
       </div>
     );
   }
@@ -163,6 +193,8 @@ export function EventPage() {
             <Route path="food" element={<FoodModule event={event} />} />
             <Route path="beverages" element={<BeveragesModule event={event} />} />
             <Route path="shopping" element={<ShoppingModule event={event} />} />
+            <Route path="budget" element={<BudgetModule event={event} />} />
+            <Route path="vendors" element={<VendorsModule event={event} />} />
             <Route
               path="logistics"
               element={
@@ -261,6 +293,7 @@ export function EventPage() {
                 />
               }
             />
+            <Route path="wrap-up" element={<WrapUpModule event={event} />} />
             <Route path="settings" element={<EventSettings event={event} />} />
             <Route path="*" element={<Navigate to="" replace />} />
           </Routes>

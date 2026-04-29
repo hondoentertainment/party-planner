@@ -2,6 +2,7 @@ import { Link, NavLink } from "react-router-dom";
 import { Calendar, Home, LogOut, PartyPopper } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { PushPrompt } from "./PushPrompt";
+import { NotificationCenter } from "./NotificationCenter";
 import clsx from "clsx";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -49,6 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
+            <NotificationCenter />
             <div className="hidden sm:flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-xs font-semibold">
                 {(profile?.display_name || profile?.email || "?").slice(0, 1).toUpperCase()}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Plus, Trash2, ShoppingCart, Check, Wallet } from "lucide-react";
 import type { EventItem, EventRow } from "../lib/database.types";
 import { useEventItems, useEventMembers } from "../lib/hooks";
@@ -22,13 +22,14 @@ interface ShopMeta {
 const STORES = ["Costco", "Trader Joe's", "Whole Foods", "Local market", "Liquor store", "Online", "Other"];
 
 export function ShoppingModule({ event }: { event: EventRow }) {
-  const { items, optimisticUpdate, optimisticDelete } = useEventItems(event.id, "shopping");
+  const { items, loading, error, refresh, optimisticUpdate, optimisticDelete } = useEventItems(event.id, "shopping");
   const members = useEventMembers(event.id, event.owner_id);
   const { user } = useAuth();
   const toast = useToast();
   const [newTitle, setNewTitle] = useState("");
   const [store, setStore] = useState("Costco");
   const [filter, setFilter] = useState<"all" | "todo" | "purchased">("all");
+  const addId = useId();
 
   const grouped = useMemo(() => {
     const map = new Map<string, EventItem[]>();
@@ -89,7 +90,11 @@ export function ShoppingModule({ event }: { event: EventRow }) {
       </div>
 
       <form onSubmit={add} className="card p-2 flex items-center gap-2">
+        <label htmlFor={`${addId}-store`} className="sr-only">
+          Store
+        </label>
         <select
+          id={`${addId}-store`}
           value={store}
           onChange={(e) => setStore(e.target.value)}
           className="text-xs bg-slate-100 border-0 rounded px-2 py-1.5"
@@ -101,7 +106,11 @@ export function ShoppingModule({ event }: { event: EventRow }) {
           ))}
         </select>
         <Plus size={16} className="text-slate-400" />
+        <label htmlFor={`${addId}-item`} className="sr-only">
+          Shopping item
+        </label>
         <input
+          id={`${addId}-item`}
           className="flex-1 bg-transparent border-0 focus:outline-none text-sm py-1"
           placeholder="Burger buns, ice, charcoal…"
           value={newTitle}
@@ -114,7 +123,9 @@ export function ShoppingModule({ event }: { event: EventRow }) {
         {(["all", "todo", "purchased"] as const).map((f) => (
           <button
             key={f}
+            type="button"
             onClick={() => setFilter(f)}
+            aria-pressed={filter === f}
             className={`px-2.5 py-1 rounded-full ${
               filter === f ? "bg-brand-100 text-brand-700" : "bg-slate-100 text-slate-600"
             }`}
@@ -124,7 +135,22 @@ export function ShoppingModule({ event }: { event: EventRow }) {
         ))}
       </div>
 
-      {grouped.map(([s, list]) => {
+      {loading && (
+        <div className="card p-4 text-sm text-slate-500" role="status" aria-live="polite">
+          Loading shopping list…
+        </div>
+      )}
+
+      {error && (
+        <div className="card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" role="alert">
+          <p className="text-sm text-slate-600">Couldn't load the shopping list: {error}</p>
+          <button type="button" onClick={() => void refresh()} className="btn-secondary">
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && grouped.map(([s, list]) => {
         const filtered = list.filter((i) =>
           filter === "all" ? true : filter === "todo" ? i.status !== "done" : i.status === "done"
         );
@@ -165,7 +191,7 @@ export function ShoppingModule({ event }: { event: EventRow }) {
         );
       })}
 
-      {items.length === 0 && (
+      {!loading && !error && items.length === 0 && (
         <div className="card p-8 text-center text-slate-500 text-sm">
           Empty shopping list. Add ingredients, drinks, ice, supplies — anything to buy.
         </div>
@@ -198,6 +224,7 @@ function ShopRow({
     await update({ meta: { ...meta, ...m } });
   };
   const [titleVal, setTitleVal] = useDebouncedSave(item.title, (next) => update({ title: next }));
+  const rowId = useId();
   const togglePurchased = async () => {
     const next = item.status === "done" ? "todo" : "done";
     optimisticUpdate(item.id, { status: next });
@@ -223,7 +250,12 @@ function ShopRow({
 
   return (
     <div className="card p-3 flex items-center gap-2 flex-wrap">
-      <button onClick={togglePurchased} aria-label={purchased ? "Mark as to buy" : "Mark as purchased"}>
+      <button
+        type="button"
+        onClick={togglePurchased}
+        aria-label={purchased ? "Mark as to buy" : "Mark as purchased"}
+        className="min-h-[44px] min-w-[44px] grid place-items-center rounded-lg hover:bg-slate-50"
+      >
         <span
           className={`w-5 h-5 rounded grid place-items-center border-2 ${
             purchased ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300"
@@ -233,6 +265,7 @@ function ShopRow({
         </span>
       </button>
       <input
+        aria-label="Shopping item name"
         className={`flex-1 min-w-[140px] bg-transparent border-0 focus:outline-none text-sm font-medium ${
           purchased ? "line-through text-slate-400" : ""
         }`}
@@ -240,6 +273,8 @@ function ShopRow({
         onChange={(e) => setTitleVal(e.target.value)}
       />
       <input
+        id={`${rowId}-qty`}
+        aria-label={`Quantity for ${item.title}`}
         type="number"
         min={0}
         step={0.5}
@@ -249,12 +284,16 @@ function ShopRow({
         onChange={(e) => updateMeta({ qty: Number(e.target.value) || 0 })}
       />
       <input
+        id={`${rowId}-unit`}
+        aria-label={`Unit for ${item.title}`}
         className="w-16 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
         placeholder="unit"
         value={meta.unit ?? ""}
         onChange={(e) => updateMeta({ unit: e.target.value })}
       />
       <input
+        id={`${rowId}-estimated-cost`}
+        aria-label={`Estimated cost for ${item.title}`}
         className="w-24 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
         placeholder="Est. $"
         value={meta.est_cost_cents ? (meta.est_cost_cents / 100).toFixed(2) : ""}
@@ -265,6 +304,8 @@ function ShopRow({
         }
       />
       <input
+        id={`${rowId}-actual-cost`}
+        aria-label={`Actual cost for ${item.title}`}
         className="w-24 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
         placeholder="Actual $"
         value={meta.cost_cents ? (meta.cost_cents / 100).toFixed(2) : ""}
@@ -279,7 +320,12 @@ function ShopRow({
         current={assignee}
         onChange={(id) => update({ assignee_id: id })}
       />
-      <button onClick={remove} aria-label="Delete item" className="btn-ghost text-rose-500 py-1 px-2">
+      <button
+        type="button"
+        onClick={remove}
+        aria-label="Delete item"
+        className="btn-ghost text-rose-500 min-h-[44px] min-w-[44px] py-2 px-3"
+      >
         <Trash2 size={14} />
       </button>
     </div>

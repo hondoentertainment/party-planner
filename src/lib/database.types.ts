@@ -83,6 +83,120 @@ export interface EventActivity {
   created_at: string;
 }
 
+export interface UserNotification {
+  id: string;
+  user_id: string;
+  event_id: string | null;
+  actor_id: string | null;
+  title: string;
+  body: string | null;
+  url: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface EventBudgetItem {
+  id: string;
+  event_id: string;
+  label: string;
+  category: string | null;
+  estimated_cents: number;
+  actual_cents: number;
+  paid_by: string | null;
+  due_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventVendor {
+  id: string;
+  event_id: string;
+  name: string;
+  category: string | null;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  deposit_cents: number;
+  balance_cents: number;
+  due_at: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserEventTemplate {
+  id: string;
+  owner_id: string;
+  source_event_id: string | null;
+  name: string;
+  description: string | null;
+  emoji: string | null;
+  color: string | null;
+  items: TemplateSnapshotItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TemplateSnapshotItem {
+  kind: ItemKind;
+  phase?: Phase | null;
+  title: string;
+  description?: string | null;
+  meta?: Record<string, unknown>;
+  position?: number;
+}
+
+export interface EventShareLink {
+  id: string;
+  event_id: string;
+  token: string;
+  label: string | null;
+  enabled: boolean;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export interface EventWrapUp {
+  event_id: string;
+  summary: string | null;
+  lessons: string | null;
+  final_cost_cents: number;
+  guest_count: number;
+  vendor_rating: number | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicEventShare {
+  event: Pick<
+    EventRow,
+    | "id"
+    | "name"
+    | "description"
+    | "theme"
+    | "starts_at"
+    | "ends_at"
+    | "location"
+    | "partiful_url"
+    | "rsvp_count"
+    | "cover_emoji"
+    | "cover_color"
+  >;
+  items: EventItem[];
+  rsvp_summary: {
+    yes: number;
+    maybe: number;
+    no: number;
+    pending: number;
+  };
+}
+
 export interface Database {
   __InternalSupabase: {
     PostgrestVersion: "12";
@@ -119,6 +233,46 @@ export interface Database {
         Update: Partial<EventActivity>;
         Relationships: [];
       };
+      user_notifications: {
+        Row: UserNotification;
+        Insert: Partial<UserNotification> & { user_id: string; title: string };
+        Update: Partial<UserNotification>;
+        Relationships: [];
+      };
+      event_budget_items: {
+        Row: EventBudgetItem;
+        Insert: Partial<EventBudgetItem> & { event_id: string; label: string };
+        Update: Partial<EventBudgetItem>;
+        Relationships: [];
+      };
+      event_vendors: {
+        Row: EventVendor;
+        Insert: Partial<EventVendor> & { event_id: string; name: string };
+        Update: Partial<EventVendor>;
+        Relationships: [];
+      };
+      user_event_templates: {
+        Row: UserEventTemplate;
+        Insert: Partial<UserEventTemplate> & {
+          owner_id: string;
+          name: string;
+          items?: TemplateSnapshotItem[];
+        };
+        Update: Partial<UserEventTemplate>;
+        Relationships: [];
+      };
+      event_share_links: {
+        Row: EventShareLink;
+        Insert: Partial<EventShareLink> & { event_id: string; token: string };
+        Update: Partial<EventShareLink>;
+        Relationships: [];
+      };
+      event_wrap_ups: {
+        Row: EventWrapUp;
+        Insert: Partial<EventWrapUp> & { event_id: string };
+        Update: Partial<EventWrapUp>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -127,6 +281,14 @@ export interface Database {
         Returns:
           | { status: "added"; user_id: string; display_name: string | null }
           | { status: "pending"; message: string };
+      };
+      get_public_event_share: {
+        Args: { _token: string };
+        Returns: PublicEventShare | null;
+      };
+      create_event_share_link: {
+        Args: { _event_id: string; _label?: string };
+        Returns: EventShareLink;
       };
     };
   };
