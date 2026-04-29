@@ -9,7 +9,7 @@ import { logActivity } from "../lib/activity";
 import { downloadEventIcs, downloadEventScheduleIcs } from "../lib/exportIcs";
 
 export function EventSettings({ event }: { event: EventRow }) {
-  const { collabs } = useCollaborators(event.id);
+  const { collabs, refresh: refreshCollabs } = useCollaborators(event.id);
   const { items } = useAllItems(event.id);
   const { links, refresh: refreshLinks } = useShareLinks(event.id);
   const perms = useEventPermissions(event);
@@ -24,7 +24,7 @@ export function EventSettings({ event }: { event: EventRow }) {
   const isOwner = user?.id === event.owner_id;
   const isCollaborator = !!(user && collabs.some((c) => c.user_id === user.id));
   const canLeave = !isOwner && isCollaborator;
-  const activeLink = links.find((link) => link.enabled);
+  const activeLink = links.find((link) => link.enabled && !link.revoked_at);
   const publicUrl = activeLink ? `${window.location.origin}/s/${activeLink.token}` : "";
 
   const invite = async (e: React.FormEvent) => {
@@ -68,20 +68,33 @@ export function EventSettings({ event }: { event: EventRow }) {
 
   const removeCollab = async (userId: string) => {
     if (!confirm("Remove this collaborator?")) return;
-    await supabase
+    setMsg(null);
+    const { error } = await supabase
       .from("event_collaborators")
       .delete()
       .eq("event_id", event.id)
       .eq("user_id", userId);
+    if (error) {
+      setMsg({ type: "err", text: error.message });
+      return;
+    }
     if (user) void logActivity(event.id, user.id, `removed a collaborator from the team`);
+    void refreshCollabs();
   };
 
   const updateRole = async (userId: string, newRole: CollabRole) => {
-    await supabase
+    setMsg(null);
+    const { error } = await supabase
       .from("event_collaborators")
       .update({ role: newRole })
       .eq("event_id", event.id)
       .eq("user_id", userId);
+    if (error) {
+      setMsg({ type: "err", text: error.message });
+      return;
+    }
+    setMsg({ type: "ok", text: "Team member role updated." });
+    void refreshCollabs();
   };
 
   const leaveEvent = async () => {
@@ -95,7 +108,6 @@ export function EventSettings({ event }: { event: EventRow }) {
     }
     setLeaving(true);
     setMsg(null);
-    await logActivity(event.id, user.id, "left the team");
     const { error } = await supabase
       .from("event_collaborators")
       .delete()
@@ -106,6 +118,7 @@ export function EventSettings({ event }: { event: EventRow }) {
       setMsg({ type: "err", text: error.message });
       return;
     }
+    await logActivity(event.id, user.id, "left the team");
     nav("/");
   };
 
@@ -120,7 +133,7 @@ export function EventSettings({ event }: { event: EventRow }) {
       return;
     }
     await logActivity(event.id, user.id, "created a public share link");
-    refreshLinks();
+    void refreshLinks();
   };
 
   const revokeShareLink = async () => {
@@ -135,7 +148,7 @@ export function EventSettings({ event }: { event: EventRow }) {
       return;
     }
     setMsg({ type: "ok", text: "Public share link revoked." });
-    refreshLinks();
+    void refreshLinks();
   };
 
   const copyShareLink = async () => {

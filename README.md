@@ -50,10 +50,7 @@ from menu to music, and work together in real-time. Integrates with
 
 1. Go to [supabase.com](https://supabase.com) and create a free project.
 2. Apply migrations **in order** — either paste each file into the SQL editor (see [OPERATIONS.md](./OPERATIONS.md) §1), or use the Supabase CLI: `supabase link --project-ref <ref>` then **`npm run db:push`** from the repo root.
-   Files: [`0001_init.sql`](supabase/migrations/0001_init.sql) (required), then
-   [`0004_collaborator_self_delete.sql`](supabase/migrations/0004_collaborator_self_delete.sql)
-   so invited collaborators can **leave** an event. Optional: `0002_notifications.sql`,
-   `0003_web_push.sql`, and `0005_notification_settings_fallback.sql` for assignment notification settings when hosted Postgres GUCs cannot be updated from the CLI. Afterward you can run [`supabase/verify_remote.sql`](supabase/verify_remote.sql) in the SQL editor to confirm optional pieces (`pg_net`, notification settings, web push table, `0004` policy).
+   Files: [`0001_init.sql`](supabase/migrations/0001_init.sql) (base schema), [`0004_collaborator_self_delete.sql`](supabase/migrations/0004_collaborator_self_delete.sql) so invited collaborators can **leave** an event, optional `0002_notifications.sql` / `0003_web_push.sql` / `0005_notification_settings_fallback.sql` for email and push, then `0006_feature_expansion_mvp.sql`, `0007_production_hardening.sql`, and `0008_public_share_details.sql` for MVP tables, server-generated public links, notification hardening, and richer public pages. Afterward run [`supabase/verify_remote.sql`](supabase/verify_remote.sql) in the SQL editor to confirm the production checklist.
 3. (Optional but recommended) In **Authentication → Providers**, leave the
    default email/password provider on. If you'd like magic links to work
    reliably for testing, also disable "Confirm email" in
@@ -97,7 +94,7 @@ from menu to music, and work together in real-time. Integrates with
   diff it against [`src/lib/database.types.ts`](src/lib/database.types.ts) and
   merge column changes as needed.
 - After running SQL migrations, use the **verify** query in [OPERATIONS.md](./OPERATIONS.md)
-  to confirm `0004` (leave event) is active if you use that feature.
+  to confirm required policies, feature tables, public-share functions, and notification triggers are active.
 
 ### 2. Local development
 

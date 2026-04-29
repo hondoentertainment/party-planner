@@ -1,4 +1,4 @@
-import { format, formatDistanceToNow, isThisYear, parseISO } from "date-fns";
+import { differenceInCalendarDays, format, formatDistanceToNow, isThisYear, parseISO } from "date-fns";
 
 export function formatEventDate(iso?: string | null): string {
   if (!iso) return "Date TBD";
@@ -19,8 +19,7 @@ export function relative(iso?: string | null): string {
 
 export function daysUntil(iso?: string | null): number | null {
   if (!iso) return null;
-  const ms = parseISO(iso).getTime() - Date.now();
-  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+  return differenceInCalendarDays(parseISO(iso), new Date());
 }
 
 export function formatMoney(cents: number): string {

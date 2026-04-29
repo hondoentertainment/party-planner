@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Trash2, Cookie, Salad, IceCreamCone, ChefHat, Pizza, Users } from "lucide-react";
 import type { EventItem, EventRow } from "../lib/database.types";
-import { useEventItems, useEventMembers } from "../lib/hooks";
+import { useEventItems, useEventMembers, useEventPermissions } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
@@ -32,12 +32,13 @@ export function FoodModule({ event }: { event: EventRow }) {
   const members = useEventMembers(event.id, event.owner_id);
   const { user } = useAuth();
   const toast = useToast();
+  const perms = useEventPermissions(event);
   const [newTitle, setNewTitle] = useState("");
   const [course, setCourse] = useState<string>("main");
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !user) return;
+    if (!newTitle.trim() || !user || !perms.canEdit) return;
     const title = newTitle.trim();
     setNewTitle("");
     const { error } = await supabase.from("event_items").insert({
@@ -84,6 +85,9 @@ export function FoodModule({ event }: { event: EventRow }) {
           {items.length} items · {totalServings} total servings
         </div>
       </div>
+      {!perms.canEdit && (
+        <div className="card p-3 text-sm text-slate-500">Viewer access: this menu is read-only.</div>
+      )}
 
       {confirmedGuests > 0 && (
         <div
@@ -115,6 +119,7 @@ export function FoodModule({ event }: { event: EventRow }) {
           value={course}
           onChange={(e) => setCourse(e.target.value)}
           className="text-xs bg-slate-100 border-0 rounded px-2 py-1.5"
+          disabled={!perms.canEdit}
         >
           {COURSES.map((c) => (
             <option key={c.key} value={c.key}>
@@ -128,8 +133,11 @@ export function FoodModule({ event }: { event: EventRow }) {
           placeholder="Pulled pork sliders…"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
+          disabled={!perms.canEdit}
         />
-        <button className="btn-primary py-1.5 px-3 text-xs">Add</button>
+        <button className="btn-primary py-1.5 px-3 text-xs" disabled={!perms.canEdit}>
+          Add
+        </button>
       </form>
 
       {COURSES.map((c) => {
@@ -144,7 +152,7 @@ export function FoodModule({ event }: { event: EventRow }) {
             </div>
             <ul className="space-y-2">
               {list.map((item) => (
-                <FoodRow key={item.id} item={item} eventId={event.id} members={members} />
+                <FoodRow key={item.id} item={item} eventId={event.id} members={members} canEdit={perms.canEdit} />
               ))}
             </ul>
           </div>
@@ -164,24 +172,29 @@ function FoodRow({
   item,
   eventId,
   members,
+  canEdit,
 }: {
   item: EventItem;
   eventId: string;
   members: ReturnType<typeof useEventMembers>;
+  canEdit: boolean;
 }) {
   const { user } = useAuth();
   const meta = (item.meta as FoodMeta) ?? {};
   const update = async (patch: Partial<EventItem>) => {
+    if (!canEdit) return;
     await supabase.from("event_items").update(patch).eq("id", item.id);
   };
   const updateMeta = async (m: Partial<FoodMeta>) => {
     await update({ meta: { ...meta, ...m } });
   };
   const remove = async () => {
+    if (!canEdit) return;
     await supabase.from("event_items").delete().eq("id", item.id);
     if (user) logActivity(eventId, user.id, `removed menu item "${item.title}"`);
   };
   const toggleTag = (tag: string) => {
+    if (!canEdit) return;
     const cur = new Set(meta.dietary ?? []);
     if (cur.has(tag)) cur.delete(tag);
     else cur.add(tag);
@@ -196,12 +209,14 @@ function FoodRow({
           className="flex-1 min-w-[160px] bg-transparent border-0 focus:outline-none text-sm font-medium"
           value={item.title}
           onChange={(e) => update({ title: e.target.value })}
+          disabled={!canEdit}
         />
         <div className="flex items-center gap-1.5 text-xs">
           <select
             className="bg-slate-100 border-0 rounded px-2 py-1 text-xs"
             value={meta.course ?? "main"}
             onChange={(e) => updateMeta({ course: e.target.value })}
+            disabled={!canEdit}
           >
             {COURSES.map((c) => (
               <option key={c.key} value={c.key}>
@@ -216,15 +231,19 @@ function FoodRow({
             placeholder="Servings"
             value={meta.servings ?? ""}
             onChange={(e) => updateMeta({ servings: Number(e.target.value) || 0 })}
+            disabled={!canEdit}
           />
           <AssigneePicker
             members={members}
             current={assignee}
             onChange={(id) => update({ assignee_id: id })}
+            disabled={!canEdit}
           />
-          <button onClick={remove} aria-label="Delete menu item" className="btn-ghost text-rose-500 py-1 px-2">
-            <Trash2 size={14} />
-          </button>
+          {canEdit && (
+            <button onClick={remove} aria-label="Delete menu item" className="btn-ghost text-rose-500 py-1 px-2">
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap gap-1 mt-2">
@@ -235,6 +254,7 @@ function FoodRow({
               key={t}
               type="button"
               onClick={() => toggleTag(t)}
+              disabled={!canEdit}
               className={`chip ${
                 on ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
               }`}
@@ -248,6 +268,7 @@ function FoodRow({
           placeholder="Notes / who's bringing"
           value={item.description ?? ""}
           onChange={(e) => update({ description: e.target.value })}
+          disabled={!canEdit}
         />
       </div>
     </li>

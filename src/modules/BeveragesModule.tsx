@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, Trash2, GlassWater, Wine, Coffee, CupSoda, Beer } from "lucide-react";
 import type { EventItem, EventRow } from "../lib/database.types";
-import { useEventItems, useEventMembers } from "../lib/hooks";
+import { useEventItems, useEventMembers, useEventPermissions } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { logActivity } from "../lib/activity";
@@ -28,12 +28,13 @@ export function BeveragesModule({ event }: { event: EventRow }) {
   const { items } = useEventItems(event.id, "beverage");
   const members = useEventMembers(event.id, event.owner_id);
   const { user } = useAuth();
+  const perms = useEventPermissions(event);
   const [newTitle, setNewTitle] = useState("");
   const [type, setType] = useState("non_alc");
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !user) return;
+    if (!newTitle.trim() || !user || !perms.canEdit) return;
     const title = newTitle.trim();
     setNewTitle("");
     const { error } = await supabase.from("event_items").insert({
@@ -59,12 +60,16 @@ export function BeveragesModule({ event }: { event: EventRow }) {
           Cocktails, beer, wine, and non-alcoholic options. Track quantities and ice.
         </p>
       </div>
+      {!perms.canEdit && (
+        <div className="card p-3 text-sm text-slate-500">Viewer access: this drink list is read-only.</div>
+      )}
 
       <form onSubmit={add} className="card p-2 flex items-center gap-2">
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
           className="text-xs bg-slate-100 border-0 rounded px-2 py-1.5"
+          disabled={!perms.canEdit}
         >
           {TYPES.map((t) => (
             <option key={t.key} value={t.key}>
@@ -78,8 +83,11 @@ export function BeveragesModule({ event }: { event: EventRow }) {
           placeholder="Margaritas, IPA, sparkling water…"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
+          disabled={!perms.canEdit}
         />
-        <button className="btn-primary py-1.5 px-3 text-xs">Add</button>
+        <button className="btn-primary py-1.5 px-3 text-xs" disabled={!perms.canEdit}>
+          Add
+        </button>
       </form>
 
       {TYPES.map((t) => {
@@ -94,7 +102,7 @@ export function BeveragesModule({ event }: { event: EventRow }) {
             </div>
             <ul className="space-y-2">
               {list.map((item) => (
-                <BevRow key={item.id} item={item} eventId={event.id} members={members} />
+                <BevRow key={item.id} item={item} eventId={event.id} members={members} canEdit={perms.canEdit} />
               ))}
             </ul>
           </div>
@@ -114,20 +122,24 @@ function BevRow({
   item,
   eventId,
   members,
+  canEdit,
 }: {
   item: EventItem;
   eventId: string;
   members: ReturnType<typeof useEventMembers>;
+  canEdit: boolean;
 }) {
   const { user } = useAuth();
   const meta = (item.meta as BevMeta) ?? {};
   const update = async (patch: Partial<EventItem>) => {
+    if (!canEdit) return;
     await supabase.from("event_items").update(patch).eq("id", item.id);
   };
   const updateMeta = async (m: Partial<BevMeta>) => {
     await update({ meta: { ...meta, ...m } });
   };
   const remove = async () => {
+    if (!canEdit) return;
     await supabase.from("event_items").delete().eq("id", item.id);
     if (user) logActivity(eventId, user.id, `removed beverage "${item.title}"`);
   };
@@ -139,6 +151,7 @@ function BevRow({
         className="flex-1 min-w-[140px] bg-transparent border-0 focus:outline-none text-sm font-medium"
         value={item.title}
         onChange={(e) => update({ title: e.target.value })}
+        disabled={!canEdit}
       />
       <input
         type="number"
@@ -147,18 +160,21 @@ function BevRow({
         className="w-16 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
         value={meta.qty ?? ""}
         onChange={(e) => updateMeta({ qty: Number(e.target.value) || 0 })}
+        disabled={!canEdit}
       />
       <input
         className="w-20 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
         placeholder="unit"
         value={meta.unit ?? ""}
         onChange={(e) => updateMeta({ unit: e.target.value })}
+        disabled={!canEdit}
       />
       <label className="flex items-center gap-1 text-xs">
         <input
           type="checkbox"
           checked={!!meta.alcoholic}
           onChange={(e) => updateMeta({ alcoholic: e.target.checked })}
+          disabled={!canEdit}
         />
         Alc
       </label>
@@ -167,15 +183,19 @@ function BevRow({
         placeholder="Notes (mixers, ice, garnish…)"
         value={item.description ?? ""}
         onChange={(e) => update({ description: e.target.value })}
+        disabled={!canEdit}
       />
       <AssigneePicker
         members={members}
         current={assignee}
         onChange={(id) => update({ assignee_id: id })}
+        disabled={!canEdit}
       />
-      <button onClick={remove} aria-label="Delete beverage" className="btn-ghost text-rose-500 py-1 px-2">
-        <Trash2 size={14} />
-      </button>
+      {canEdit && (
+        <button onClick={remove} aria-label="Delete beverage" className="btn-ghost text-rose-500 py-1 px-2">
+          <Trash2 size={14} />
+        </button>
+      )}
     </li>
   );
 }

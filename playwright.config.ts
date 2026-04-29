@@ -5,7 +5,13 @@ import { defineConfig, devices } from "@playwright/test";
 
 const __root = resolve(dirname(fileURLToPath(import.meta.url)), ".");
 
-const E2E_ENV_KEYS = new Set(["E2E_EMAIL", "E2E_PASSWORD", "E2E_DISPLAY_NAME"]);
+const E2E_ENV_KEYS = new Set([
+  "VITE_SUPABASE_URL",
+  "VITE_SUPABASE_ANON_KEY",
+  "E2E_EMAIL",
+  "E2E_PASSWORD",
+  "E2E_DISPLAY_NAME",
+]);
 
 /** So E2E keys in `.env.local` work for `npx playwright test` without manual export. */
 function loadE2EKeysFromLocalEnv() {

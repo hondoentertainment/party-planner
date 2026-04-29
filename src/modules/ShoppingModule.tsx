@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from "react";
 import { Plus, Trash2, ShoppingCart, Check, Wallet } from "lucide-react";
 import type { EventItem, EventRow } from "../lib/database.types";
-import { useEventItems, useEventMembers } from "../lib/hooks";
+import { useEventItems, useEventMembers, useEventPermissions } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
@@ -26,6 +26,7 @@ export function ShoppingModule({ event }: { event: EventRow }) {
   const members = useEventMembers(event.id, event.owner_id);
   const { user } = useAuth();
   const toast = useToast();
+  const perms = useEventPermissions(event);
   const [newTitle, setNewTitle] = useState("");
   const [store, setStore] = useState("Costco");
   const [filter, setFilter] = useState<"all" | "todo" | "purchased">("all");
@@ -52,7 +53,7 @@ export function ShoppingModule({ event }: { event: EventRow }) {
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !user) return;
+    if (!newTitle.trim() || !user || !perms.canEdit) return;
     const text = newTitle.trim();
     setNewTitle("");
     const { error } = await supabase.from("event_items").insert({
@@ -89,6 +90,10 @@ export function ShoppingModule({ event }: { event: EventRow }) {
         </div>
       </div>
 
+      {!perms.canEdit && (
+        <div className="card p-3 text-sm text-slate-500">Viewer access: this shopping list is read-only.</div>
+      )}
+
       <form onSubmit={add} className="card p-2 flex items-center gap-2">
         <label htmlFor={`${addId}-store`} className="sr-only">
           Store
@@ -98,6 +103,7 @@ export function ShoppingModule({ event }: { event: EventRow }) {
           value={store}
           onChange={(e) => setStore(e.target.value)}
           className="text-xs bg-slate-100 border-0 rounded px-2 py-1.5"
+          disabled={!perms.canEdit}
         >
           {STORES.map((s) => (
             <option key={s} value={s}>
@@ -115,8 +121,11 @@ export function ShoppingModule({ event }: { event: EventRow }) {
           placeholder="Burger buns, ice, charcoal…"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
+          disabled={!perms.canEdit}
         />
-        <button className="btn-primary py-1.5 px-3 text-xs">Add</button>
+        <button className="btn-primary py-1.5 px-3 text-xs" disabled={!perms.canEdit}>
+          Add
+        </button>
       </form>
 
       <div className="flex gap-1 text-xs">
@@ -179,6 +188,7 @@ export function ShoppingModule({ event }: { event: EventRow }) {
                         item={item}
                         members={members}
                         eventId={event.id}
+                        canEdit={perms.canEdit}
                         optimisticUpdate={optimisticUpdate}
                         optimisticDelete={optimisticDelete}
                       />
@@ -204,12 +214,14 @@ function ShopRow({
   item,
   members,
   eventId,
+  canEdit,
   optimisticUpdate,
   optimisticDelete,
 }: {
   item: EventItem;
   members: ReturnType<typeof useEventMembers>;
   eventId: string;
+  canEdit: boolean;
   optimisticUpdate: (id: string, patch: Partial<EventItem>) => void;
   optimisticDelete: (id: string) => void;
 }) {
@@ -217,6 +229,7 @@ function ShopRow({
   const { user } = useAuth();
   const toast = useToast();
   const update = async (patch: Partial<EventItem>) => {
+    if (!canEdit) return;
     const { error } = await supabase.from("event_items").update(patch).eq("id", item.id);
     if (error) toast.error(error.message);
   };
@@ -226,6 +239,7 @@ function ShopRow({
   const [titleVal, setTitleVal] = useDebouncedSave(item.title, (next) => update({ title: next }));
   const rowId = useId();
   const togglePurchased = async () => {
+    if (!canEdit) return;
     const next = item.status === "done" ? "todo" : "done";
     optimisticUpdate(item.id, { status: next });
     const { error } = await supabase.from("event_items").update({ status: next }).eq("id", item.id);
@@ -237,6 +251,7 @@ function ShopRow({
     }
   };
   const remove = async () => {
+    if (!canEdit) return;
     optimisticDelete(item.id);
     const { error } = await supabase.from("event_items").delete().eq("id", item.id);
     if (error) {
@@ -255,6 +270,7 @@ function ShopRow({
         onClick={togglePurchased}
         aria-label={purchased ? "Mark as to buy" : "Mark as purchased"}
         className="min-h-[44px] min-w-[44px] grid place-items-center rounded-lg hover:bg-slate-50"
+        disabled={!canEdit}
       >
         <span
           className={`w-5 h-5 rounded grid place-items-center border-2 ${
@@ -271,6 +287,7 @@ function ShopRow({
         }`}
         value={titleVal}
         onChange={(e) => setTitleVal(e.target.value)}
+        disabled={!canEdit}
       />
       <input
         id={`${rowId}-qty`}
@@ -282,6 +299,7 @@ function ShopRow({
         placeholder="qty"
         value={meta.qty ?? ""}
         onChange={(e) => updateMeta({ qty: Number(e.target.value) || 0 })}
+        disabled={!canEdit}
       />
       <input
         id={`${rowId}-unit`}
@@ -290,6 +308,7 @@ function ShopRow({
         placeholder="unit"
         value={meta.unit ?? ""}
         onChange={(e) => updateMeta({ unit: e.target.value })}
+        disabled={!canEdit}
       />
       <input
         id={`${rowId}-estimated-cost`}
@@ -302,6 +321,7 @@ function ShopRow({
             est_cost_cents: Math.round((Number(e.target.value) || 0) * 100),
           })
         }
+        disabled={!canEdit}
       />
       <input
         id={`${rowId}-actual-cost`}
@@ -314,20 +334,24 @@ function ShopRow({
             cost_cents: Math.round((Number(e.target.value) || 0) * 100),
           })
         }
+        disabled={!canEdit}
       />
       <AssigneePicker
         members={members}
         current={assignee}
         onChange={(id) => update({ assignee_id: id })}
+        disabled={!canEdit}
       />
-      <button
-        type="button"
-        onClick={remove}
-        aria-label="Delete item"
-        className="btn-ghost text-rose-500 min-h-[44px] min-w-[44px] py-2 px-3"
-      >
-        <Trash2 size={14} />
-      </button>
+      {canEdit && (
+        <button
+          type="button"
+          onClick={remove}
+          aria-label="Delete item"
+          className="btn-ghost text-rose-500 min-h-[44px] min-w-[44px] py-2 px-3"
+        >
+          <Trash2 size={14} />
+        </button>
+      )}
     </div>
   );
 }

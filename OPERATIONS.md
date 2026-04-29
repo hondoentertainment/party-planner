@@ -19,9 +19,12 @@ This document covers **production** setup beyond local development: database mig
    - `supabase/migrations/0004_collaborator_self_delete.sql` (so collaborators can leave an event)
    - `supabase/migrations/0002_notifications.sql` (assignment email trigger — optional),
    - `supabase/migrations/0003_web_push.sql` (web push subscription storage — optional),
-   - `supabase/migrations/0005_notification_settings_fallback.sql` (optional notification settings fallback for hosted projects where custom `app.*` GUCs cannot be updated from the CLI).
+   - `supabase/migrations/0005_notification_settings_fallback.sql` (optional notification settings fallback for hosted projects where custom `app.*` GUCs cannot be updated from the CLI),
+   - `supabase/migrations/0006_feature_expansion_mvp.sql` (notifications, budgets, vendors, templates, public share links, and wrap-ups),
+   - `supabase/migrations/0007_production_hardening.sql` (server-generated public links and activity notifications),
+   - `supabase/migrations/0008_public_share_details.sql` (guest-facing schedule, menu, drink, and music details).
 
-After either approach, run **`supabase/verify_remote.sql`** in the SQL Editor for a quick read-only checklist (policies, `pg_net`, GUCs, web push table).
+After either approach, run **`supabase/verify_remote.sql`** in the SQL Editor for a quick read-only checklist (policies, `pg_net`, GUCs, feature tables, public share RPCs, and notification triggers).
 
 If you use **assignment notifications** (`0002`):
 
@@ -81,11 +84,12 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - Add repository secrets `E2E_EMAIL` and `E2E_PASSWORD` for a dedicated test user in your
   Supabase project so the signed-in tests (dashboard, new event, settings) are not skipped.
 - **Local:** add the same two variables to `.env.local` (read by [playwright.config.ts](playwright.config.ts), not by Vite) and run `npm run verify` or `npm run ci` for a full pre-push check.
+- Before promoting a release, also run `supabase/verify_remote.sql` against the target Supabase project and confirm every required row reports `OK`. Optional rows for email/web push may remain `MISSING` only when those features are intentionally disabled.
 
 ## 8. Checklist: new environment
 
 - [ ] `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in Vercel
-- [ ] Migrations 0001, 0004, 0002–0003, and 0005 as needed (`npm run db:push` after `supabase link`, or SQL Editor)
+- [ ] Migrations 0001–0008 applied as needed (`npm run db:push` after `supabase link`, or SQL Editor)
 - [ ] Run `supabase/verify_remote.sql` in the SQL Editor once migrations and GUCs are in place
 - [ ] `VITE_SENTRY_DSN` (optional)
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)

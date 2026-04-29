@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trash2, Music, ExternalLink, ListMusic, Speaker, Mic } from "lucide-react";
 import type { EventItem, EventRow } from "../lib/database.types";
-import { useEventItems, useEventMembers } from "../lib/hooks";
+import { useEventItems, useEventMembers, useEventPermissions } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { logActivity } from "../lib/activity";
@@ -26,6 +26,7 @@ export function MusicModule({ event }: { event: EventRow }) {
   const { items } = useEventItems(event.id, "music");
   const members = useEventMembers(event.id, event.owner_id);
   const { user } = useAuth();
+  const perms = useEventPermissions(event);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [url, setUrl] = useState("");
@@ -41,7 +42,7 @@ export function MusicModule({ event }: { event: EventRow }) {
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !user) return;
+    if (!title.trim() || !user || !perms.canEdit) return;
     const t = title.trim();
     const { error } = await supabase.from("event_items").insert({
       event_id: event.id,
@@ -62,7 +63,7 @@ export function MusicModule({ event }: { event: EventRow }) {
   };
 
   const addPlaylist = async () => {
-    if (!user) return;
+    if (!user || !perms.canEdit) return;
     const name = prompt("Playlist name (e.g. 'Disco vibes')")?.trim();
     if (!name) return;
     const link = prompt("Spotify / Apple Music / YouTube link (optional)")?.trim();
@@ -87,11 +88,14 @@ export function MusicModule({ event }: { event: EventRow }) {
         </div>
         <div className="text-sm text-slate-600 flex items-center gap-3">
           <span>{tracks.length} tracks · ~{Math.round(totalMin)} min</span>
-          <button onClick={addPlaylist} className="btn-secondary text-xs">
+          <button onClick={addPlaylist} className="btn-secondary text-xs" disabled={!perms.canEdit}>
             <ListMusic size={14} /> Add playlist
           </button>
         </div>
       </div>
+      {!perms.canEdit && (
+        <div className="card p-3 text-sm text-slate-500">Viewer access: this music list is read-only.</div>
+      )}
 
       {playlists.length > 0 && (
         <div>
@@ -100,7 +104,7 @@ export function MusicModule({ event }: { event: EventRow }) {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {playlists.map((p) => (
-              <PlaylistCard key={p.id} item={p} eventId={event.id} />
+              <PlaylistCard key={p.id} item={p} eventId={event.id} canEdit={perms.canEdit} />
             ))}
           </div>
         </div>
@@ -112,23 +116,27 @@ export function MusicModule({ event }: { event: EventRow }) {
           placeholder="Track title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          disabled={!perms.canEdit}
         />
         <input
           className="col-span-6 sm:col-span-3 input py-1.5"
           placeholder="Artist"
           value={artist}
           onChange={(e) => setArtist(e.target.value)}
+          disabled={!perms.canEdit}
         />
         <input
           className="col-span-6 sm:col-span-3 input py-1.5"
           placeholder="Link (optional)"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
+          disabled={!perms.canEdit}
         />
         <select
           value={set}
           onChange={(e) => setSet(e.target.value)}
           className="col-span-8 sm:col-span-1 input py-1.5"
+          disabled={!perms.canEdit}
         >
           {SETS.map((s) => (
             <option key={s.key} value={s.key}>
@@ -136,7 +144,9 @@ export function MusicModule({ event }: { event: EventRow }) {
             </option>
           ))}
         </select>
-        <button className="col-span-4 sm:col-span-1 btn-primary py-1.5">Add</button>
+        <button className="col-span-4 sm:col-span-1 btn-primary py-1.5" disabled={!perms.canEdit}>
+          Add
+        </button>
       </form>
 
       {SETS.map((s) => {
@@ -158,7 +168,7 @@ export function MusicModule({ event }: { event: EventRow }) {
                     className="flex items-stretch gap-1"
                   >
                     <div className="flex-1 min-w-0">
-                      <TrackRow item={item} eventId={event.id} members={members} />
+                      <TrackRow item={item} eventId={event.id} members={members} canEdit={perms.canEdit} />
                     </div>
                   </SortableRow>
                 )}
@@ -178,10 +188,11 @@ export function MusicModule({ event }: { event: EventRow }) {
   );
 }
 
-function PlaylistCard({ item, eventId }: { item: EventItem; eventId: string }) {
+function PlaylistCard({ item, eventId, canEdit }: { item: EventItem; eventId: string; canEdit: boolean }) {
   const { user } = useAuth();
   const meta = (item.meta as MusicMeta) ?? {};
   const remove = async () => {
+    if (!canEdit) return;
     if (!confirm("Remove playlist?")) return;
     await supabase.from("event_items").delete().eq("id", item.id);
     if (user) logActivity(eventId, user.id, `removed playlist "${item.title}"`);
@@ -204,9 +215,11 @@ function PlaylistCard({ item, eventId }: { item: EventItem; eventId: string }) {
           </a>
         )}
       </div>
-      <button onClick={remove} className="btn-ghost text-rose-500 py-1 px-2">
-        <Trash2 size={14} />
-      </button>
+      {canEdit && (
+        <button onClick={remove} className="btn-ghost text-rose-500 py-1 px-2">
+          <Trash2 size={14} />
+        </button>
+      )}
     </div>
   );
 }
@@ -215,20 +228,24 @@ function TrackRow({
   item,
   eventId,
   members,
+  canEdit,
 }: {
   item: EventItem;
   eventId: string;
   members: ReturnType<typeof useEventMembers>;
+  canEdit: boolean;
 }) {
   const { user } = useAuth();
   const meta = (item.meta as MusicMeta) ?? {};
   const update = async (patch: Partial<EventItem>) => {
+    if (!canEdit) return;
     await supabase.from("event_items").update(patch).eq("id", item.id);
   };
   const updateMeta = async (m: Partial<MusicMeta>) => {
     await update({ meta: { ...meta, ...m } });
   };
   const remove = async () => {
+    if (!canEdit) return;
     await supabase.from("event_items").delete().eq("id", item.id);
     if (user) logActivity(eventId, user.id, `removed track "${item.title}"`);
   };
@@ -241,17 +258,20 @@ function TrackRow({
         className="flex-1 min-w-[140px] bg-transparent border-0 focus:outline-none text-sm font-medium"
         value={item.title}
         onChange={(e) => update({ title: e.target.value })}
+        disabled={!canEdit}
       />
       <input
         className="w-32 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
         placeholder="Artist"
         value={meta.artist ?? ""}
         onChange={(e) => updateMeta({ artist: e.target.value })}
+        disabled={!canEdit}
       />
       <select
         value={meta.set ?? "main"}
         onChange={(e) => updateMeta({ set: e.target.value })}
         className="bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+        disabled={!canEdit}
       >
         {SETS.map((s) => (
           <option key={s.key} value={s.key}>
@@ -273,10 +293,13 @@ function TrackRow({
         members={members}
         current={assignee}
         onChange={(id) => update({ assignee_id: id })}
+        disabled={!canEdit}
       />
-      <button onClick={remove} aria-label="Delete track" className="btn-ghost text-rose-500 py-1 px-2">
-        <Trash2 size={14} />
-      </button>
+      {canEdit && (
+        <button onClick={remove} aria-label="Delete track" className="btn-ghost text-rose-500 py-1 px-2">
+          <Trash2 size={14} />
+        </button>
+      )}
     </div>
   );
 }

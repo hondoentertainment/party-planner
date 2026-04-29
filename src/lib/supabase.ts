@@ -9,8 +9,8 @@ export const supabaseConfigured = Boolean(url && anonKey);
 // and cast results explicitly where needed. Avoids fighting Supabase's
 // complex generic schema typing for a hand-maintained schema.
 export const supabase = createClient(
-  url ?? "https://placeholder.supabase.co",
-  anonKey ?? "placeholder-anon-key",
+  url || "https://placeholder.supabase.co",
+  anonKey || "placeholder-anon-key",
   {
     auth: { persistSession: true, autoRefreshToken: true },
   }

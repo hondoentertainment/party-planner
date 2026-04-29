@@ -141,6 +141,43 @@ with checks as (
         and policyname = 'Members can view share links'
     ),
     'run 0007_production_hardening.sql'
+
+  union all
+  select
+    10,
+    '0008 public share details',
+    exists (
+      select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'get_public_event_share'
+        and pg_get_functiondef(p.oid) like '%dietary%'
+        and pg_get_functiondef(p.oid) like '%assignee_id'', null%'
+    ),
+    'run 0008_public_share_details.sql'
+
+  union all
+  select
+    11,
+    'activity notification trigger',
+    exists (
+      select 1 from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname = 'event_activity'
+        and t.tgname = 'notify_activity_members'
+        and not t.tgisinternal
+    ) and not exists (
+      select 1 from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname = 'event_activity'
+        and t.tgname = 'create_activity_notifications'
+        and not t.tgisinternal
+    ),
+    'run 0008_public_share_details.sql'
 )
 select
   check_name,

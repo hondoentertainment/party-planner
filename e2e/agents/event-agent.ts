@@ -35,6 +35,13 @@ export class EventAgent {
     await this.page.getByRole("link", { name: new RegExp(`^${escapeRegExp(label)}$`, "i") }).first().click();
   }
 
+  async openMobileMoreSection(label: string) {
+    await this.page.getByRole("button", { name: /more sections/i }).click();
+    await expect(this.page.getByRole("dialog", { name: /all sections/i })).toBeVisible();
+    await this.page.getByRole("link", { name: new RegExp(`^${escapeRegExp(label)}$`, "i") }).click();
+    await expect(this.page.getByRole("dialog", { name: /all sections/i })).toBeHidden();
+  }
+
   async openSettings() {
     await this.openSection("Settings");
     await expect(this.page).toHaveURL(/\/settings$/);
@@ -61,6 +68,16 @@ export class EventAgent {
     await expect(this.page.getByRole("heading", { name: /food purchasing/i })).toBeVisible();
   }
 
+  async openBeverages() {
+    await this.openSection("Beverages");
+    await expect(this.page.getByRole("heading", { name: /^Beverages$/i })).toBeVisible();
+  }
+
+  async openMusic() {
+    await this.openSection("Music");
+    await expect(this.page.getByRole("heading", { name: /^Music$/i })).toBeVisible();
+  }
+
   async openBudget() {
     await this.openSection("Budget");
     await expect(this.page.getByRole("heading", { name: /^Budget$/i })).toBeVisible();
@@ -79,6 +96,11 @@ export class EventAgent {
   async openCalendar() {
     await this.page.getByRole("link", { name: /^Calendar$/i }).click();
     await expect(this.page.getByRole("heading", { name: /^Calendar$/i })).toBeVisible();
+  }
+
+  async openDashboard() {
+    await this.page.getByRole("link", { name: /all events/i }).click();
+    await expect(this.page.getByRole("heading", { name: /your events/i })).toBeVisible();
   }
 
   async addStarterTasks() {
@@ -193,6 +215,75 @@ export class EventAgent {
     await expect(this.page.getByText(new RegExp(`Spent\\s*\\$${escapeRegExp(actualAmount)}`, "i"))).toBeVisible();
   }
 
+  async addBeverage(title: string, typeLabel = "Non-alcoholic") {
+    const form = this.page.locator("form", { has: this.page.getByPlaceholder(/margaritas/i) });
+
+    await form.locator("select").selectOption({ label: typeLabel });
+    await form.getByPlaceholder(/margaritas/i).fill(title);
+    await form.getByRole("button", { name: /^Add$/i }).click();
+    await expect(this.page.getByDisplayValue(title)).toBeVisible({ timeout: 15_000 });
+  }
+
+  async updateBeverageQuantity(title: string, quantity: string, unit: string) {
+    const row = this.rowContainingValue(title);
+
+    await row.locator('input[type="number"]').fill(quantity);
+    await row.getByPlaceholder(/unit/i).fill(unit);
+    await expect(row.locator('input[type="number"]')).toHaveValue(quantity);
+    await expect(row.getByPlaceholder(/unit/i)).toHaveValue(unit);
+  }
+
+  async addMusicTrack(title: string, artist: string, setLabel = "Main set") {
+    const form = this.page.locator("form", { has: this.page.getByPlaceholder(/track title/i) });
+
+    await form.getByPlaceholder(/track title/i).fill(title);
+    await form.getByPlaceholder(/artist/i).fill(artist);
+    await form.locator("select").selectOption({ label: setLabel });
+    await form.getByRole("button", { name: /^Add$/i }).click();
+    await expect(this.page.getByDisplayValue(title)).toBeVisible({ timeout: 15_000 });
+    await expect(this.page.getByDisplayValue(artist)).toBeVisible({ timeout: 15_000 });
+  }
+
+  async addPlaylist(name: string, url: string) {
+    let dialogIndex = 0;
+    const answers = [name, url];
+    const onDialog = async (dialog: import("@playwright/test").Dialog) => {
+      await dialog.accept(answers[dialogIndex++] ?? "");
+    };
+
+    this.page.on("dialog", onDialog);
+    await this.page.getByRole("button", { name: /add playlist/i }).click();
+    try {
+      await expect(this.page.getByText(name)).toBeVisible({ timeout: 15_000 });
+    } finally {
+      this.page.off("dialog", onDialog);
+    }
+  }
+
+  async addChecklistItem(sectionLabel: string, title: string) {
+    await this.openSection(sectionLabel);
+    const form = this.page.locator("form", { has: this.page.getByRole("button", { name: /^Add$/i }) }).first();
+
+    await form.locator("input").first().fill(title);
+    await form.getByRole("button", { name: /^Add$/i }).click();
+    await expect(this.page.getByDisplayValue(title)).toBeVisible({ timeout: 15_000 });
+  }
+
+  async expandChecklistItem(title: string) {
+    const row = this.rowContainingValue(title);
+
+    await row.getByRole("button", { name: /more/i }).click();
+    await expect(row.getByRole("button", { name: /hide/i })).toBeVisible();
+  }
+
+  async fillChecklistDetail(title: string, label: string, value: string) {
+    const row = this.rowContainingValue(title);
+    const field = row.getByLabel(new RegExp(escapeRegExp(label), "i"));
+
+    await field.fill(value);
+    await expect(field).toHaveValue(value);
+  }
+
   async addBudgetItem(label: string, estimated: string, actual: string) {
     await this.page.getByLabel("Item").fill(label);
     await this.page.getByLabel("Estimated").fill(estimated);
@@ -215,6 +306,28 @@ export class EventAgent {
     await expect(this.page.getByText(/wrap-up saved/i)).toBeVisible({ timeout: 15_000 });
   }
 
+  async editEventDetails(next: { name: string; location?: string; theme?: string; startsAt?: string }) {
+    await this.openSection("Overview");
+    await this.page.getByRole("button", { name: /^Edit$/i }).click();
+    const dialog = this.page.getByRole("dialog", { name: /edit event/i });
+
+    await dialog.getByLabel(/event name/i).fill(next.name);
+    if (next.location !== undefined) {
+      await dialog.getByLabel(/location/i).fill(next.location);
+    }
+    if (next.theme !== undefined) {
+      await dialog.getByLabel(/^theme$/i).fill(next.theme);
+    }
+    if (next.startsAt !== undefined) {
+      await dialog.getByLabel(/date & time/i).fill(next.startsAt);
+    }
+    await dialog.getByRole("button", { name: /save changes/i }).click();
+    await expect(dialog).toBeHidden({ timeout: 15_000 });
+    await expect(this.page.getByRole("heading", { name: next.name, level: 1 })).toBeVisible({
+      timeout: 15_000,
+    });
+  }
+
   async createPublicShareLink() {
     await this.openSettings();
     await this.page.getByRole("button", { name: /create public link/i }).click();
@@ -227,6 +340,16 @@ export class EventAgent {
     await expect(this.page.getByRole("link", { name: new RegExp(escapeRegExp(name), "i") }).first()).toBeVisible({
       timeout: 15_000,
     });
+  }
+
+  async expectOverviewDate(label: string) {
+    await expect(this.page.getByText(label)).toBeVisible({ timeout: 15_000 });
+  }
+
+  async expectDashboardEventChip(name: string, chip: string) {
+    const eventCard = this.page.locator(".card", { has: this.page.getByRole("heading", { name }) }).first();
+
+    await expect(eventCard.getByText(chip)).toBeVisible({ timeout: 15_000 });
   }
 
   private currentEventId() {

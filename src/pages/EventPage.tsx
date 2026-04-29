@@ -130,6 +130,8 @@ export function EventPage() {
       </div>
     );
 
+  const tabTo = (to: string) => (to ? `/events/${event.id}/${to}` : `/events/${event.id}`);
+
   return (
     <div>
       <div
@@ -164,7 +166,7 @@ export function EventPage() {
             {EVENT_PAGE_TABS.map((t) => (
               <NavLink
                 key={t.to}
-                to={t.to}
+                to={tabTo(t.to)}
                 end={t.to === ""}
                 className={({ isActive }) =>
                   clsx("tab whitespace-nowrap", isActive && "tab-active")
@@ -309,7 +311,7 @@ export function EventPage() {
           {EVENT_PAGE_PRIMARY_MOBILE_TABS.map((t) => (
             <NavLink
               key={t.to}
-              to={t.to}
+              to={tabTo(t.to)}
               end={t.to === ""}
               className={({ isActive }) =>
                 clsx(
@@ -361,7 +363,7 @@ export function EventPage() {
               {EVENT_PAGE_TABS.map((t) => (
                 <NavLink
                   key={t.to}
-                  to={t.to}
+                  to={tabTo(t.to)}
                   end={t.to === ""}
                   onClick={() => setMoreOpen(false)}
                   className={({ isActive }) =>

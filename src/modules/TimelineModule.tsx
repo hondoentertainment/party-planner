@@ -11,7 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { EventItem, EventRow, Phase } from "../lib/database.types";
-import { useEventItems, useEventMembers } from "../lib/hooks";
+import { useEventItems, useEventMembers, useEventPermissions } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
@@ -76,6 +76,7 @@ export function TimelineModule({ event }: { event: EventRow }) {
   const { user } = useAuth();
   const toast = useToast();
   const members = useEventMembers(event.id, event.owner_id);
+  const perms = useEventPermissions(event);
   const [newTitle, setNewTitle] = useState<Record<Phase, string>>({
     pre: "",
     day_of: "",
@@ -83,7 +84,7 @@ export function TimelineModule({ event }: { event: EventRow }) {
   });
 
   const addTask = async (phase: Phase) => {
-    if (!user) return;
+    if (!user || !perms.canEdit) return;
     const title = newTitle[phase].trim();
     if (!title) return;
     setNewTitle((v) => ({ ...v, [phase]: "" }));
@@ -103,7 +104,7 @@ export function TimelineModule({ event }: { event: EventRow }) {
   };
 
   const seedStarters = async (phase: Phase) => {
-    if (!user) return;
+    if (!user || !perms.canEdit) return;
     const rows = STARTER_TASKS[phase].map((title, i) => ({
       event_id: event.id,
       kind: "task" as const,
@@ -124,6 +125,9 @@ export function TimelineModule({ event }: { event: EventRow }) {
           Three phases — pre, day-of, and post. Assign tasks to your team.
         </p>
       </div>
+      {!perms.canEdit && (
+        <div className="card p-3 text-sm text-slate-500">Viewer access: this timeline is read-only.</div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {PHASES.map((p) => {
           const phaseItems = items.filter((i) => i.phase === p.key);
@@ -150,6 +154,7 @@ export function TimelineModule({ event }: { event: EventRow }) {
                 {phaseItems.length === 0 && (
                   <button
                     onClick={() => seedStarters(p.key)}
+                    disabled={!perms.canEdit}
                     className="w-full text-left text-xs text-brand-600 hover:bg-brand-50 rounded p-2"
                   >
                     + Add starter tasks
@@ -167,6 +172,7 @@ export function TimelineModule({ event }: { event: EventRow }) {
                           item={it}
                           members={members}
                           eventId={event.id}
+                          canEdit={perms.canEdit}
                           optimisticUpdate={optimisticUpdate}
                           optimisticDelete={optimisticDelete}
                         />
@@ -190,6 +196,7 @@ export function TimelineModule({ event }: { event: EventRow }) {
                   onChange={(e) =>
                     setNewTitle((v) => ({ ...v, [p.key]: e.target.value }))
                   }
+                  disabled={!perms.canEdit}
                 />
               </form>
             </div>
@@ -204,23 +211,27 @@ function TaskRow({
   item,
   members,
   eventId,
+  canEdit,
   optimisticUpdate,
   optimisticDelete,
 }: {
   item: EventItem;
   members: ReturnType<typeof useEventMembers>;
   eventId: string;
+  canEdit: boolean;
   optimisticUpdate: (id: string, patch: Partial<EventItem>) => void;
   optimisticDelete: (id: string) => void;
 }) {
   const { user } = useAuth();
   const toast = useToast();
   const update = async (patch: Partial<EventItem>) => {
+    if (!canEdit) return;
     const { error } = await supabase.from("event_items").update(patch).eq("id", item.id);
     if (error) toast.error(error.message);
   };
   const [titleVal, setTitleVal] = useDebouncedSave(item.title, (next) => update({ title: next }));
   const cycle = async () => {
+    if (!canEdit) return;
     const order = ["todo", "in_progress", "done"] as const;
     const next = order[(order.indexOf(item.status) + 1) % order.length];
     optimisticUpdate(item.id, { status: next });
@@ -233,6 +244,7 @@ function TaskRow({
     }
   };
   const remove = async () => {
+    if (!canEdit) return;
     optimisticDelete(item.id);
     const { error } = await supabase.from("event_items").delete().eq("id", item.id);
     if (error) {
@@ -245,7 +257,7 @@ function TaskRow({
 
   return (
     <div className="group flex items-start gap-2 p-2 rounded-lg border border-slate-100 bg-white hover:border-slate-200">
-      <button onClick={cycle} className="mt-0.5">
+      <button onClick={cycle} className="mt-0.5" disabled={!canEdit}>
         {item.status === "done" ? (
           <CheckCircle2 size={18} className="text-emerald-500" />
         ) : item.status === "in_progress" ? (
@@ -261,6 +273,7 @@ function TaskRow({
           }`}
           value={titleVal}
           onChange={(e) => setTitleVal(e.target.value)}
+          disabled={!canEdit}
         />
         <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
           <input
@@ -272,6 +285,7 @@ function TaskRow({
                 due_at: e.target.value ? new Date(e.target.value).toISOString() : null,
               })
             }
+            disabled={!canEdit}
           />
           {item.due_at && (
             <span className="flex items-center gap-1">
@@ -286,15 +300,18 @@ function TaskRow({
           members={members}
           current={assignee}
           onChange={(id) => update({ assignee_id: id })}
+          disabled={!canEdit}
         />
-        <button
-          onClick={remove}
-          aria-label="Delete task"
-          className="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-600"
-          title="Delete"
-        >
-          <Trash2 size={14} />
-        </button>
+        {canEdit && (
+          <button
+            onClick={remove}
+            aria-label="Delete task"
+            className="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-600"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { CalendarPlus, ExternalLink, MapPin, PartyPopper } from "lucide-react";
+import { CalendarPlus, Clock, ExternalLink, GlassWater, MapPin, Music, PartyPopper, Utensils } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import type { EventItem, PublicEventShare } from "../lib/database.types";
 import { formatEventDate } from "../lib/format";
@@ -42,7 +42,15 @@ export function PublicEventPage() {
     [share]
   );
   const menu = useMemo(
-    () => (share?.items ?? []).filter((item: EventItem) => ["food", "beverage"].includes(item.kind)),
+    () => (share?.items ?? []).filter((item: EventItem) => item.kind === "food"),
+    [share]
+  );
+  const drinks = useMemo(
+    () => (share?.items ?? []).filter((item: EventItem) => item.kind === "beverage"),
+    [share]
+  );
+  const music = useMemo(
+    () => (share?.items ?? []).filter((item: EventItem) => item.kind === "music"),
     [share]
   );
 
@@ -75,6 +83,9 @@ export function PublicEventPage() {
 
   const { event } = share;
   const googleUrl = buildGoogleCalendarUrl(event);
+  const mapsUrl = event.location
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
+    : null;
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -90,9 +101,21 @@ export function PublicEventPage() {
       </section>
       <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
         <div className="card p-5 space-y-3">
-          <p className="font-medium">{formatEventDate(event.starts_at)}</p>
+          <div>
+            <p className="font-medium">{formatEventDate(event.starts_at)}</p>
+            {event.ends_at && (
+              <p className="text-xs text-slate-500 mt-0.5">Ends {formatEventDate(event.ends_at)}</p>
+            )}
+          </div>
           {event.location && (
-            <p className="text-sm text-slate-600 flex items-center gap-2"><MapPin size={16} /> {event.location}</p>
+            <p className="text-sm text-slate-600 flex flex-wrap items-center gap-2">
+              <MapPin size={16} /> {event.location}
+              {mapsUrl && (
+                <a className="text-brand-700 font-medium inline-flex items-center gap-1" href={mapsUrl} target="_blank" rel="noreferrer">
+                  Directions <ExternalLink size={12} />
+                </a>
+              )}
+            </p>
           )}
           {event.description && <p className="text-sm text-slate-600 whitespace-pre-wrap">{event.description}</p>}
           <div className="flex flex-wrap gap-2">
@@ -115,7 +138,9 @@ export function PublicEventPage() {
         </section>
 
         <section className="card p-5">
-          <h2 className="font-display font-bold mb-3">Schedule</h2>
+          <h2 className="font-display font-bold mb-3 flex items-center gap-2">
+            <Clock size={18} className="text-brand-600" /> Schedule
+          </h2>
           {tasks.length === 0 ? (
             <p className="text-sm text-slate-500">No public schedule items yet.</p>
           ) : (
@@ -123,6 +148,9 @@ export function PublicEventPage() {
               {tasks.slice(0, 12).map((item) => (
                 <li key={item.id} className="text-sm border-l-2 border-brand-200 pl-3">
                   <div className="font-medium">{item.title}</div>
+                  <div className="text-xs text-slate-500">
+                    {item.due_at ? formatEventDate(item.due_at) : phaseLabel(item.phase)}
+                  </div>
                   {item.description && <div className="text-slate-500">{item.description}</div>}
                 </li>
               ))}
@@ -131,19 +159,47 @@ export function PublicEventPage() {
         </section>
 
         <section className="card p-5">
-          <h2 className="font-display font-bold mb-3">Food & drinks</h2>
+          <h2 className="font-display font-bold mb-3 flex items-center gap-2">
+            <Utensils size={18} className="text-brand-600" /> Food
+          </h2>
           {menu.length === 0 ? (
             <p className="text-sm text-slate-500">Menu coming soon.</p>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               {menu.slice(0, 24).map((item) => (
-                <span key={item.id} className="chip bg-white border border-slate-200 text-slate-700">
-                  {item.title}
-                </span>
+                <MenuCard key={item.id} item={item} />
               ))}
             </div>
           )}
         </section>
+
+        <section className="card p-5">
+          <h2 className="font-display font-bold mb-3 flex items-center gap-2">
+            <GlassWater size={18} className="text-brand-600" /> Drinks
+          </h2>
+          {drinks.length === 0 ? (
+            <p className="text-sm text-slate-500">Drink list coming soon.</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {drinks.slice(0, 24).map((item) => (
+                <DrinkCard key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {music.length > 0 && (
+          <section className="card p-5">
+            <h2 className="font-display font-bold mb-3 flex items-center gap-2">
+              <Music size={18} className="text-brand-600" /> Music
+            </h2>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {music.slice(0, 12).map((item) => (
+                <MusicCard key={item.id} item={item} />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );
@@ -156,6 +212,114 @@ function RsvpStat({ label, value }: { label: string; value: number }) {
       <div className="font-display text-2xl font-bold text-slate-800">{value}</div>
     </div>
   );
+}
+
+function MenuCard({ item }: { item: EventItem }) {
+  const meta = item.meta as {
+    course?: string;
+    dietary?: string[];
+    servings?: number;
+  };
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="font-medium text-sm">{item.title}</div>
+      <div className="text-xs text-slate-500 mt-0.5">
+        {[courseLabel(meta.course), meta.servings ? `${meta.servings} servings` : null].filter(Boolean).join(" · ")}
+      </div>
+      {item.description && <p className="text-xs text-slate-500 mt-1">{item.description}</p>}
+      {Array.isArray(meta.dietary) && meta.dietary.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {meta.dietary.map((tag) => (
+            <span key={tag} className="chip bg-emerald-50 text-emerald-700">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DrinkCard({ item }: { item: EventItem }) {
+  const meta = item.meta as {
+    type?: string;
+    qty?: number;
+    unit?: string;
+    alcoholic?: boolean;
+  };
+  const quantity = [meta.qty, meta.unit].filter((value) => value !== undefined && value !== "").join(" ");
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="font-medium text-sm">{item.title}</div>
+      <div className="text-xs text-slate-500 mt-0.5">
+        {[drinkTypeLabel(meta.type), quantity || null, meta.alcoholic ? "Alcoholic" : "Non-alcoholic"]
+          .filter(Boolean)
+          .join(" · ")}
+      </div>
+      {item.description && <p className="text-xs text-slate-500 mt-1">{item.description}</p>}
+    </div>
+  );
+}
+
+function MusicCard({ item }: { item: EventItem }) {
+  const meta = item.meta as {
+    artist?: string;
+    url?: string;
+    set?: string;
+    is_playlist?: boolean;
+  };
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="font-medium text-sm">{item.title}</div>
+      <div className="text-xs text-slate-500 mt-0.5">
+        {[meta.is_playlist ? "Playlist" : meta.artist, musicSetLabel(meta.set)].filter(Boolean).join(" · ")}
+      </div>
+      {meta.url && (
+        <a className="text-xs text-brand-700 font-medium inline-flex items-center gap-1 mt-2" href={meta.url} target="_blank" rel="noreferrer">
+          Open music <ExternalLink size={12} />
+        </a>
+      )}
+    </div>
+  );
+}
+
+function phaseLabel(phase: EventItem["phase"]) {
+  if (phase === "pre") return "Pre-party";
+  if (phase === "day_of") return "Day of";
+  if (phase === "post") return "Post-party";
+  return "Schedule item";
+}
+
+function courseLabel(course?: string) {
+  const labels: Record<string, string> = {
+    appetizer: "Appetizer",
+    main: "Main",
+    side: "Side",
+    dessert: "Dessert",
+    snack: "Snack",
+  };
+  return course ? labels[course] ?? course : null;
+}
+
+function drinkTypeLabel(type?: string) {
+  const labels: Record<string, string> = {
+    cocktail: "Cocktail",
+    beer: "Beer",
+    wine: "Wine",
+    non_alc: "Non-alcoholic",
+    coffee: "Coffee/Tea",
+    other: "Drink",
+  };
+  return type ? labels[type] ?? type : null;
+}
+
+function musicSetLabel(set?: string) {
+  const labels: Record<string, string> = {
+    arrival: "Arrival",
+    main: "Main set",
+    late: "Late night",
+  };
+  return set ? labels[set] ?? set : null;
 }
 
 function buildGoogleCalendarUrl(event: PublicEventShare["event"]) {
