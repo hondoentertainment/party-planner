@@ -1,4 +1,6 @@
-import type { EventItem, EventRow } from "./database.types";
+import type { EventItem, EventRow, PublicEventShare } from "./database.types";
+
+type PublicShareEvent = PublicEventShare["event"];
 
 function icsEscape(s: string) {
   return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
@@ -101,6 +103,23 @@ export function downloadEventIcs(event: EventRow) {
 
 export function downloadEventScheduleIcs(event: EventRow, items: EventItem[]) {
   downloadIcsBlob(buildEventScheduleIcs(event, items), `${event.name} schedule`);
+}
+
+/** .ics builder for the public share payload, which omits owner-only columns. */
+export function buildPublicEventIcs(event: PublicShareEvent) {
+  return buildEventIcs({
+    ...event,
+    owner_id: "",
+    rsvp_count: event.rsvp_count ?? 0,
+    budget_cents: 0,
+    archived: false,
+    created_at: event.starts_at ?? new Date().toISOString(),
+    updated_at: event.starts_at ?? new Date().toISOString(),
+  } as EventRow);
+}
+
+export function downloadPublicEventIcs(event: PublicShareEvent) {
+  downloadIcsBlob(buildPublicEventIcs(event), event.name);
 }
 
 function downloadIcsBlob(contents: string, name: string) {

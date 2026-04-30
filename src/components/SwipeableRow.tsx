@@ -61,7 +61,8 @@ export function SwipeableRow({
         <button
           type="button"
           onClick={commitDelete}
-          className="w-full h-full grid place-items-center text-white"
+          disabled={disabled}
+          className="w-full h-full min-h-[44px] grid place-items-center text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
           aria-label={deleteLabel}
         >
           <Trash2 size={20} />

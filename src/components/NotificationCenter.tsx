@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { useNotifications } from "../lib/hooks";
@@ -111,6 +111,16 @@ export function NotificationCenter() {
                 );
               })
             )}
+          </div>
+          <div className="border-t border-slate-100">
+            <Link
+              to="/settings"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 p-3 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            >
+              <Settings size={14} />
+              Notification settings
+            </Link>
           </div>
         </div>
       )}

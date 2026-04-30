@@ -169,11 +169,12 @@ emails.
 2. **Install the Supabase CLI** if you haven't:
    `npm i -g supabase` and `supabase login`.
 3. **Link your project**: `supabase link --project-ref <your-ref>`.
-4. **Deploy the function**:
+4. **Deploy the function(s)**:
    ```bash
-   npm run functions:deploy
+   npm run functions:deploy        # deploys notify-assignment (assignment emails + push)
+   npm run functions:deploy:share  # deploys notify-share ("Email me this link" button)
    ```
-   (equivalent to `supabase functions deploy notify-assignment`).
+   (equivalent to `supabase functions deploy notify-assignment` and `supabase functions deploy notify-share`. `notify-share` reuses `RESEND_API_KEY`, `FROM_EMAIL`, and `APP_URL`; no extra secrets needed.)
 5. **Set its secrets** (add VAPID lines only if you use **web push**; generate keys
    with `npx web-push generate-vapid-keys` and put the **public** key in
    `VITE_VAPID_PUBLIC_KEY` on Vercel):
@@ -202,6 +203,15 @@ emails.
 Assign yourself to a task as user A; check user B's inbox. (Self-assignments
 do not trigger emails.) Logs are visible in the Supabase dashboard under
 **Edge Functions → notify-assignment → Logs**.
+
+### Email me a copy of the share link
+
+When `notify-share` is deployed, **Settings & Team → Public guest page** shows an
+**Email me this link** button next to **Copy link** while a public share link is
+enabled. The function authenticates with the caller's JWT, verifies the event +
+share token, looks up the caller's email via the service role, and sends a Resend
+email with the share URL plus a copy/paste blurb (`"You're invited to {event} on
+{date}! Details: <link>"`). Logs land in **Edge Functions → notify-share → Logs**.
 
 ## Database schema
 

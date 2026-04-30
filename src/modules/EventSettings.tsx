@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarPlus, Copy, Link as LinkIcon, Loader2, LogOut, Mail, Save, Trash2, UserPlus } from "lucide-react";
+import { CalendarPlus, Copy, Link as LinkIcon, Loader2, LogOut, Mail, Save, Send, Trash2, UserPlus } from "lucide-react";
 import type { CollabRole, EventRow } from "../lib/database.types";
 import { useAllItems, useCollaborators, useEventPermissions, useShareLinks } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useToast } from "../lib/toast";
 import { logActivity } from "../lib/activity";
 import { downloadEventIcs, downloadEventScheduleIcs } from "../lib/exportIcs";
 
@@ -14,11 +15,13 @@ export function EventSettings({ event }: { event: EventRow }) {
   const { links, refresh: refreshLinks } = useShareLinks(event.id);
   const perms = useEventPermissions(event);
   const { user } = useAuth();
+  const toast = useToast();
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<CollabRole>("editor");
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [emailingShare, setEmailingShare] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err" | "info"; text: string } | null>(null);
 
   const isOwner = user?.id === event.owner_id;
@@ -161,6 +164,27 @@ export function EventSettings({ event }: { event: EventRow }) {
     }
   };
 
+  const emailShareLink = async () => {
+    if (!activeLink || emailingShare) return;
+    setEmailingShare(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("notify-share", {
+        body: { event_id: event.id, share_token: activeLink.token },
+      });
+      if (error) {
+        const detail =
+          (data as { error?: string } | null)?.error ?? error.message ?? "Could not send the email.";
+        toast.error(detail);
+        return;
+      }
+      toast.success("Sent! Check your inbox for the share link.");
+    } catch (err) {
+      toast.error((err as Error).message ?? "Could not send the email.");
+    } finally {
+      setEmailingShare(false);
+    }
+  };
+
   const saveTemplate = async () => {
     if (!user || !perms.canEdit) return;
     const name = window.prompt("Template name", `${event.name} template`);
@@ -238,6 +262,15 @@ export function EventSettings({ event }: { event: EventRow }) {
             <div className="flex gap-2 flex-wrap">
               <button type="button" className="btn-secondary" onClick={() => void copyShareLink()}>
                 <Copy size={16} /> Copy link
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={emailingShare}
+                onClick={() => void emailShareLink()}
+              >
+                {emailingShare ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                Email me this link
               </button>
               {perms.canEdit && (
                 <button type="button" className="btn-ghost text-rose-600 border border-rose-200" onClick={() => void revokeShareLink()}>

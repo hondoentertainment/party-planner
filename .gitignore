@@ -41,3 +41,10 @@ playwright/.cache
 *.sw?
 
 .vercel
+
+# OneDrive / Windows sync markers
+*.tmp
+~$*
+Icon?
+desktop.ini
+Thumbs.db

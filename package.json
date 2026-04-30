@@ -15,6 +15,7 @@
     "db:push": "npx supabase db push",
     "db:types": "node scripts/gen-db-types.mjs",
     "functions:deploy": "npx supabase functions deploy notify-assignment",
+    "functions:deploy:share": "npx supabase functions deploy notify-share",
     "functions:serve": "npx supabase functions serve notify-assignment --no-verify-jwt"
   },
   "dependencies": {

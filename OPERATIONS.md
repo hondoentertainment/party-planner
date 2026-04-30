@@ -31,6 +31,10 @@ If you use **assignment notifications** (`0002`):
 - Enable the **pg_net** extension under **Database → Extensions**.
 - Configure `app.functions_url` and `app.service_role_key` and deploy the `notify-assignment` Edge Function (see main **README**). If hosted Postgres rejects custom `app.*` overrides, use `0005_notification_settings_fallback.sql` and populate `private.app_settings`; `supabase/verify_remote.sql` accepts either path.
 
+If you also want the **"Email me this link"** affordance for public share links:
+
+- Deploy the second Edge Function with **`npm run functions:deploy:share`** (alias for `supabase functions deploy notify-share`). It reuses the existing `RESEND_API_KEY`, `FROM_EMAIL`, and `APP_URL` secrets — no extra secrets, GUCs, or migrations are required. The function is invoked directly from the client with the user's JWT and is RLS-gated against `events` + `event_share_links`.
+
 Re-check **Table Editor** and **RLS** if anything failed mid-run; migrations use `if not exists` / `drop policy` patterns where possible.
 
 **Verify `0004` (collaborator self-delete) is applied** — in the SQL editor:
@@ -86,7 +90,13 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - **Local:** add the same two variables to `.env.local` (read by [playwright.config.ts](playwright.config.ts), not by Vite) and run `npm run verify` or `npm run ci` for a full pre-push check.
 - Before promoting a release, also run `supabase/verify_remote.sql` against the target Supabase project and confirm every required row reports `OK`. Optional rows for email/web push may remain `MISSING` only when those features are intentionally disabled.
 
-## 8. Checklist: new environment
+## 8. Local development on OneDrive (Windows)
+
+- If you clone this repo into a OneDrive-synced folder (e.g. `OneDrive\Desktop\Party Planner`), OneDrive may create transient sync artifacts that show up as untracked files in `git status` (`*.tmp`, `~$*`, `desktop.ini`, `Thumbs.db`, `Icon?`).
+- The repo's `.gitignore` includes a "OneDrive / Windows sync markers" section that ignores these patterns so they don't pollute `git status` or accidentally land in commits.
+- If a sync conflict file (e.g. `<name>-Kyle's PC.ts`) does appear, treat it as transient: close the file, let OneDrive resolve the conflict, then delete the duplicate before committing.
+
+## 9. Checklist: new environment
 
 - [ ] `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in Vercel
 - [ ] Migrations 0001–0008 applied as needed (`npm run db:push` after `supabase link`, or SQL Editor)
@@ -94,6 +104,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - [ ] `VITE_SENTRY_DSN` (optional)
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 - [ ] Resend + Edge `notify-assignment` + GUCs (optional, for email)
+- [ ] Edge `notify-share` deployed (optional, enables **Email me this link** in Settings & Team)
 - [ ] `APP_URL` in Edge matches production URL
 - [ ] Custom domain and Resend domain alignment (if using custom email domain)
 - [ ] GitHub Actions secrets `E2E_EMAIL` and `E2E_PASSWORD` (optional, so CI runs signed-in E2E)

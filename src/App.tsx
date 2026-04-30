@@ -9,6 +9,9 @@ const Dashboard = lazy(() => import("./pages/Dashboard").then((m) => ({ default:
 const CalendarPage = lazy(() =>
   import("./pages/CalendarPage").then((m) => ({ default: m.CalendarPage }))
 );
+const SettingsPage = lazy(() =>
+  import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
+);
 const EventPage = lazy(() => import("./pages/EventPage").then((m) => ({ default: m.EventPage })));
 const UpdatePasswordPage = lazy(() =>
   import("./pages/UpdatePasswordPage").then((m) => ({ default: m.UpdatePasswordPage }))
@@ -71,6 +74,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/events/:eventId/*" element={<EventPage />} />
           <Route path="/update-password" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

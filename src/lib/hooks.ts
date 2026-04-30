@@ -438,6 +438,38 @@ export function useWrapUp(eventId: string | undefined) {
   return { wrapUp, loading, refresh };
 }
 
+/* ---------- Wrap-ups across all accessible events ---------- */
+export function useWrapUpsAcrossEvents() {
+  const [wrapUps, setWrapUps] = useState<EventWrapUp[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("event_wrap_ups")
+      .select("*")
+      .order("updated_at", { ascending: false });
+    if (!error) setWrapUps((data ?? []) as EventWrapUp[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const ch = supabase
+      .channel("wrap-ups-all")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "event_wrap_ups" },
+        () => refresh()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [refresh]);
+
+  return { wrapUps, loading, refresh };
+}
+
 export function useUserTemplates(userId: string | undefined) {
   const [templates, setTemplates] = useState<UserEventTemplate[]>([]);
   const [loading, setLoading] = useState(true);

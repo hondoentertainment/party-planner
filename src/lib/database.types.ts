@@ -173,6 +173,20 @@ export interface EventWrapUp {
   updated_at: string;
 }
 
+export interface PublicRsvpPayload {
+  name: string;
+  email?: string;
+  rsvp: "yes" | "maybe" | "no";
+  plus_ones: number;
+  dietary?: string;
+  notes?: string;
+}
+
+export interface PublicRsvpResult {
+  ok: boolean;
+  item_id: string;
+}
+
 export interface PublicEventShare {
   event: Pick<
     EventRow,
@@ -289,6 +303,10 @@ export interface Database {
       create_event_share_link: {
         Args: { _event_id: string; _label?: string };
         Returns: EventShareLink;
+      };
+      submit_public_rsvp: {
+        Args: { _token: string; _payload: PublicRsvpPayload };
+        Returns: PublicRsvpResult;
       };
     };
   };

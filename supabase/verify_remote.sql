@@ -178,6 +178,41 @@ with checks as (
         and not t.tgisinternal
     ),
     'run 0008_public_share_details.sql'
+
+  union all
+  select
+    12,
+    '0009 public RSVP RPC',
+    exists (
+      select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'submit_public_rsvp'
+    ) and exists (
+      select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'submit_public_rsvp'
+        and has_function_privilege('anon', p.oid, 'EXECUTE')
+    ),
+    'run 0009_public_rsvp.sql'
+
+  union all
+  select
+    13,
+    '0009 public RSVP RPC signature',
+    exists (
+      select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'submit_public_rsvp'
+        and pg_get_function_identity_arguments(p.oid) = '_token text, _payload jsonb'
+        and pg_get_function_result(p.oid) = 'jsonb'
+        and has_function_privilege('anon', p.oid, 'EXECUTE')
+    ),
+    're-run 0009_public_rsvp.sql so submit_public_rsvp(_token text, _payload jsonb) returns jsonb is granted to anon'
 )
 select
   check_name,
