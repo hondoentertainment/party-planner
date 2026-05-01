@@ -12,10 +12,28 @@ const EMPTY_STATE_PATTERN = /share link unavailable|could not load share link/i;
 const EMPTY_STATE_BODY_PATTERN =
   /this event link was disabled, expired, or mistyped|missing share token|we couldn't load this share link/i;
 
+// If the bundle was built without `VITE_SUPABASE_*`, App.tsx renders
+// <SetupNotice /> on EVERY route — including /s/ — and we can't QA the
+// public-page DOM. Skip cleanly so `npm run verify` doesn't fail locally
+// when secrets are absent. CI runs with the env set and exercises the real
+// branches.
+async function skipIfSetupNotice(page: import("@playwright/test").Page) {
+  const setup = page.getByRole("heading", { name: /almost ready to party/i });
+  if (await setup.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    test.skip(
+      true,
+      "SetupNotice is rendered — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before `npm run build` to exercise public-page DOM."
+    );
+    return true;
+  }
+  return false;
+}
+
 test.describe("public share link empty states", () => {
   test("shows the unavailable empty state for a bogus token", async ({ page }) => {
     const bogus = `revoked-token-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await page.goto(`/s/${bogus}`);
+    if (await skipIfSetupNotice(page)) return;
 
     await expect(
       page.getByRole("heading", { name: EMPTY_STATE_PATTERN })
@@ -29,6 +47,7 @@ test.describe("public share link empty states", () => {
     // sentinel to exercise the same RPC-returns-null empty state when the
     // user effectively has no real token to provide.
     await page.goto("/s/-");
+    if (await skipIfSetupNotice(page)) return;
 
     await expect(
       page.getByRole("heading", { name: EMPTY_STATE_PATTERN })

@@ -173,6 +173,48 @@ export interface EventWrapUp {
   updated_at: string;
 }
 
+/**
+ * Per-user, per-kind email opt-outs (migration 0013). One row per
+ * (user_id, kind) the user has unsubscribed from; `kind = 'all'` means
+ * every reminder kind. Inserts/deletes go through RLS — only the owning
+ * user (or service_role) can manage their rows.
+ */
+export type NotificationOptOutKind =
+  | "pre_7d"
+  | "pre_3d"
+  | "pre_1d"
+  | "wrap_up_1d"
+  | "all";
+
+export interface NotificationOptOut {
+  user_id: string;
+  kind: NotificationOptOutKind;
+  created_at: string;
+}
+
+export interface PendingEventInvitation {
+  id: string;
+  event_id: string;
+  email: string;
+  role: "editor" | "viewer";
+  invited_by: string;
+  token: string;
+  expires_at: string;
+  created_at: string;
+  claimed_at: string | null;
+}
+
+export interface ClaimPendingInvitationsResult {
+  claimed: number;
+  event_ids: string[];
+}
+
+export interface RevokePendingInvitationResult {
+  ok: boolean;
+  deleted: number;
+  event_id?: string;
+}
+
 export interface PublicRsvpPayload {
   name: string;
   email?: string;
@@ -185,6 +227,11 @@ export interface PublicRsvpPayload {
 export interface PublicRsvpResult {
   ok: boolean;
   item_id: string;
+}
+
+export interface PublicEventShareHost {
+  display_name: string | null;
+  initial: string;
 }
 
 export interface PublicEventShare {
@@ -202,6 +249,7 @@ export interface PublicEventShare {
     | "cover_emoji"
     | "cover_color"
   >;
+  host: PublicEventShareHost;
   items: EventItem[];
   rsvp_summary: {
     yes: number;
@@ -287,14 +335,49 @@ export interface Database {
         Update: Partial<EventWrapUp>;
         Relationships: [];
       };
+      pending_event_invitations: {
+        Row: PendingEventInvitation;
+        Insert: Partial<PendingEventInvitation> & {
+          event_id: string;
+          email: string;
+          invited_by: string;
+        };
+        Update: Partial<PendingEventInvitation>;
+        Relationships: [];
+      };
+      notification_opt_outs: {
+        Row: NotificationOptOut;
+        Insert: Pick<NotificationOptOut, "user_id" | "kind"> &
+          Partial<Pick<NotificationOptOut, "created_at">>;
+        Update: Partial<NotificationOptOut>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       invite_collaborator: {
         Args: { _event_id: string; _email: string; _role?: CollabRole };
         Returns:
-          | { status: "added"; user_id: string; display_name: string | null }
-          | { status: "pending"; message: string };
+          | {
+              status: "added";
+              user_id: string;
+              display_name: string | null;
+              email?: string | null;
+            }
+          | {
+              status: "pending";
+              email: string;
+              message: string;
+              invite_token: string;
+            };
+      };
+      claim_pending_invitations: {
+        Args: Record<string, never>;
+        Returns: ClaimPendingInvitationsResult;
+      };
+      revoke_pending_invitation: {
+        Args: { _id: string };
+        Returns: RevokePendingInvitationResult;
       };
       get_public_event_share: {
         Args: { _token: string };
@@ -305,8 +388,37 @@ export interface Database {
         Returns: EventShareLink;
       };
       submit_public_rsvp: {
-        Args: { _token: string; _payload: PublicRsvpPayload };
+        Args: {
+          _token: string;
+          _payload: PublicRsvpPayload;
+          _recovery_token?: string | null;
+        };
         Returns: PublicRsvpResult;
+      };
+      request_rsvp_recovery: {
+        Args: { _share_token: string; _email: string };
+        Returns: { ok: true; token?: string | null };
+      };
+      lookup_rsvp_by_token: {
+        Args: { _token: string };
+        Returns: {
+          item_id: string;
+          share_token: string;
+          email: string;
+          meta: Record<string, unknown>;
+        } | null;
+      };
+      is_user_opted_out: {
+        Args: { _user_id: string; _kind: NotificationOptOutKind };
+        Returns: boolean;
+      };
+      upsert_notification_opt_out: {
+        Args: { _user_id: string; _kind: NotificationOptOutKind };
+        Returns: null;
+      };
+      remove_notification_opt_out: {
+        Args: { _kind: NotificationOptOutKind };
+        Returns: null;
       };
     };
   };

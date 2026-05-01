@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:analyze": "cross-env ANALYZE=1 vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:e2e": "node scripts/run-playwright-local.mjs",
@@ -16,6 +17,11 @@
     "db:types": "node scripts/gen-db-types.mjs",
     "functions:deploy": "npx supabase functions deploy notify-assignment",
     "functions:deploy:share": "npx supabase functions deploy notify-share",
+    "functions:deploy:invite": "npx supabase functions deploy notify-invite",
+    "functions:deploy:wrap-up": "npx supabase functions deploy notify-wrap-up",
+    "functions:deploy:reminders": "npx supabase functions deploy notify-event-reminder",
+    "functions:deploy:unsubscribe": "npx supabase functions deploy notify-unsubscribe --no-verify-jwt",
+    "functions:deploy:rsvp-recovery": "npx supabase functions deploy notify-rsvp-recovery --no-verify-jwt",
     "functions:serve": "npx supabase functions serve notify-assignment --no-verify-jwt"
   },
   "dependencies": {
@@ -39,11 +45,13 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
     "postcss": "^8.5.10",
+    "rollup-plugin-visualizer": "^7.0.1",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",

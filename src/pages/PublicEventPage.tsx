@@ -1,50 +1,77 @@
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   CalendarPlus,
   Check,
+  ChevronDown,
   Clock,
-  Download,
   ExternalLink,
   GlassWater,
   MapPin,
   Music,
   PartyPopper,
   PencilLine,
+  Share2,
   Utensils,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import type { EventItem, PublicEventShare, PublicRsvpPayload } from "../lib/database.types";
+import type {
+  EventItem,
+  PublicEventShare,
+} from "../lib/database.types";
+import type {
+  LookupRsvpByTokenResult,
+} from "../lib/types.rsvpRecovery";
 import { formatEventDate } from "../lib/format";
 import { downloadPublicEventIcs } from "../lib/exportIcs";
+import {
+  RSVP_ACCENT,
+  RSVP_ICON,
+  RSVP_LABEL,
+  type RsvpChoice,
+  type StoredRsvp,
+} from "./public/rsvpShared";
 
-type RsvpChoice = "yes" | "maybe" | "no";
+// Lazy chunks — kept out of the main public bundle so the hero, segmented
+// control, and Add-to-calendar dropdown can paint without waiting on the
+// form/recovery code paths. The form loads the moment a user picks an RSVP
+// choice (or arrives via a `?rsvp_token=` recovery link); the recovery
+// banner only loads inside the post-submit confirmed card when the guest
+// supplied an email.
+const LazyRsvpForm = lazy(() => import("./public/RsvpForm"));
+const LazyRecoveryLinkBanner = lazy(() => import("./public/RecoveryLinkBanner"));
 
-interface StoredRsvp {
-  name: string;
-  email: string;
-  rsvp: RsvpChoice;
-  plus_ones: number;
-  dietary: string;
-  notes: string;
-  submitted_at: string;
+// Module-cached preloader — calling it more than once is a no-op because the
+// dynamic import resolves to the same module in the loader's cache.
+function preloadRsvpForm(): void {
+  void import("./public/RsvpForm");
 }
-
-const RSVP_LABEL: Record<RsvpChoice, string> = {
-  yes: "I'm in",
-  maybe: "Maybe",
-  no: "Can't make it",
-};
 
 export function PublicEventPage() {
   const { token } = useParams<{ token: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const recoveryParam = searchParams.get("rsvp_token");
+
   const [share, setShare] = useState<PublicEventShare | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<LookupRsvpByTokenResult | null>(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
 
   const refreshShare = useCallback(async () => {
     if (!token) return;
-    const { data, error: loadError } = await supabase.rpc("get_public_event_share", { _token: token });
+    const { data, error: loadError } = await supabase.rpc("get_public_event_share", {
+      _token: token,
+    });
     if (loadError) return;
     setShare((data ?? null) as PublicEventShare | null);
   }, [token]);
@@ -58,7 +85,10 @@ export function PublicEventPage() {
     let cancelled = false;
     async function run() {
       setError(null);
-      const { data, error: loadError } = await supabase.rpc("get_public_event_share", { _token: token });
+      const { data, error: loadError } = await supabase.rpc(
+        "get_public_event_share",
+        { _token: token },
+      );
       if (cancelled) return;
       if (loadError) {
         setError("We couldn't load this share link. Please try again.");
@@ -74,26 +104,55 @@ export function PublicEventPage() {
     };
   }, [token]);
 
+  // When a recovery token is in the URL, eagerly fetch the saved RSVP AND
+  // start preloading the form chunk in parallel — by the time the lookup
+  // resolves, the form module will already be cached.
+  useEffect(() => {
+    if (!recoveryParam) {
+      setRecovery(null);
+      return;
+    }
+    let cancelled = false;
+    setRecoveryLoading(true);
+    preloadRsvpForm();
+    void (async () => {
+      const { data } = await supabase.rpc("lookup_rsvp_by_token", {
+        _token: recoveryParam,
+      });
+      if (cancelled) return;
+      const parsed = (data ?? null) as LookupRsvpByTokenResult | null;
+      setRecovery(parsed);
+      setRecoveryLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [recoveryParam]);
+
   const tasks = useMemo(
     () => (share?.items ?? []).filter((item: EventItem) => item.kind === "task"),
-    [share]
+    [share],
   );
   const menu = useMemo(
     () => (share?.items ?? []).filter((item: EventItem) => item.kind === "food"),
-    [share]
+    [share],
   );
   const drinks = useMemo(
     () => (share?.items ?? []).filter((item: EventItem) => item.kind === "beverage"),
-    [share]
+    [share],
   );
   const music = useMemo(
     () => (share?.items ?? []).filter((item: EventItem) => item.kind === "music"),
-    [share]
+    [share],
   );
 
   if (loading) {
     return (
-      <div className="min-h-screen grid place-items-center bg-slate-50 p-6" role="status" aria-live="polite">
+      <div
+        className="min-h-screen grid place-items-center bg-slate-50 p-6"
+        role="status"
+        aria-live="polite"
+      >
         <div className="card p-5 flex items-center gap-3 text-slate-600 shadow-soft">
           <span className="h-3 w-3 rounded-full bg-brand-500 animate-pulse" aria-hidden />
           <span className="text-sm font-medium">Loading event details…</span>
@@ -112,80 +171,132 @@ export function PublicEventPage() {
           <p className="text-sm text-slate-500 mt-1">
             {error ?? "This event link was disabled, expired, or mistyped."}
           </p>
-          <Link to="/" className="btn-primary mt-4">Go to Party Planner</Link>
+          <Link to="/" className="btn-primary mt-4">
+            Go to Party Planner
+          </Link>
         </div>
       </main>
     );
   }
 
   const { event } = share;
-  const googleUrl = buildGoogleCalendarUrl(event);
+  const host = share.host;
+  const summary = share.rsvp_summary ?? { yes: 0, maybe: 0, no: 0, pending: 0 };
   const mapsUrl = event.location
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        event.location,
+      )}`
     : null;
+
+  // Item 23 — social proof chip; never show "0 going".
+  const goingChip = summary.yes >= 3 ? `🎉 ${summary.yes} going` : null;
+  const maybeChip = summary.maybe > 0 ? `${summary.maybe} maybe` : null;
 
   return (
     <main className="min-h-screen bg-slate-50">
+      {/* Item 2.1 — Hero */}
       <section
         className="p-6 sm:p-10"
-        style={{ background: `linear-gradient(135deg, ${event.cover_color}33, ${event.cover_color}88)` }}
+        style={{
+          background: `linear-gradient(135deg, ${event.cover_color}33, ${event.cover_color}88)`,
+        }}
       >
         <div className="max-w-3xl mx-auto">
-          <div className="text-6xl mb-3">{event.cover_emoji}</div>
+          <div className="text-6xl mb-3" aria-hidden>
+            {event.cover_emoji}
+          </div>
           <h1 className="font-display text-4xl font-bold">{event.name}</h1>
           {event.theme && <p className="text-slate-700 mt-1">{event.theme}</p>}
         </div>
       </section>
+
       <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
-        <div className="card p-5 space-y-3">
-          <div>
-            <p className="font-medium">{formatEventDate(event.starts_at)}</p>
-            {event.ends_at && (
-              <p className="text-xs text-slate-500 mt-0.5">Ends {formatEventDate(event.ends_at)}</p>
-            )}
-          </div>
+        {/* Item 2.2 — Date / time + location pill (single line on desktop) */}
+        <div className="card p-4 flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-2 sm:gap-3 text-sm">
+          <span className="inline-flex items-center gap-2 font-medium text-slate-800">
+            <Clock size={16} className="text-brand-600" aria-hidden />
+            <span>{formatEventDate(event.starts_at)}</span>
+          </span>
+          {event.ends_at && (
+            <span className="text-xs text-slate-500">Ends {formatEventDate(event.ends_at)}</span>
+          )}
           {event.location && (
-            <p className="text-sm text-slate-600 flex flex-wrap items-center gap-2">
-              <MapPin size={16} /> {event.location}
+            <span className="inline-flex items-center gap-2 text-slate-700">
+              <span className="hidden sm:inline text-slate-300" aria-hidden>•</span>
+              <MapPin size={16} className="text-brand-600" aria-hidden />
+              <span>{event.location}</span>
               {mapsUrl && (
-                <a className="text-brand-700 font-medium inline-flex items-center gap-1" href={mapsUrl} target="_blank" rel="noreferrer">
-                  Directions <ExternalLink size={12} />
+                <a
+                  className="text-brand-700 font-medium inline-flex items-center gap-1"
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Directions <ExternalLink size={12} aria-hidden />
                 </a>
               )}
-            </p>
+            </span>
           )}
-          {event.description && <p className="text-sm text-slate-600 whitespace-pre-wrap">{event.description}</p>}
-          <div className="flex flex-wrap gap-2">
-            {event.partiful_url && (
-              <a className="btn-primary" href={event.partiful_url} target="_blank" rel="noreferrer">
-                RSVP on Partiful <ExternalLink size={14} />
-              </a>
-            )}
-            <a className="btn-secondary" href={googleUrl} target="_blank" rel="noreferrer">
-              <CalendarPlus size={14} /> Add to Google Calendar
-            </a>
-            <button
-              type="button"
-              onClick={() => downloadPublicEventIcs(event)}
-              className="btn-secondary"
-            >
-              <Download size={14} /> Add to my calendar (.ics)
-            </button>
-          </div>
         </div>
 
-        <RsvpCard token={token ?? ""} onSubmitted={() => void refreshShare()} />
+        {/* Item 2.3 / Item 3 — Hosted by avatar + name */}
+        {(host?.display_name || host?.initial) && (
+          <div className="flex items-center gap-3 px-1 text-sm text-slate-600">
+            <span
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-700 font-semibold"
+              aria-hidden
+            >
+              {host.initial || "?"}
+            </span>
+            <span>
+              Hosted by{" "}
+              <span className="font-medium text-slate-800">
+                {host.display_name?.trim() || "your friend"}
+              </span>
+            </span>
+          </div>
+        )}
 
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <RsvpStat label="Going" value={share.rsvp_summary?.yes ?? 0} />
-          <RsvpStat label="Maybe" value={share.rsvp_summary?.maybe ?? 0} />
-          <RsvpStat label="Pending" value={share.rsvp_summary?.pending ?? 0} />
-          <RsvpStat label="Not going" value={share.rsvp_summary?.no ?? 0} />
-        </section>
+        {/* Item 2.4 — RSVP segmented control as the FIRST interaction.
+            Item 1 — single source of truth for RSVP (inline form is primary).
+            The lightweight placeholder lives in this main public chunk; the
+            full form + submit logic lazy-loads the moment a choice is picked
+            (or when a `?rsvp_token=` recovery flow is in play). */}
+        <RsvpCard
+          token={token ?? ""}
+          eventName={event.name}
+          partifulUrl={event.partiful_url}
+          recovery={recovery}
+          recoveryToken={recoveryParam}
+          recoveryLoading={recoveryLoading}
+          onClearRecovery={() => {
+            setRecovery(null);
+            const next = new URLSearchParams(searchParams);
+            next.delete("rsvp_token");
+            setSearchParams(next, { replace: true });
+          }}
+          onSubmitted={() => void refreshShare()}
+        />
 
+        {/* Item 2.5 — Social proof (only shows when there's something to brag about) */}
+        {(goingChip || maybeChip) && (
+          <div className="flex flex-wrap items-center gap-2 px-1" aria-live="polite">
+            {goingChip && (
+              <span className="chip bg-emerald-50 text-emerald-700">{goingChip}</span>
+            )}
+            {maybeChip && (
+              <span className="chip bg-amber-50 text-amber-700">{maybeChip}</span>
+            )}
+          </div>
+        )}
+
+        {/* Item 2.6 / Item 10 — single Add-to-calendar dropdown */}
+        <AddToCalendarMenu event={event} />
+
+        {/* Existing sections, in original order */}
         <section className="card p-5">
           <h2 className="font-display font-bold mb-3 flex items-center gap-2">
-            <Clock size={18} className="text-brand-600" /> Schedule
+            <Clock size={18} className="text-brand-600" aria-hidden /> Schedule
           </h2>
           {tasks.length === 0 ? (
             <p className="text-sm text-slate-500">No public schedule items yet.</p>
@@ -206,7 +317,7 @@ export function PublicEventPage() {
 
         <section className="card p-5">
           <h2 className="font-display font-bold mb-3 flex items-center gap-2">
-            <Utensils size={18} className="text-brand-600" /> Food
+            <Utensils size={18} className="text-brand-600" aria-hidden /> Food
           </h2>
           {menu.length === 0 ? (
             <p className="text-sm text-slate-500">Menu coming soon.</p>
@@ -221,7 +332,7 @@ export function PublicEventPage() {
 
         <section className="card p-5">
           <h2 className="font-display font-bold mb-3 flex items-center gap-2">
-            <GlassWater size={18} className="text-brand-600" /> Drinks
+            <GlassWater size={18} className="text-brand-600" aria-hidden /> Drinks
           </h2>
           {drinks.length === 0 ? (
             <p className="text-sm text-slate-500">Drink list coming soon.</p>
@@ -237,7 +348,7 @@ export function PublicEventPage() {
         {music.length > 0 && (
           <section className="card p-5">
             <h2 className="font-display font-bold mb-3 flex items-center gap-2">
-              <Music size={18} className="text-brand-600" /> Music
+              <Music size={18} className="text-brand-600" aria-hidden /> Music
             </h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {music.slice(0, 12).map((item) => (
@@ -251,11 +362,137 @@ export function PublicEventPage() {
   );
 }
 
-function RsvpCard({ token, onSubmitted }: { token: string; onSubmitted: () => void }) {
+// ============================================================================
+// Item 10 — single "Add to calendar" dropdown (Google / Outlook / Apple / Yahoo)
+// ============================================================================
+function AddToCalendarMenu({ event }: { event: PublicEventShare["event"] }) {
+  const [open, setOpen] = useState(false);
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
+
+  // Close on outside click — keeps the popover from sticking open when the
+  // user taps elsewhere on the page (especially on mobile where the
+  // <details> summary doesn't auto-collapse).
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      const node = detailsRef.current;
+      if (!node) return;
+      if (!node.contains(e.target as Node)) {
+        node.open = false;
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const close = () => {
+    if (detailsRef.current) detailsRef.current.open = false;
+    setOpen(false);
+  };
+
+  const googleUrl = buildGoogleCalendarUrl(event);
+  const outlookUrl = buildOutlookCalendarUrl(event);
+  const yahooUrl = buildYahooCalendarUrl(event);
+
+  return (
+    <details
+      ref={detailsRef}
+      className="group relative"
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+    >
+      <summary
+        className="btn-secondary inline-flex cursor-pointer list-none w-full sm:w-auto justify-center"
+        aria-haspopup="menu"
+      >
+        <CalendarPlus size={14} aria-hidden /> Add to calendar
+        <ChevronDown
+          size={14}
+          aria-hidden
+          className={`transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </summary>
+      <div
+        role="menu"
+        aria-label="Add to calendar options"
+        className="absolute left-0 sm:left-auto sm:right-0 z-20 mt-2 w-full sm:w-64 card p-1 shadow-pop"
+      >
+        <a
+          role="menuitem"
+          href={googleUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={close}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <CalendarPlus size={14} className="text-brand-600" aria-hidden /> Google Calendar
+        </a>
+        <a
+          role="menuitem"
+          href={outlookUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={close}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <CalendarPlus size={14} className="text-brand-600" aria-hidden /> Outlook
+        </a>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            downloadPublicEventIcs(event);
+            close();
+          }}
+          className="flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 text-left"
+        >
+          <CalendarPlus size={14} className="text-brand-600" aria-hidden /> Apple / iCal (.ics)
+        </button>
+        <a
+          role="menuitem"
+          href={yahooUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={close}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <CalendarPlus size={14} className="text-brand-600" aria-hidden /> Yahoo
+        </a>
+      </div>
+    </details>
+  );
+}
+
+// ============================================================================
+// RSVP card — segmented control + collapsible details form
+// ============================================================================
+function RsvpCard({
+  token,
+  eventName,
+  partifulUrl,
+  recovery,
+  recoveryToken,
+  recoveryLoading,
+  onClearRecovery,
+  onSubmitted,
+}: {
+  token: string;
+  eventName: string;
+  partifulUrl: string | null;
+  recovery: LookupRsvpByTokenResult | null;
+  recoveryToken: string | null;
+  recoveryLoading: boolean;
+  onClearRecovery: () => void;
+  onSubmitted: () => void;
+}) {
   const storageKey = token ? `public-rsvp:${token}` : "";
   const [stored, setStored] = useState<StoredRsvp | null>(null);
   const [editing, setEditing] = useState(false);
+  // Tracks the user's first segmented-control click on the placeholder so we
+  // can hand the choice off to the lazy-loaded form as `initialChoice`.
+  const [pickedChoice, setPickedChoice] = useState<RsvpChoice | null>(null);
 
+  // Hydrate cache from localStorage (fast same-device path).
   useEffect(() => {
     if (!storageKey) return;
     try {
@@ -278,9 +515,27 @@ function RsvpCard({ token, onSubmitted }: { token: string; onSubmitted: () => vo
     }
   }, [storageKey]);
 
+  // Recovery token is authoritative; promote it over any local cache and
+  // immediately drop the user into edit mode pre-filled with server data.
+  useEffect(() => {
+    if (!recovery) return;
+    const meta = recovery.meta;
+    setStored({
+      name: meta.name,
+      email: meta.email,
+      rsvp: meta.rsvp,
+      plus_ones: meta.plus_ones,
+      dietary: meta.dietary,
+      notes: meta.notes,
+      submitted_at: meta.submitted_at ?? new Date().toISOString(),
+    });
+    setEditing(true);
+  }, [recovery]);
+
   const handleSubmitted = (saved: StoredRsvp) => {
     setStored(saved);
     setEditing(false);
+    setPickedChoice(null);
     if (storageKey) {
       try {
         window.localStorage.setItem(storageKey, JSON.stringify(saved));
@@ -293,260 +548,325 @@ function RsvpCard({ token, onSubmitted }: { token: string; onSubmitted: () => vo
 
   if (!token) return null;
 
+  // Confirmed-state card — also the home for Item 19 (forward) and Item 21
+  // (recovery-link banner).
   if (stored && !editing) {
     return (
-      <section className="card p-5" aria-label="Your RSVP">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display font-bold flex items-center gap-2">
-              <Check size={18} className="text-emerald-600" />
-              Thanks, {stored.name}! Your RSVP is in.
-            </h2>
-            <p className="text-sm text-slate-600 mt-1">
-              We marked you as <strong>{RSVP_LABEL[stored.rsvp]}</strong>
-              {stored.plus_ones > 0 && (
-                <> with <strong>{stored.plus_ones}</strong> plus-one{stored.plus_ones === 1 ? "" : "s"}</>
-              )}
-              .
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="btn-ghost text-xs"
-          >
-            <PencilLine size={14} /> Update RSVP
-          </button>
-        </div>
-      </section>
+      <RsvpConfirmedCard
+        token={token}
+        eventName={eventName}
+        stored={stored}
+        partifulUrl={partifulUrl}
+        onEdit={() => setEditing(true)}
+      />
+    );
+  }
+
+  // Lazy-load gating: keep the form chunk out of first paint until either
+  //   - the user picks an RSVP choice from the lightweight placeholder, or
+  //   - we already have a stored RSVP (localStorage or recovery), or
+  //   - a recovery token is in the URL (cross-device update flow).
+  const shouldLoadForm =
+    pickedChoice !== null || stored !== null || Boolean(recoveryToken);
+
+  if (!shouldLoadForm) {
+    return (
+      <RsvpChoicePlaceholder
+        eventName={eventName}
+        onPick={setPickedChoice}
+        onPreload={preloadRsvpForm}
+      />
     );
   }
 
   return (
-    <RsvpForm
-      token={token}
-      initial={stored}
-      onCancel={stored ? () => setEditing(false) : undefined}
-      onSubmitted={handleSubmitted}
-    />
+    <Suspense fallback={<RsvpFormSkeleton initialChoice={pickedChoice} />}>
+      <LazyRsvpForm
+        token={token}
+        eventName={eventName}
+        initial={stored}
+        initialChoice={pickedChoice ?? stored?.rsvp ?? null}
+        partifulUrl={partifulUrl}
+        isUpdate={Boolean(recovery)}
+        recoveryToken={recovery ? recoveryToken : null}
+        recoveryLoading={recoveryLoading}
+        onCancel={stored ? () => setEditing(false) : undefined}
+        onClearRecovery={onClearRecovery}
+        onSubmitted={handleSubmitted}
+      />
+    </Suspense>
   );
 }
 
-function RsvpForm({
-  token,
-  initial,
-  onCancel,
-  onSubmitted,
+// ============================================================================
+// Lightweight placeholder — same heading + segmented control the form ships
+// with, minus the heavy form fields & submit logic. Picking a choice
+// triggers the lazy form load via `onPick`; pointer/focus interactions
+// pre-warm the chunk via `onPreload` so the Suspense fallback rarely shows.
+// ============================================================================
+function RsvpChoicePlaceholder({
+  eventName,
+  onPick,
+  onPreload,
 }: {
-  token: string;
-  initial: StoredRsvp | null;
-  onCancel?: () => void;
-  onSubmitted: (saved: StoredRsvp) => void;
+  eventName: string;
+  onPick: (choice: RsvpChoice) => void;
+  onPreload: () => void;
 }) {
   const baseId = useId();
-  const [name, setName] = useState(initial?.name ?? "");
-  const [email, setEmail] = useState(initial?.email ?? "");
-  const [rsvp, setRsvp] = useState<RsvpChoice>(initial?.rsvp ?? "yes");
-  const [plusOnes, setPlusOnes] = useState<number>(initial?.plus_ones ?? 0);
-  const [dietary, setDietary] = useState(initial?.dietary ?? "");
-  const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError("Please tell us your name so the host knows who's coming.");
-      return;
-    }
-    setSubmitting(true);
-    const payload: PublicRsvpPayload = {
-      name: trimmedName,
-      email: email.trim() || undefined,
-      rsvp,
-      plus_ones: Math.max(0, Math.floor(plusOnes || 0)),
-      dietary: dietary.trim() || undefined,
-      notes: notes.trim() || undefined,
-    };
-    const { data, error: rpcError } = await supabase.rpc("submit_public_rsvp", {
-      _token: token,
-      _payload: payload,
-    });
-    setSubmitting(false);
-    if (rpcError) {
-      setError(friendlyRsvpError(rpcError.message));
-      return;
-    }
-    const result = (data ?? null) as { ok?: boolean } | null;
-    if (!result?.ok) {
-      setError("We couldn't save your RSVP. Please try again.");
-      return;
-    }
-    onSubmitted({
-      name: trimmedName,
-      email: payload.email ?? "",
-      rsvp,
-      plus_ones: payload.plus_ones,
-      dietary: payload.dietary ?? "",
-      notes: payload.notes ?? "",
-      submitted_at: new Date().toISOString(),
-    });
-  };
-
   return (
-    <section className="card p-5" aria-label="RSVP to this event">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div>
-          <h2 className="font-display font-bold flex items-center gap-2">
-            <PartyPopper size={18} className="text-brand-600" /> RSVP
-          </h2>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Let the host know whether you'll be there.
-          </p>
-        </div>
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="btn-ghost text-xs">
-            Cancel
-          </button>
-        )}
+    <section className="card p-5 space-y-4" aria-label="RSVP to this event">
+      <div>
+        <h2 className="font-display font-bold flex items-center gap-2">
+          <PartyPopper size={18} className="text-brand-600" aria-hidden />
+          RSVP to {eventName}
+        </h2>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Tap one to start — we'll ask for the rest after.
+        </p>
       </div>
-
-      <form onSubmit={handleSubmit} className="space-y-3" noValidate>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="label" htmlFor={`${baseId}-name`}>
-              Your name <span className="text-rose-600" aria-hidden>*</span>
-            </label>
-            <input
-              id={`${baseId}-name`}
-              className="input"
-              autoComplete="name"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Alex Rivera"
-              aria-required="true"
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor={`${baseId}-email`}>Email (optional)</label>
-            <input
-              id={`${baseId}-email`}
-              type="email"
-              autoComplete="email"
-              className="input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="alex@example.com"
-            />
-          </div>
+      <fieldset
+        // Pre-warm the form chunk on the user's first sign of intent so the
+        // lazy import is in-flight (or already done) by the time their click
+        // event fires. Pointer + focus together cover mouse, touch, stylus,
+        // and keyboard users.
+        onPointerEnter={onPreload}
+        onFocus={onPreload}
+      >
+        <legend className="label">Are you coming?</legend>
+        <div
+          className="grid grid-cols-1 sm:grid-cols-3 gap-2"
+          role="radiogroup"
+          aria-label="RSVP response"
+        >
+          {(["yes", "maybe", "no"] as const).map((choice) => {
+            const id = `${baseId}-rsvp-${choice}`;
+            const Icon = RSVP_ICON[choice];
+            const accent = RSVP_ACCENT[choice];
+            return (
+              <label
+                key={choice}
+                htmlFor={id}
+                className={[
+                  "cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border-2 transition-colors min-h-[48px]",
+                  "focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-1",
+                  accent.ring,
+                  accent.idle,
+                ].join(" ")}
+              >
+                <input
+                  id={id}
+                  type="radio"
+                  name={`${baseId}-rsvp`}
+                  value={choice}
+                  checked={false}
+                  onChange={() => onPick(choice)}
+                  className="sr-only"
+                />
+                <Icon size={18} aria-hidden />
+                <span>{RSVP_LABEL[choice]}</span>
+              </label>
+            );
+          })}
         </div>
-
-        <fieldset>
-          <legend className="label">Are you coming?</legend>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="RSVP response">
-            {(["yes", "maybe", "no"] as const).map((choice) => {
-              const id = `${baseId}-rsvp-${choice}`;
-              const active = rsvp === choice;
-              return (
-                <label
-                  key={choice}
-                  htmlFor={id}
-                  className={`cursor-pointer px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    active
-                      ? choice === "yes"
-                        ? "bg-emerald-600 text-white border-emerald-600"
-                        : choice === "maybe"
-                        ? "bg-amber-500 text-white border-amber-500"
-                        : "bg-rose-600 text-white border-rose-600"
-                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <input
-                    id={id}
-                    type="radio"
-                    name={`${baseId}-rsvp`}
-                    value={choice}
-                    checked={active}
-                    onChange={() => setRsvp(choice)}
-                    className="sr-only"
-                  />
-                  {RSVP_LABEL[choice]}
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="label" htmlFor={`${baseId}-plus-ones`}>Plus-ones</label>
-            <input
-              id={`${baseId}-plus-ones`}
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={50}
-              className="input"
-              value={plusOnes}
-              onChange={(e) => setPlusOnes(Math.max(0, Math.min(50, Number(e.target.value) || 0)))}
-            />
-          </div>
-          <div>
-            <label className="label" htmlFor={`${baseId}-dietary`}>Dietary needs</label>
-            <input
-              id={`${baseId}-dietary`}
-              className="input"
-              value={dietary}
-              onChange={(e) => setDietary(e.target.value)}
-              placeholder="e.g. vegetarian, nut allergy"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="label" htmlFor={`${baseId}-notes`}>Anything else for the host?</label>
-          <textarea
-            id={`${baseId}-notes`}
-            className="input min-h-[80px]"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Bringing a dish? Need a ride?"
-          />
-        </div>
-
-        {error && (
-          <div className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2" role="alert">
-            {error}
-          </div>
-        )}
-
-        <div className="flex justify-end">
-          <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? "Sending…" : initial ? "Update RSVP" : "Send RSVP"}
-          </button>
-        </div>
-      </form>
+      </fieldset>
     </section>
   );
 }
 
-function friendlyRsvpError(message: string) {
-  if (!message) return "We couldn't save your RSVP. Please try again.";
-  if (/already received an RSVP/i.test(message)) return message;
-  if (/share link is no longer/i.test(message)) return message;
-  if (/RSVP must be/i.test(message)) return message;
-  if (/your name/i.test(message)) return message;
-  return "We couldn't save your RSVP. Please try again.";
+// ============================================================================
+// Suspense fallback — preserves the placeholder's footprint so the segmented
+// control area doesn't collapse during chunk fetch. Mirrors the form's
+// segmented-control spacing; the `initialChoice` lets us highlight whichever
+// button the user just clicked while the form chunk is in flight.
+// ============================================================================
+function RsvpFormSkeleton({ initialChoice }: { initialChoice: RsvpChoice | null }) {
+  return (
+    <section
+      className="card p-5 space-y-4"
+      aria-label="RSVP to this event"
+      aria-busy="true"
+    >
+      <div>
+        <div className="h-5 w-40 rounded bg-slate-100 animate-pulse" />
+        <div className="h-3 w-64 rounded bg-slate-100 animate-pulse mt-2" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" aria-hidden>
+        {(["yes", "maybe", "no"] as const).map((choice) => {
+          const Icon = RSVP_ICON[choice];
+          const accent = RSVP_ACCENT[choice];
+          const active = initialChoice === choice;
+          return (
+            <span
+              key={choice}
+              className={[
+                "inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border-2 min-h-[48px]",
+                active ? accent.active : accent.idle,
+              ].join(" ")}
+            >
+              <Icon size={18} aria-hidden />
+              <span>{RSVP_LABEL[choice]}</span>
+            </span>
+          );
+        })}
+      </div>
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="h-10 rounded-lg bg-slate-100 animate-pulse" />
+          <div className="h-10 rounded-lg bg-slate-100 animate-pulse" />
+        </div>
+        <div className="h-20 rounded-lg bg-slate-100 animate-pulse" />
+      </div>
+    </section>
+  );
 }
 
-function RsvpStat({ label, value }: { label: string; value: number }) {
+// ============================================================================
+// RSVP confirmed view (post-submit) — also hosts Forward + recovery banner
+// ============================================================================
+function RsvpConfirmedCard({
+  token,
+  eventName,
+  stored,
+  partifulUrl,
+  onEdit,
+}: {
+  token: string;
+  eventName: string;
+  stored: StoredRsvp;
+  partifulUrl: string | null;
+  onEdit: () => void;
+}) {
   return (
-    <div className="card p-3 text-center">
-      <div className="text-xs uppercase tracking-wide font-semibold text-slate-500">{label}</div>
-      <div className="font-display text-2xl font-bold text-slate-800">{value}</div>
+    <section className="card p-5 space-y-4" aria-label="Your RSVP">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display font-bold flex items-center gap-2">
+            <Check size={18} className="text-emerald-600" aria-hidden />
+            Thanks, {stored.name}! Your RSVP is in.
+          </h2>
+          <p className="text-sm text-slate-600 mt-1">
+            We marked you as <strong>{RSVP_LABEL[stored.rsvp]}</strong>
+            {stored.plus_ones > 0 && (
+              <>
+                {" "}with <strong>{stored.plus_ones}</strong> plus-one
+                {stored.plus_ones === 1 ? "" : "s"}
+              </>
+            )}
+            .
+          </p>
+        </div>
+        <button type="button" onClick={onEdit} className="btn-ghost text-xs">
+          <PencilLine size={14} aria-hidden /> Update RSVP
+        </button>
+      </div>
+
+      {/* Item 19 — Forward to a friend */}
+      <ForwardToFriendButton eventName={eventName} />
+
+      {/* Item 21 — recovery-link banner (only meaningful when we have an email).
+          Lazy-loaded: most viewers never hit the post-submit confirmed state
+          on first paint, and even when they do they don't always supply email. */}
+      {stored.email && (
+        <Suspense fallback={<RecoveryBannerSkeleton />}>
+          <LazyRecoveryLinkBanner shareToken={token} email={stored.email} />
+        </Suspense>
+      )}
+
+      {/* Item 1 — de-emphasized Partiful fallback */}
+      {partifulUrl && (
+        <p className="text-xs text-slate-500">
+          <a
+            className="text-slate-500 hover:text-slate-700 underline decoration-slate-300"
+            href={partifulUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Or RSVP on Partiful →
+          </a>
+        </p>
+      )}
+    </section>
+  );
+}
+
+function RecoveryBannerSkeleton() {
+  return (
+    <div
+      className="rounded-xl border border-brand-100 bg-brand-50/60 p-3 h-12 animate-pulse"
+      aria-hidden
+    />
+  );
+}
+
+// ============================================================================
+// Item 19 — Forward to a friend (native share, clipboard fallback)
+// ============================================================================
+function ForwardToFriendButton({ eventName }: { eventName: string }) {
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const flash = (msg: string) => {
+    setFeedback(msg);
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    timeoutRef.current = window.setTimeout(() => setFeedback(null), 4000);
+  };
+
+  const handleClick = async () => {
+    if (typeof window === "undefined") return;
+    const url = window.location.href;
+    const shareData = {
+      title: eventName,
+      text: `You're invited to ${eventName}`,
+      url,
+    };
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        // AbortError = user dismissed share sheet; treat as no-op.
+        const name = (err as { name?: string })?.name;
+        if (name === "AbortError") return;
+        // Fall through to clipboard on other errors.
+      }
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "absolute";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      flash("Link copied — paste it anywhere");
+    } catch {
+      flash("Couldn't copy link automatically. Long-press the URL bar to share.");
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" onClick={handleClick} className="btn-secondary">
+        <Share2 size={14} aria-hidden /> Forward to a friend
+      </button>
+      <span className="text-xs text-slate-500" role="status" aria-live="polite">
+        {feedback}
+      </span>
     </div>
   );
 }
@@ -561,7 +881,9 @@ function MenuCard({ item }: { item: EventItem }) {
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="font-medium text-sm">{item.title}</div>
       <div className="text-xs text-slate-500 mt-0.5">
-        {[courseLabel(meta.course), meta.servings ? `${meta.servings} servings` : null].filter(Boolean).join(" · ")}
+        {[courseLabel(meta.course), meta.servings ? `${meta.servings} servings` : null]
+          .filter(Boolean)
+          .join(" · ")}
       </div>
       {item.description && <p className="text-xs text-slate-500 mt-1">{item.description}</p>}
       {Array.isArray(meta.dietary) && meta.dietary.length > 0 && (
@@ -584,12 +906,18 @@ function DrinkCard({ item }: { item: EventItem }) {
     unit?: string;
     alcoholic?: boolean;
   };
-  const quantity = [meta.qty, meta.unit].filter((value) => value !== undefined && value !== "").join(" ");
+  const quantity = [meta.qty, meta.unit]
+    .filter((value) => value !== undefined && value !== "")
+    .join(" ");
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="font-medium text-sm">{item.title}</div>
       <div className="text-xs text-slate-500 mt-0.5">
-        {[drinkTypeLabel(meta.type), quantity || null, meta.alcoholic ? "Alcoholic" : "Non-alcoholic"]
+        {[
+          drinkTypeLabel(meta.type),
+          quantity || null,
+          meta.alcoholic ? "Alcoholic" : "Non-alcoholic",
+        ]
           .filter(Boolean)
           .join(" · ")}
       </div>
@@ -609,11 +937,18 @@ function MusicCard({ item }: { item: EventItem }) {
     <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="font-medium text-sm">{item.title}</div>
       <div className="text-xs text-slate-500 mt-0.5">
-        {[meta.is_playlist ? "Playlist" : meta.artist, musicSetLabel(meta.set)].filter(Boolean).join(" · ")}
+        {[meta.is_playlist ? "Playlist" : meta.artist, musicSetLabel(meta.set)]
+          .filter(Boolean)
+          .join(" · ")}
       </div>
       {meta.url && (
-        <a className="text-xs text-brand-700 font-medium inline-flex items-center gap-1 mt-2" href={meta.url} target="_blank" rel="noreferrer">
-          Open music <ExternalLink size={12} />
+        <a
+          className="text-xs text-brand-700 font-medium inline-flex items-center gap-1 mt-2"
+          href={meta.url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open music <ExternalLink size={12} aria-hidden />
         </a>
       )}
     </div>
@@ -661,7 +996,9 @@ function musicSetLabel(set?: string) {
 
 function buildGoogleCalendarUrl(event: PublicEventShare["event"]) {
   const start = event.starts_at ? new Date(event.starts_at) : new Date();
-  const end = event.ends_at ? new Date(event.ends_at) : new Date(start.getTime() + 3 * 60 * 60 * 1000);
+  const end = event.ends_at
+    ? new Date(event.ends_at)
+    : new Date(start.getTime() + 3 * 60 * 60 * 1000);
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
   const params = new URLSearchParams({
     action: "TEMPLATE",
@@ -671,4 +1008,38 @@ function buildGoogleCalendarUrl(event: PublicEventShare["event"]) {
     location: event.location ?? "",
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function buildOutlookCalendarUrl(event: PublicEventShare["event"]) {
+  const start = event.starts_at ? new Date(event.starts_at) : new Date();
+  const end = event.ends_at
+    ? new Date(event.ends_at)
+    : new Date(start.getTime() + 3 * 60 * 60 * 1000);
+  const params = new URLSearchParams({
+    path: "/calendar/action/compose",
+    rru: "addevent",
+    subject: event.name,
+    startdt: start.toISOString(),
+    enddt: end.toISOString(),
+    body: [event.description, event.partiful_url].filter(Boolean).join("\n\n"),
+    location: event.location ?? "",
+  });
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`;
+}
+
+function buildYahooCalendarUrl(event: PublicEventShare["event"]) {
+  const start = event.starts_at ? new Date(event.starts_at) : new Date();
+  const end = event.ends_at
+    ? new Date(event.ends_at)
+    : new Date(start.getTime() + 3 * 60 * 60 * 1000);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const params = new URLSearchParams({
+    v: "60",
+    title: event.name,
+    st: fmt(start),
+    et: fmt(end),
+    desc: [event.description, event.partiful_url].filter(Boolean).join("\n\n"),
+    in_loc: event.location ?? "",
+  });
+  return `https://calendar.yahoo.com/?${params.toString()}`;
 }

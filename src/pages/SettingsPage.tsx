@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Bell,
   BellOff,
   CalendarClock,
   CheckCircle2,
+  Inbox,
   LogOut,
   Mail,
   ShieldAlert,
@@ -12,6 +13,10 @@ import {
 import clsx from "clsx";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
+import type {
+  NotificationOptOut,
+  NotificationOptOutKind,
+} from "../lib/database.types";
 import {
   hasActivePushSubscription,
   subscribeToPush,
@@ -39,6 +44,37 @@ function readPrefs(metadata: unknown): NotificationPrefs {
   };
 }
 
+// User-facing labels for each scheduled-reminder kind (migration 0013).
+// Order matches the cadence guests experience.
+type ReminderKind = Exclude<NotificationOptOutKind, "all">;
+
+const REMINDER_KIND_META: Array<{
+  kind: ReminderKind;
+  label: string;
+  hint: string;
+}> = [
+  {
+    kind: "pre_7d",
+    label: "T-7 days reminder",
+    hint: "Quick checklist a week out — unassigned tasks, missing RSVPs.",
+  },
+  {
+    kind: "pre_3d",
+    label: "T-3 days reminder",
+    hint: "Lock-it-in nudge with what still needs attention.",
+  },
+  {
+    kind: "pre_1d",
+    label: "T-1 day reminder",
+    hint: "Final day-before pulse with the run-of-show link.",
+  },
+  {
+    kind: "wrap_up_1d",
+    label: "Post-party wrap-up",
+    hint: "One day after the event: capture lessons learned and final spend.",
+  },
+];
+
 export function SettingsPage() {
   const { user, profile, signOut } = useAuth();
   const toast = useToast();
@@ -50,6 +86,18 @@ export function SettingsPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const fadeTimer = useRef<number | null>(null);
 
+  // Reminder opt-out state. `optOuts` is the set of kinds the user is
+  // unsubscribed from; "checked" in the UI means they want the email, so the
+  // checkbox is `!optOuts.has(kind)`. We treat `all` as a meta-opt-out:
+  // when present, every kind reads as muted but we keep the row intact so
+  // re-enabling individual kinds doesn't accidentally re-subscribe to all.
+  const [optOuts, setOptOuts] = useState<Set<NotificationOptOutKind>>(
+    () => new Set()
+  );
+  const [optOutsLoading, setOptOutsLoading] = useState(true);
+  const [optOutsError, setOptOutsError] = useState<string | null>(null);
+  const [pendingKind, setPendingKind] = useState<ReminderKind | null>(null);
+
   useEffect(() => {
     setPrefs(readPrefs(user?.user_metadata));
   }, [user?.user_metadata]);
@@ -60,6 +108,117 @@ export function SettingsPage() {
     },
     []
   );
+
+  // Load the current opt-out rows once we know who the user is. RLS scopes
+  // the select to the caller's own rows, so no `.eq('user_id', ...)` needed.
+  useEffect(() => {
+    if (!user) {
+      setOptOuts(new Set());
+      setOptOutsLoading(false);
+      return;
+    }
+    let active = true;
+    setOptOutsLoading(true);
+    void (async () => {
+      const { data, error } = await supabase
+        .from("notification_opt_outs")
+        .select("kind");
+      if (!active) return;
+      if (error) {
+        setOptOutsError(error.message);
+        setOptOutsLoading(false);
+        return;
+      }
+      const next = new Set<NotificationOptOutKind>();
+      for (const row of (data ?? []) as Pick<NotificationOptOut, "kind">[]) {
+        next.add(row.kind);
+      }
+      setOptOuts(next);
+      setOptOutsError(null);
+      setOptOutsLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  // Smooth-scroll to the email-prefs section when arriving via
+  // `/settings#notifications` (the link in every reminder email footer).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== "#notifications") return;
+    if (optOutsLoading) return;
+    const el = document.getElementById("notifications");
+    if (!el) return;
+    const handle = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+    return () => window.clearTimeout(handle);
+  }, [optOutsLoading]);
+
+  const toggleReminder = useCallback(
+    async (kind: ReminderKind) => {
+      if (!user) return;
+      const previous = optOuts;
+      const wasOptedOut = previous.has(kind) || previous.has("all");
+      // Optimistic update first. Build a fresh Set so React re-renders.
+      const next = new Set(previous);
+      if (wasOptedOut) {
+        next.delete(kind);
+      } else {
+        next.add(kind);
+      }
+      setOptOuts(next);
+      setPendingKind(kind);
+      setOptOutsError(null);
+
+      const { error } = wasOptedOut
+        ? await supabase
+            .from("notification_opt_outs")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("kind", kind)
+        : await supabase
+            .from("notification_opt_outs")
+            .insert({ user_id: user.id, kind });
+
+      setPendingKind(null);
+      if (error) {
+        setOptOuts(previous);
+        setOptOutsError(error.message);
+        toast.error(`Couldn't update preferences: ${error.message}`);
+        return;
+      }
+      setSavedAt(Date.now());
+      if (fadeTimer.current) window.clearTimeout(fadeTimer.current);
+      fadeTimer.current = window.setTimeout(() => setSavedAt(null), 1500);
+    },
+    [optOuts, toast, user]
+  );
+
+  const clearGlobalMute = useCallback(async () => {
+    if (!user) return;
+    const previous = optOuts;
+    const next = new Set(previous);
+    next.delete("all");
+    setOptOuts(next);
+    setOptOutsError(null);
+
+    const { error } = await supabase
+      .from("notification_opt_outs")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("kind", "all");
+    if (error) {
+      setOptOuts(previous);
+      setOptOutsError(error.message);
+      toast.error(`Couldn't update preferences: ${error.message}`);
+      return;
+    }
+    setSavedAt(Date.now());
+    if (fadeTimer.current) window.clearTimeout(fadeTimer.current);
+    fadeTimer.current = window.setTimeout(() => setSavedAt(null), 1500);
+  }, [optOuts, toast, user]);
 
   const persistPrefs = async (
     next: NotificationPrefs,
@@ -231,6 +390,83 @@ export function SettingsPage() {
           onDisable={() => void disablePush()}
         />
       </SectionCard>
+
+      <section
+        id="notifications"
+        data-testid="email-prefs-section"
+        className="card p-5 scroll-mt-20"
+      >
+        <header className="mb-4">
+          <h2 className="font-display font-bold text-lg flex items-center gap-2">
+            <Inbox size={18} className="text-brand-600" />
+            Email reminder preferences
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Choose which scheduled reminder digests we email you about your
+            events. Unchecking a row is the same as clicking{" "}
+            <span className="whitespace-nowrap">"Unsubscribe"</span> in the
+            footer of one of those emails.
+          </p>
+        </header>
+
+        {optOuts.has("all") && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          >
+            <BellOff size={16} className="mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium">All reminder emails are muted.</p>
+              <p className="text-amber-700/90 mt-0.5">
+                You used a one-click unsubscribe link covering every reminder
+                kind. Re-enable everything below, or toggle individual kinds
+                after lifting the global mute.
+              </p>
+              <button
+                type="button"
+                className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+                onClick={() => void clearGlobalMute()}
+              >
+                Lift global mute
+              </button>
+            </div>
+          </div>
+        )}
+
+        {optOutsError && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="mb-3 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-sm text-rose-700"
+          >
+            <ShieldAlert size={14} className="mt-0.5 flex-shrink-0" />
+            <span>Could not update preferences: {optOutsError}</span>
+          </div>
+        )}
+
+        {optOutsLoading ? (
+          <p className="text-sm text-slate-500">Loading preferences…</p>
+        ) : (
+          <div>
+            {REMINDER_KIND_META.map((meta, idx) => {
+              const muted = optOuts.has(meta.kind) || optOuts.has("all");
+              return (
+                <div key={meta.kind}>
+                  {idx > 0 && <Divider />}
+                  <ToggleRow
+                    label={meta.label}
+                    hint={meta.hint}
+                    checked={!muted}
+                    onChange={() => void toggleReminder(meta.kind)}
+                    disabled={pendingKind === meta.kind || optOuts.has("all")}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <SectionCard
         icon={<CalendarClock size={18} className="text-brand-600" />}

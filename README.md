@@ -1,8 +1,10 @@
 # Party Planner
 
 A collaborative party planning app. Plan multiple events, track every detail
-from menu to music, and work together in real-time. Integrates with
-[Partiful](https://partiful.com/) by linking events and tracking RSVPs.
+from menu to music, and work together in real-time. Each event has a
+public guest page with one-click RSVPs, a single "Add to calendar"
+dropdown, and forward-to-a-friend share. Optionally integrates with
+[Partiful](https://partiful.com/) by linking the event and tracking RSVPs.
 
 ## Features
 
@@ -11,30 +13,50 @@ from menu to music, and work together in real-time. Integrates with
 - **Real-time collaboration** — invite friends to plan together via Supabase
 - **Three planning phases** — pre-party, day-of, and post-party tasks
 - **Partiful integration** — link your Partiful event URL and track RSVP count
+- **Grouped event navigation** — 8 top-level groups (Overview, Plan, Guests,
+  Food & Drink, Setup, Atmosphere, Vendors, Settings) with a contextual
+  sub-row of category tabs. On mobile the same groups headline a bottom-sheet
+  "More" picker. Tab labels: **Menu**, **Beverages**, **Shopping**, **Budget**,
+  **Logistics**, **Signs**, **Decorations**, **Restrooms**, **Day-of setup**,
+  **Music**, **Games**, **Vendors**, **Timeline**, **Post-party**.
 - **Rich category tooling**:
-  - 🍽️ Food (menu builder by course with dietary tags & servings)
+  - 🍽️ Menu (food builder by course with dietary tags & servings)
   - 🥂 Beverages (cocktails, beer, wine, non-alc, with quantities/units)
-  - 🛒 Food purchasing (shopping list grouped by store, est vs actual cost)
+  - 🛒 Shopping (list grouped by store, est vs actual cost)
   - 🚚 Logistics (vendors, parking, transport)
   - 🪧 Signs (text + location)
   - 🎲 Games (supplies + station)
   - 🎵 Music (playlists + per-set tracks)
   - 🚻 Restrooms (supplies + signage)
   - 🎨 Decorations (areas + quantities)
-  - 🛋️ Setup & teardown (with timing)
+  - 🛋️ Day-of setup & teardown (with timing)
+  - 📦 Post-party wrap-up (lessons learned, actuals, lessons-for-next-time)
 - **Guest list** — paste from Partiful, track RSVP, dietary needs, plus-ones, auto-flags menu under-capacity
+- **Public guest page** — a `/s/<token>` link your guests can RSVP from
+  without an account, with a Yes/Maybe/No segmented control, single
+  "Add to calendar" dropdown (Google / Outlook / Apple / Yahoo),
+  cross-device RSVP recovery via emailed magic link, and a
+  forward-to-a-friend share button.
 - **Assignments** — assign any item to any team member
 - **Activity feed** — see who did what, in real-time
-- **Email notifications** — Resend-powered emails when you're assigned a task
+- **Email notifications** — Resend-powered emails for: task assignments,
+  share-link sends, collaborator invites (incl. pending invites for users
+  who haven't signed up yet), public-RSVP recovery links, T-7/T-3/T-1 day
+  pre-event digests, and post-party wrap-up nudges
 - **Web push (optional)** — browser notifications for assignments; uses the same VAPID key pair as the Edge function (see [OPERATIONS.md](./OPERATIONS.md))
 - **Templates & duplicate** — start from BBQ / Birthday / Cocktail / Holiday Dinner, or clone an existing event
 - **Drag-and-drop ordering** — reorder timeline tasks, music tracks, shopping items
 - **Per-category progress** — see how each area is going on the overview
+- **Smart suggestions** — the overview surfaces what's missing (no public link,
+  capacity shortfall, unassigned tasks, no music, etc.) with one-tap CTAs
+- **First-run onboarding tour** — single 4-step centered modal on the
+  dashboard for new accounts; dismissable and persisted
 - **Budgets** — set a budget; track shopping spend vs estimate
-- **Mobile-first** — bottom-tab navigation on phones, optimistic UI, swipe-to-delete on checklist rows, large touch targets
+- **Mobile-first** — bottom-tab navigation on phones, bottom-sheet account
+  menu, optimistic UI, swipe-to-delete on checklist rows, large touch targets
 - **PWA** — installable, precached shell for faster loads (see `vite.config.ts`)
 - **Sentry (optional)** — set `VITE_SENTRY_DSN` for client error monitoring
-- **CI** — GitHub Actions runs `npm run verify` (lint, build, Playwright `e2e/smoke.spec.ts`)
+- **CI** — GitHub Actions runs `npm run verify` (lint, build, full Playwright suite under `e2e/`)
 
 **Production / ops:** migrations order, custom domain, backups, and secrets are documented in [OPERATIONS.md](./OPERATIONS.md).
 

@@ -30,6 +30,28 @@ function isRecoveryFromHash() {
   return params.get("type") === "recovery";
 }
 
+// Claim any pending event invitations addressed to the freshly-signed-in
+// user's email. Deduped per-session so token refreshes don't re-call.
+async function claimPendingInvitationsOnce(userId: string | undefined) {
+  if (!userId) return;
+  if (typeof window === "undefined") return;
+  const flagKey = `claimed-invitations:${userId}`;
+  try {
+    if (window.sessionStorage.getItem(flagKey) === "1") return;
+    window.sessionStorage.setItem(flagKey, "1");
+  } catch {
+    // sessionStorage may be unavailable (e.g. private mode); fall through.
+  }
+  try {
+    const { error } = await supabase.rpc("claim_pending_invitations");
+    if (error) {
+      console.warn("[auth] claim_pending_invitations failed:", error.message);
+    }
+  } catch (err) {
+    console.warn("[auth] claim_pending_invitations threw:", err);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
@@ -51,6 +73,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPasswordRecovery(true);
       }
       setLoading(false);
+      if (data.session?.user?.id && !isRecoveryFromHash()) {
+        void claimPendingInvitationsOnce(data.session.user.id);
+      }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (event === "PASSWORD_RECOVERY") {
@@ -61,6 +86,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setSession(s);
       setUser(s?.user ?? null);
+      // Auto-claim pending invitations on fresh sign-in / sign-up. The
+      // sessionStorage flag inside claimPendingInvitationsOnce dedupes against
+      // TOKEN_REFRESHED / USER_UPDATED churn.
+      if (event === "SIGNED_IN" && s?.user?.id) {
+        void claimPendingInvitationsOnce(s.user.id);
+      }
     });
     return () => {
       active = false;

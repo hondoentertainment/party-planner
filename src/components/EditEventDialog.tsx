@@ -6,6 +6,7 @@ import type { EventRow } from "../lib/database.types";
 import { useNavigate } from "react-router-dom";
 import { formatMoney, parseMoneyToCents } from "../lib/format";
 import { useAuth } from "../lib/auth";
+import { useConfirm } from "../lib/useConfirm";
 
 const EMOJIS = ["🎉", "🎂", "🍻", "🥂", "🎃", "🎄", "💍", "👶", "🎓", "🌮", "🍕", "🪩", "🌊", "🏕️", "🔥"];
 const COLORS = ["#cc38f5", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#8b5cf6", "#0ea5e9"];
@@ -21,6 +22,7 @@ function toLocalDateTime(iso: string | null): string {
 export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: () => void }) {
   const nav = useNavigate();
   const { user } = useAuth();
+  const confirm = useConfirm();
   const formId = useId();
   const [name, setName] = useState(event.name);
   const [startsAt, setStartsAt] = useState(toLocalDateTime(event.starts_at));
@@ -65,7 +67,14 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
   };
 
   const deleteEvent = async () => {
-    if (!confirm("Delete this event and all its data? This can't be undone.")) return;
+    const ok = await confirm({
+      title: "Delete this event?",
+      description:
+        "All tasks, food, drinks, shopping, and other planning data for this event will be permanently deleted. This can't be undone.",
+      destructive: true,
+      confirmLabel: "Delete event",
+    });
+    if (!ok) return;
     await supabase.from("events").delete().eq("id", event.id);
     onClose();
     nav("/");

@@ -9,6 +9,8 @@ import {
   PartyPopper,
   Plus,
   Search,
+  Send,
+  Share2,
   Sparkles,
   Star,
   Users,
@@ -17,10 +19,14 @@ import {
 import { useMyEvents, useWrapUpsAcrossEvents } from "../lib/hooks";
 import { formatEventDate, daysUntil, formatMoney } from "../lib/format";
 import { NewEventDialog } from "../components/NewEventDialog";
+import { OnboardingTour } from "../components/OnboardingTour";
+import { isOnboardingCompleted } from "../lib/onboarding";
 import { useAuth } from "../lib/auth";
 import { duplicateEvent, duplicateEventNextYear } from "../lib/duplicateEvent";
 import { useToast } from "../lib/toast";
-import type { EventRow, EventWrapUp } from "../lib/database.types";
+import { supabase } from "../lib/supabase";
+import { TEMPLATES, type EventTemplate } from "../lib/templates";
+import type { EventRow, EventShareLink, EventWrapUp } from "../lib/database.types";
 
 type StatusFilter = "all" | "upcoming" | "past" | "no-date";
 
@@ -52,13 +58,89 @@ function classifyEvent(ev: EventRow, now: Date): Exclude<StatusFilter, "all"> {
   return t >= now.getTime() ? "upcoming" : "past";
 }
 
+interface CountdownChipInfo {
+  label: string;
+  className: string;
+}
+
+// Always-visible countdown chip (UX audit item #14): every card surfaces its
+// temporal status (today / soon / future / past) instead of hiding the chip
+// beyond the 30-day window. Returns null when the event has no date so the
+// caller can simply omit the chip.
+function getCountdownChip(d: number | null): CountdownChipInfo | null {
+  if (d == null) return null;
+  const amber = "bg-amber-50 text-amber-700";
+  const muted = "bg-slate-100 text-slate-700";
+  const past = "bg-slate-100 text-slate-500 italic";
+
+  if (d === 0) return { label: "Today", className: amber };
+  if (d >= 1 && d <= 7) return { label: `in ${d}d`, className: amber };
+  if (d >= 8 && d <= 60) return { label: `in ${d}d`, className: muted };
+  if (d >= 61) {
+    // For 61+ days, prefer months (>= 60 → months); the weeks branch is
+    // retained for completeness even though current bucket is always months.
+    const useMonths = d >= 60;
+    const value = useMonths ? Math.round(d / 30) : Math.round(d / 7);
+    const unit = useMonths ? (value === 1 ? "month" : "months") : (value === 1 ? "week" : "weeks");
+    return { label: `in ${value} ${unit}`, className: muted };
+  }
+  // d < 0 — past events (archived events are rendered separately and never
+  // reach this code path, so we can show a past chip unconditionally here).
+  return { label: `${Math.abs(d)} days ago`, className: past };
+}
+
+interface ActiveShareLink {
+  token: string;
+  url: string;
+}
+
+// Lazy fetch so EventCard does not subscribe to a realtime channel for every
+// card on the dashboard. We only hit Supabase when the user clicks a share
+// action. Mirrors the "active link" rule used in EventSettings.tsx.
+async function fetchActiveShareLink(eventId: string): Promise<ActiveShareLink | null> {
+  const { data, error } = await supabase
+    .from("event_share_links")
+    .select("token, enabled, revoked_at")
+    .eq("event_id", eventId)
+    .eq("enabled", true)
+    .is("revoked_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error || !data || data.length === 0) return null;
+  const row = data[0] as Pick<EventShareLink, "token" | "enabled" | "revoked_at">;
+  if (!row.enabled || row.revoked_at) return null;
+  return {
+    token: row.token,
+    url: `${window.location.origin}/s/${row.token}`,
+  };
+}
+
 export function Dashboard() {
   const { events, loading, error, refresh } = useMyEvents();
   const { wrapUps } = useWrapUpsAcrossEvents();
   const [creating, setCreating] = useState(false);
+  const [creatingTemplateId, setCreatingTemplateId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>(() => readStoredFilter());
+  const [tourOpen, setTourOpen] = useState(false);
   const searchId = useId();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isOnboardingCompleted()) return;
+    const t = window.setTimeout(() => setTourOpen(true), 400);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  const openNewEvent = (templateId?: string) => {
+    setCreatingTemplateId(templateId);
+    setCreating(true);
+  };
+
+  const closeNewEvent = () => {
+    setCreating(false);
+    setCreatingTemplateId(undefined);
+  };
 
   useEffect(() => {
     try {
@@ -98,7 +180,11 @@ export function Dashboard() {
             Plan together. Track everything from menu to music.
           </p>
         </div>
-        <button onClick={() => setCreating(true)} className="btn-primary">
+        <button
+          onClick={() => openNewEvent()}
+          className="btn-primary"
+          data-tour="new-event-btn"
+        >
           <Plus size={16} /> New event
         </button>
       </div>
@@ -120,7 +206,10 @@ export function Dashboard() {
       ) : error ? (
         <LoadError message={error} onRetry={() => void refresh()} />
       ) : !hasActive ? (
-        <EmptyState onCreate={() => setCreating(true)} />
+        <EmptyState
+          onCreateBlank={() => openNewEvent()}
+          onPickTemplate={(templateId) => openNewEvent(templateId)}
+        />
       ) : filteredActive.length === 0 ? (
         <NoResults
           onClear={() => {
@@ -165,7 +254,14 @@ export function Dashboard() {
         </div>
       )}
 
-      {creating && <NewEventDialog onClose={() => setCreating(false)} />}
+      {creating && (
+        <NewEventDialog
+          onClose={closeNewEvent}
+          initialTemplateId={creatingTemplateId}
+        />
+      )}
+
+      {tourOpen && <OnboardingTour onClose={() => setTourOpen(false)} />}
     </div>
   );
 }
@@ -190,7 +286,7 @@ function DashboardFilters({
   isFiltered,
 }: DashboardFiltersProps) {
   return (
-    <div className="card p-3 sm:p-4 space-y-3">
+    <div className="card p-3 sm:p-4 space-y-3" data-tour="dashboard-filters">
       <form
         role="search"
         aria-label="Filter your events"
@@ -447,9 +543,11 @@ function EventCard({ ev }: { ev: EventRow }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [duplicatingNextYear, setDuplicatingNextYear] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const d = daysUntil(ev.starts_at);
+  const chip = getCountdownChip(d);
   const menuId = `ev-actions-${ev.id}`;
 
   useEffect(() => {
@@ -469,6 +567,82 @@ function EventCard({ ev }: { ev: EventRow }) {
     });
     return () => trigger?.focus();
   }, [menuOpen]);
+
+  const onCopyPublicLink = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(false);
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const link = await fetchActiveShareLink(ev.id);
+      if (link) {
+        await navigator.clipboard.writeText(link.url);
+        toast.success("Public link copied");
+        return;
+      }
+      // No active link: surface a hint, then bounce to Settings & Team after a
+      // short pause so the user has time to read the toast before the page
+      // changes underneath them.
+      toast.info("No public link yet — create one in Settings & Team");
+      window.setTimeout(() => {
+        nav(`/events/${ev.id}/settings`);
+      }, 1200);
+    } catch (err) {
+      console.error("[dashboard] copy public link failed", err);
+      toast.error("Couldn't copy link.");
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const onShareVia = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(false);
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const link = await fetchActiveShareLink(ev.id);
+      // Prefer the public share URL; the signed-in event URL is acceptable as a
+      // fallback for navigator.share because the OS share sheet usually goes to
+      // contacts the user already has, and they can re-share to a logged-in
+      // collaborator. For the clipboard fallback we mirror Copy public link.
+      const shareUrl =
+        link?.url ?? `${window.location.origin}/events/${ev.id}`;
+      if (typeof navigator.share === "function") {
+        try {
+          await navigator.share({
+            title: ev.name,
+            text: `You're invited to ${ev.name}`,
+            url: shareUrl,
+          });
+        } catch (err) {
+          // AbortError fires when the user dismisses the share sheet — treat
+          // as a no-op. Anything else surfaces as an error toast below.
+          const isAbort =
+            err instanceof DOMException && err.name === "AbortError";
+          if (isAbort) return;
+          throw err;
+        }
+        return;
+      }
+      // No Web Share API — mirror Copy public link: only copy if we have a
+      // public link, otherwise nudge the user to create one.
+      if (link) {
+        await navigator.clipboard.writeText(link.url);
+        toast.success("Public link copied");
+        return;
+      }
+      toast.info("Create a public link in Settings → Public guest page");
+      nav(`/events/${ev.id}/settings`);
+    } catch (err) {
+      console.error("[dashboard] share via failed", err);
+      toast.error("Couldn't share event.");
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const onDuplicate = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -517,9 +691,9 @@ function EventCard({ ev }: { ev: EventRow }) {
             <h3 className="font-display font-bold text-lg group-hover:text-brand-700">
               {ev.name}
             </h3>
-            {d != null && d >= 0 && d <= 30 && (
-              <span className="chip bg-amber-50 text-amber-700">
-                {d === 0 ? "Today" : `in ${d}d`}
+            {chip && (
+              <span className={`chip flex-shrink-0 ${chip.className}`}>
+                {chip.label}
               </span>
             )}
           </div>
@@ -573,13 +747,35 @@ function EventCard({ ev }: { ev: EventRow }) {
             id={menuId}
             ref={menuRef}
             role="menu"
-            className="absolute top-12 right-2 z-20 card p-1 min-w-[200px]"
+            className="absolute top-12 right-2 z-20 card p-1 min-w-[220px]"
             aria-label={`Actions for ${ev.name}`}
           >
             <button
               type="button"
+              onClick={onCopyPublicLink}
+              disabled={sharing || duplicating || duplicatingNextYear}
+              aria-busy={sharing}
+              role="menuitem"
+              className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
+            >
+              <Share2 size={14} />
+              {sharing ? "Copying…" : "Copy public link"}
+            </button>
+            <button
+              type="button"
+              onClick={onShareVia}
+              disabled={sharing || duplicating || duplicatingNextYear}
+              role="menuitem"
+              className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
+            >
+              <Send size={14} />
+              Share via…
+            </button>
+            <div role="separator" className="my-1 border-t border-slate-100" />
+            <button
+              type="button"
               onClick={onDuplicate}
-              disabled={duplicating || duplicatingNextYear}
+              disabled={sharing || duplicating || duplicatingNextYear}
               role="menuitem"
               className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
             >
@@ -589,7 +785,7 @@ function EventCard({ ev }: { ev: EventRow }) {
             <button
               type="button"
               onClick={onDuplicateNextYear}
-              disabled={duplicating || duplicatingNextYear}
+              disabled={sharing || duplicating || duplicatingNextYear}
               role="menuitem"
               className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
             >
@@ -635,24 +831,100 @@ function LoadError({ message, onRetry }: { message: string; onRetry: () => void 
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+interface EmptyStateProps {
+  onCreateBlank: () => void;
+  onPickTemplate: (templateId: string) => void;
+}
+
+function EmptyState({ onCreateBlank, onPickTemplate }: EmptyStateProps) {
   return (
-    <div
-      className="card p-10 text-center"
+    <section
+      className="card p-6 sm:p-8"
       role="region"
       aria-label="Get started with your first event"
     >
-      <div className="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 grid place-items-center mx-auto mb-4">
-        <Sparkles size={26} />
+      <div className="flex items-start gap-3 mb-6">
+        <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 grid place-items-center flex-shrink-0">
+          <Sparkles size={22} />
+        </div>
+        <div>
+          <h2 className="font-display text-xl font-bold">
+            Throw your first party in 60 seconds
+          </h2>
+          <p className="text-slate-500 text-sm mt-1 max-w-md">
+            Pick a template to get a head start, or build from scratch.
+          </p>
+        </div>
       </div>
-      <h2 className="font-display text-xl font-bold">Throw your first party</h2>
-      <p className="text-slate-500 text-sm mt-1 max-w-md mx-auto">
-        Pick a template (BBQ, birthday, cocktail party, holiday dinner) or
-        start from scratch. Then invite friends to plan together.
-      </p>
-      <button onClick={onCreate} className="btn-primary mt-5">
-        <Plus size={16} /> New event
-      </button>
-    </div>
+
+      <div
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+        role="list"
+        aria-label="Starter templates"
+      >
+        {TEMPLATES.map((t) => (
+          <TemplateTile
+            key={t.id}
+            template={t}
+            onClick={() => onPickTemplate(t.id)}
+          />
+        ))}
+        <button
+          type="button"
+          onClick={onCreateBlank}
+          className="card p-4 text-left hover:shadow-pop transition-shadow border-2 border-dashed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          role="listitem"
+          data-tour="new-event-btn"
+        >
+          <div className="h-16 -mx-4 -mt-4 mb-3 flex items-center justify-center text-3xl rounded-t-xl bg-slate-50">
+            <Sparkles className="text-slate-400" />
+          </div>
+          <div className="font-display font-bold">Blank event</div>
+          <div className="text-xs text-slate-500 mt-1">
+            Start from scratch.
+          </div>
+        </button>
+      </div>
+
+      <div className="mt-5 text-center">
+        <button
+          type="button"
+          onClick={onCreateBlank}
+          className="text-sm text-brand-700 hover:text-brand-800 hover:underline font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 rounded"
+        >
+          Or create a blank event →
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function TemplateTile({
+  template,
+  onClick,
+}: {
+  template: EventTemplate;
+  onClick: () => void;
+}) {
+  const itemCount = template.items.length;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      role="listitem"
+      className="card p-4 text-left hover:shadow-pop transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      aria-label={`Use ${template.name} template — ${itemCount} items`}
+    >
+      <div
+        className="h-16 -mx-4 -mt-4 mb-3 flex items-center justify-center text-4xl rounded-t-xl"
+        style={{
+          background: `linear-gradient(135deg, ${template.color}22, ${template.color}55)`,
+        }}
+      >
+        {template.emoji}
+      </div>
+      <div className="font-display font-bold">{template.name}</div>
+      <div className="text-xs text-slate-500 mt-1">{itemCount} items</div>
+    </button>
   );
 }

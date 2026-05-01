@@ -4,6 +4,7 @@ import type { EventItem, EventRow } from "../lib/database.types";
 import { useEventItems, useEventMembers, useEventPermissions } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
+import { useConfirm } from "../lib/useConfirm";
 import { logActivity } from "../lib/activity";
 import { AssigneePicker } from "./ChecklistModule";
 import { SortableList, SortableRow } from "../components/Sortable";
@@ -190,10 +191,17 @@ export function MusicModule({ event }: { event: EventRow }) {
 
 function PlaylistCard({ item, eventId, canEdit }: { item: EventItem; eventId: string; canEdit: boolean }) {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const meta = (item.meta as MusicMeta) ?? {};
   const remove = async () => {
     if (!canEdit) return;
-    if (!confirm("Remove playlist?")) return;
+    const ok = await confirm({
+      title: "Remove playlist?",
+      description: `"${item.title}" will be removed from this event.`,
+      destructive: true,
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
     await supabase.from("event_items").delete().eq("id", item.id);
     if (user) logActivity(eventId, user.id, `removed playlist "${item.title}"`);
   };

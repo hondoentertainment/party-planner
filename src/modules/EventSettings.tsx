@@ -1,13 +1,28 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarPlus, Copy, Link as LinkIcon, Loader2, LogOut, Mail, Save, Send, Trash2, UserPlus } from "lucide-react";
-import type { CollabRole, EventRow } from "../lib/database.types";
+import { CalendarPlus, Clock, Copy, Link as LinkIcon, Loader2, LogOut, Mail, Save, Send, Trash2, UserPlus, X } from "lucide-react";
+import type { CollabRole, EventRow, PendingEventInvitation } from "../lib/database.types";
 import { useAllItems, useCollaborators, useEventPermissions, useShareLinks } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
 import { logActivity } from "../lib/activity";
 import { downloadEventIcs, downloadEventScheduleIcs } from "../lib/exportIcs";
+import { useConfirm } from "../lib/useConfirm";
+
+type InviteResult =
+  | {
+      status: "added";
+      user_id?: string;
+      display_name?: string | null;
+      email?: string | null;
+    }
+  | {
+      status: "pending";
+      email: string;
+      message?: string;
+      invite_token: string;
+    };
 
 export function EventSettings({ event }: { event: EventRow }) {
   const { collabs, refresh: refreshCollabs } = useCollaborators(event.id);
@@ -17,12 +32,15 @@ export function EventSettings({ event }: { event: EventRow }) {
   const { user } = useAuth();
   const toast = useToast();
   const nav = useNavigate();
+  const confirmAction = useConfirm();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<CollabRole>("editor");
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [emailingShare, setEmailingShare] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err" | "info"; text: string } | null>(null);
+  const [pending, setPending] = useState<PendingEventInvitation[]>([]);
+  const [pendingBusyId, setPendingBusyId] = useState<string | null>(null);
 
   const isOwner = user?.id === event.owner_id;
   const isCollaborator = !!(user && collabs.some((c) => c.user_id === user.id));
@@ -30,14 +48,81 @@ export function EventSettings({ event }: { event: EventRow }) {
   const activeLink = links.find((link) => link.enabled && !link.revoked_at);
   const publicUrl = activeLink ? `${window.location.origin}/s/${activeLink.token}` : "";
 
+  const askConfirm = useCallback(
+    async (opts: {
+      title: string;
+      description?: string;
+      confirmLabel: string;
+      destructive?: boolean;
+    }): Promise<boolean> => {
+      // useConfirm() returns a function that resolves true/false. It already
+      // falls back to window.confirm internally when no ConfirmProvider is
+      // mounted, so we don't need a second layer of fallback here.
+      return await confirmAction(opts);
+    },
+    [confirmAction]
+  );
+
+  const refreshPending = useCallback(async () => {
+    if (!isOwner) {
+      setPending([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("pending_event_invitations")
+      .select("*")
+      .eq("event_id", event.id)
+      .is("claimed_at", null)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.warn("[EventSettings] failed to load pending invites:", error.message);
+      return;
+    }
+    setPending((data ?? []) as PendingEventInvitation[]);
+  }, [event.id, isOwner]);
+
+  useEffect(() => {
+    void refreshPending();
+  }, [refreshPending]);
+
+  const sendInviteEmail = async (params: {
+    inviteEmail: string;
+    inviteRole: string;
+    inviteToken?: string;
+    pending: boolean;
+  }) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("notify-invite", {
+        body: {
+          event_id: event.id,
+          email: params.inviteEmail,
+          role: params.inviteRole,
+          invite_token: params.inviteToken ?? "",
+          pending: params.pending,
+        },
+      });
+      if (error) {
+        const detail =
+          (data as { error?: string } | null)?.error ?? error.message ?? "Could not send the email.";
+        toast.error(`Email send failed: ${detail}`);
+        return;
+      }
+      toast.success(`Invitation email sent to ${params.inviteEmail}.`);
+    } catch (err) {
+      // Email is best-effort; never block the invite flow on it.
+      toast.error((err as Error).message ?? "Could not send the invitation email.");
+    }
+  };
+
   const invite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
+    const trimmed = email.trim();
     setBusy(true);
     setMsg(null);
     const { data, error } = await supabase.rpc("invite_collaborator", {
       _event_id: event.id,
-      _email: email.trim(),
+      _email: trimmed,
       _role: role,
     });
     setBusy(false);
@@ -45,32 +130,56 @@ export function EventSettings({ event }: { event: EventRow }) {
       setMsg({ type: "err", text: error.message });
       return;
     }
-    const result = data as { status: string; message?: string; display_name?: string };
+    const result = data as InviteResult;
     if (result.status === "added") {
       setMsg({
         type: "ok",
-        text: `Added ${result.display_name ?? email} as ${role}.`,
+        text: `Added ${result.display_name ?? trimmed} as ${role}.`,
       });
       if (user) {
         void logActivity(
           event.id,
           user.id,
-          `invited ${result.display_name ?? email} as ${role}`
+          `invited ${result.display_name ?? trimmed} as ${role}`
         );
       }
       setEmail("");
+      void sendInviteEmail({
+        inviteEmail: result.email ?? trimmed,
+        inviteRole: role,
+        pending: false,
+      });
+      void refreshPending();
     } else {
       setMsg({
-        type: "info",
-        text:
-          result.message ??
-          "No user with that email. Ask them to sign up, then invite again.",
+        type: "ok",
+        text: `Invitation sent to ${result.email}. They'll get access when they sign up. (Reminder: send them the sign-up link.)`,
       });
+      setEmail("");
+      void sendInviteEmail({
+        inviteEmail: result.email,
+        inviteRole: role,
+        inviteToken: result.invite_token,
+        pending: true,
+      });
+      if (user) {
+        void logActivity(event.id, user.id, `invited ${result.email} (pending sign-up)`);
+      }
+      void refreshPending();
     }
   };
 
   const removeCollab = async (userId: string) => {
-    if (!confirm("Remove this collaborator?")) return;
+    const target = collabs.find((c) => c.user_id === userId);
+    const display =
+      target?.profile?.display_name ?? target?.invited_email ?? "This person";
+    const ok = await askConfirm({
+      title: "Remove collaborator?",
+      description: `${display} will lose access to this event.`,
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
     setMsg(null);
     const { error } = await supabase
       .from("event_collaborators")
@@ -83,6 +192,39 @@ export function EventSettings({ event }: { event: EventRow }) {
     }
     if (user) void logActivity(event.id, user.id, `removed a collaborator from the team`);
     void refreshCollabs();
+  };
+
+  const resendPendingInvite = async (invite: PendingEventInvitation) => {
+    setPendingBusyId(invite.id);
+    try {
+      await sendInviteEmail({
+        inviteEmail: invite.email,
+        inviteRole: invite.role,
+        inviteToken: invite.token,
+        pending: true,
+      });
+    } finally {
+      setPendingBusyId(null);
+    }
+  };
+
+  const cancelPendingInvite = async (invite: PendingEventInvitation) => {
+    const ok = await askConfirm({
+      title: "Cancel pending invitation?",
+      description: `${invite.email} will no longer be able to claim this invite when they sign up.`,
+      confirmLabel: "Cancel invite",
+      destructive: true,
+    });
+    if (!ok) return;
+    setPendingBusyId(invite.id);
+    const { error } = await supabase.rpc("revoke_pending_invitation", { _id: invite.id });
+    setPendingBusyId(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Cancelled the invite for ${invite.email}.`);
+    void refreshPending();
   };
 
   const updateRole = async (userId: string, newRole: CollabRole) => {
@@ -102,13 +244,14 @@ export function EventSettings({ event }: { event: EventRow }) {
 
   const leaveEvent = async () => {
     if (!user) return;
-    if (
-      !confirm(
-        "Leave this event? You will be removed from the team and will need a new invite to return."
-      )
-    ) {
-      return;
-    }
+    const ok = await askConfirm({
+      title: "Leave this event?",
+      description:
+        "You'll be removed from the team and will need a new invite to return.",
+      confirmLabel: "Leave event",
+      destructive: true,
+    });
+    if (!ok) return;
     setLeaving(true);
     setMsg(null);
     const { error } = await supabase
@@ -141,7 +284,14 @@ export function EventSettings({ event }: { event: EventRow }) {
 
   const revokeShareLink = async () => {
     if (!activeLink || !perms.canEdit) return;
-    if (!confirm("Revoke this public share link? Anyone with the link will lose access.")) return;
+    const ok = await askConfirm({
+      title: "Revoke public link?",
+      description:
+        "Anyone with the current link will lose access. You can create a new link anytime.",
+      confirmLabel: "Revoke link",
+      destructive: true,
+    });
+    if (!ok) return;
     const { error } = await supabase
       .from("event_share_links")
       .update({ enabled: false, revoked_at: new Date().toISOString() })
@@ -345,8 +495,8 @@ export function EventSettings({ event }: { event: EventRow }) {
           </form>
         )}
         <p className="text-xs text-slate-500 mt-3">
-          The user must already have a Party Planner account. Once added, they can edit (or view)
-          this event in real-time.
+          If they already have a Party Planner account, they're added instantly. Otherwise we'll save
+          a pending invite that auto-claims when they sign up with the same email.
         </p>
       </div>
 
@@ -406,6 +556,71 @@ export function EventSettings({ event }: { event: EventRow }) {
           )}
         </ul>
       </div>
+
+      {isOwner && pending.length > 0 && (
+        <div className="card p-5">
+          <h3 className="font-display font-bold mb-3 flex items-center gap-2">
+            <Clock size={18} className="text-brand-600" /> Pending invitations
+          </h3>
+          <p className="text-sm text-slate-600 mb-3">
+            These people will join automatically the moment they sign up with their invited email.
+          </p>
+          <ul className="divide-y divide-slate-100">
+            {pending.map((inv) => {
+              const expires = new Date(inv.expires_at);
+              const expiresLabel = Number.isFinite(expires.getTime())
+                ? expires.toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "soon";
+              const busyHere = pendingBusyId === inv.id;
+              return (
+                <li
+                  key={inv.id}
+                  className="py-3 flex items-center gap-3 flex-wrap sm:flex-nowrap"
+                >
+                  <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 grid place-items-center text-sm font-semibold flex-shrink-0">
+                    <Mail size={16} aria-hidden />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{inv.email}</div>
+                    <div className="text-xs text-slate-500 truncate">
+                      {inv.role} · expires {expiresLabel}
+                    </div>
+                  </div>
+                  <span className="chip bg-amber-100 text-amber-700">pending</span>
+                  <button
+                    type="button"
+                    className="btn-ghost py-1 px-2 inline-flex items-center gap-1"
+                    disabled={busyHere}
+                    onClick={() => void resendPendingInvite(inv)}
+                    aria-label={`Resend invite email to ${inv.email}`}
+                  >
+                    {busyHere ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Send size={14} />
+                    )}
+                    <span className="hidden sm:inline">Resend email</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost text-rose-500 py-1 px-2 inline-flex items-center gap-1"
+                    disabled={busyHere}
+                    onClick={() => void cancelPendingInvite(inv)}
+                    aria-label={`Cancel pending invite for ${inv.email}`}
+                  >
+                    <X size={14} />
+                    <span className="hidden sm:inline">Cancel invite</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {canLeave && (
         <div className="card p-5 border-rose-100 bg-rose-50/50">

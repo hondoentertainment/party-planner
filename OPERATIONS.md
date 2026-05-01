@@ -2,6 +2,27 @@
 
 This document covers **production** setup beyond local development: database migrations, hosting, monitoring, data safety, and optional web push / email.
 
+## 0. v2 deploy checklist (run this once after pulling the UX redesign)
+
+The latest set of changes ships several new flows that aren't live until you run the items below. Everything is idempotent. Skip any row marked **(optional)** if you don't want that flow.
+
+| # | Step | Command (PowerShell-safe) |
+|---|------|---------------------------|
+| 1 | Apply migrations 0010–0013 (RSVP recovery, reminders, pending invites, notification opt-outs) | `npm run db:push` |
+| 2 | Verify schema landed | Open Supabase → SQL Editor → paste `supabase/verify_remote.sql` |
+| 3 | Deploy the four new Edge Functions | `npm run functions:deploy:invite ; npm run functions:deploy:wrap-up ; npm run functions:deploy:reminders ; npm run functions:deploy:rsvp-recovery ; npm run functions:deploy:unsubscribe` |
+| 4 | Set the two new shared secrets | `supabase secrets set REMINDER_CRON_SECRET="$(openssl rand -hex 32)" UNSUBSCRIBE_TOKEN_SECRET="$(openssl rand -hex 32)"` |
+| 5 | Confirm existing secrets are still set | `supabase secrets list` — must show `RESEND_API_KEY`, `FROM_EMAIL`, `APP_URL` |
+| 6 | (optional) Enable the daily reminder + wrap-up cron | Open `supabase/sql/enable_reminder_cron.sql`, replace the two `REPLACE_ME` placeholders, paste into SQL Editor, run. Confirm with `supabase/sql/check_reminder_cron.sql`. |
+| 7 | (optional) Add `E2E_EMAIL` / `E2E_PASSWORD` / `E2E_DISPLAY_NAME` to repo secrets so the 30 currently-skipping signed-in tests run in CI | `gh secret set E2E_EMAIL --body "..." ; gh secret set E2E_PASSWORD --body "..." ; gh secret set E2E_DISPLAY_NAME --body "..."` |
+| 8 | (optional) Smoke-test the flows: create an event → public RSVP with email → click "Email me a recovery link" → open the link in a private window → verify the form pre-fills as an update | manual |
+
+After step 6, guests on dated events will receive T-7 / T-3 / T-1 day digests. Each email carries a one-click `notify-unsubscribe` footer so collaborators can opt out per-kind without reaching the host. Track deliverability via the structured edge-function logs documented in §10.
+
+If you'd rather hold off on the cron, leave step 6 unrun — the rest of the flow (manual share, manual RSVP recovery, etc.) works fine without it.
+
+---
+
 ## 1. Run database migrations in Supabase (production)
 
 ### Option A — Supabase CLI (recommended)
@@ -105,6 +126,287 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 - [ ] Resend + Edge `notify-assignment` + GUCs (optional, for email)
 - [ ] Edge `notify-share` deployed (optional, enables **Email me this link** in Settings & Team)
+- [ ] Migration `0013_notification_opt_outs.sql` applied + Edge `notify-unsubscribe` deployed + `UNSUBSCRIBE_TOKEN_SECRET` set (required if `notify-event-reminder` / `notify-wrap-up` are scheduled — see §10)
 - [ ] `APP_URL` in Edge matches production URL
 - [ ] Custom domain and Resend domain alignment (if using custom email domain)
 - [ ] GitHub Actions secrets `E2E_EMAIL` and `E2E_PASSWORD` (optional, so CI runs signed-in E2E)
+
+## 10. Reminder digests (T-7/T-3/T-1) and wrap-up nudges
+
+> **TL;DR — flipping the cron on / off**
+>
+> The reminder + wrap-up emails are **off by default**. Three small SQL files
+> under [`supabase/sql/`](./supabase/sql/) make it a one-paste toggle:
+>
+> | File | When to run | Effect |
+> | --- | --- | --- |
+> | [`enable_reminder_cron.sql`](./supabase/sql/enable_reminder_cron.sql) | Once you're confident you want production guests pinging Resend | Schedules both `pg_cron` jobs daily at 09:00 UTC. Replace the two `REPLACE_ME` placeholders first (functions URL + cron secret). |
+> | [`disable_reminder_cron.sql`](./supabase/sql/disable_reminder_cron.sql) | If something looks off, or you're rotating secrets | Unschedules both jobs. Idempotent. Doesn't drop the dedup log so re-enabling later won't double-send. |
+> | [`check_reminder_cron.sql`](./supabase/sql/check_reminder_cron.sql) | Anytime, read-only | Shows whether the jobs exist, the GUC values, the last 10 invocations, and how many emails the dedup log has recorded. |
+>
+> Paste any of them into **Supabase → SQL Editor**. They're **idempotent** —
+> safe to re-run. The rest of this section walks through the underlying
+> migration, function deploys, and secrets they assume.
+
+Two service-role Edge Functions automate scheduled host emails. Both run on a
+shared schedule (recommended: daily at **09:00 UTC**) and are **idempotent**:
+they query the `public.list_event_reminders_due()` RPC, which already excludes
+anything previously logged into `public.event_reminder_log`, and call
+`public.mark_event_reminder_sent(...)` after each successful send.
+
+- **`notify-event-reminder`** — sends every due reminder kind:
+  - `pre_7d`, `pre_3d`, `pre_1d` to the **owner and every collaborator**
+    (digest mentions unassigned tasks and guests who haven't RSVP'd)
+  - `wrap_up_1d` to the **owner only** for events that ended ~24–48h ago
+    and still have no `event_wrap_ups` row.
+- **`notify-wrap-up`** — standalone variant that processes only the
+  `wrap_up_1d` rows (useful for QA, or if you want to schedule wrap-up
+  nudges separately from pre-event reminders).
+
+The dedup table `public.event_reminder_log` is keyed by
+`(event_id, user_id, reminder_kind)` so each user receives each reminder kind
+exactly once per event.
+
+### Deploy
+
+1. Apply the migration (creates `event_reminder_log`,
+   `list_event_reminders_due()`, and `mark_event_reminder_sent()`):
+   ```bash
+   npm run db:push
+   ```
+2. Deploy the two functions:
+   ```bash
+   npm run functions:deploy:reminders
+   npm run functions:deploy:wrap-up
+   ```
+   Both functions perform their own auth (see "Secrets" below) so deploy with
+   `--no-verify-jwt` if you want to invoke them without a Supabase JWT:
+   ```bash
+   npx supabase functions deploy notify-event-reminder --no-verify-jwt
+   npx supabase functions deploy notify-wrap-up --no-verify-jwt
+   ```
+
+### Secrets
+
+Set these via `supabase secrets set ...` (only `REMINDER_CRON_SECRET` is new;
+the rest are already used by `notify-assignment` / `notify-share`):
+
+| Secret | Notes |
+| --- | --- |
+| `RESEND_API_KEY` | Existing — Resend API key for transactional email. |
+| `FROM_EMAIL` | Existing — e.g. `Party Planner <hi@yourdomain.com>`. |
+| `APP_URL` | Existing — base URL for `/events/{id}` and `/events/{id}/wrap-up` deep links. |
+| `SUPABASE_URL` | Provided automatically. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Provided automatically. Used to call the SECURITY DEFINER RPCs. |
+| `REMINDER_CRON_SECRET` | **New.** Shared secret expected in the `X-Reminder-Secret` header. Generate with `openssl rand -hex 32`. |
+
+```bash
+supabase secrets set REMINDER_CRON_SECRET="$(openssl rand -hex 32)"
+```
+
+Each function accepts **either** of the following:
+
+- `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>` — used by the pg_cron
+  example below.
+- `X-Reminder-Secret: <REMINDER_CRON_SECRET>` — used by Supabase's hosted
+  scheduled-function feature or any external scheduler (GitHub Actions, Cron
+  Hub, etc.).
+
+Anything else returns `401 Unauthorized`.
+
+### Cron — option A: Supabase scheduled functions (CLI)
+
+If your project has Supabase scheduled functions available:
+
+```bash
+supabase functions schedule create notify-event-reminder \
+  --schedule "0 9 * * *" \
+  --headers "X-Reminder-Secret=$REMINDER_CRON_SECRET"
+
+supabase functions schedule create notify-wrap-up \
+  --schedule "0 9 * * *" \
+  --headers "X-Reminder-Secret=$REMINDER_CRON_SECRET"
+```
+
+(Replace `$REMINDER_CRON_SECRET` with the same value you set as a function
+secret.)
+
+### Cron — option B: pg_cron + pg_net (SQL Editor)
+
+Requires the `pg_cron` and `pg_net` extensions (Supabase: **Database →
+Extensions**).
+
+The full schedule + GUC setup is canned in
+[`supabase/sql/enable_reminder_cron.sql`](./supabase/sql/enable_reminder_cron.sql) —
+open it, replace the two `REPLACE_ME` placeholders (functions URL + cron
+secret), then paste into **Supabase → SQL Editor** and run. Both GUCs survive
+restarts because they're stored on the database role.
+
+To stop the schedule (rotating secrets, paused project, etc.) run
+[`supabase/sql/disable_reminder_cron.sql`](./supabase/sql/disable_reminder_cron.sql) —
+it `unschedule`s both jobs without dropping the dedup log so re-enabling
+later won't re-send historical reminders.
+
+To verify the jobs landed, the GUCs are set, and the last few invocations
+succeeded, run [`supabase/sql/check_reminder_cron.sql`](./supabase/sql/check_reminder_cron.sql).
+
+(If you'd rather use the existing `app.service_role_key` GUC instead of
+`X-Reminder-Secret`, swap the `headers` block in `enable_reminder_cron.sql`
+for `jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.service_role_key'))`.)
+
+### Verify
+
+After the first scheduled run, check **Edge Functions → Logs** for a JSON
+response like `{ "ok": true, "sent": N, "failed": M, "skipped": K }`. You can
+also smoke-test from your shell:
+
+```bash
+curl -X POST "https://<project-ref>.supabase.co/functions/v1/notify-event-reminder" \
+  -H "X-Reminder-Secret: $REMINDER_CRON_SECRET"
+```
+
+### Local testing
+
+```bash
+npx supabase functions serve notify-event-reminder --no-verify-jwt
+# in another shell:
+curl -X POST http://localhost:54321/functions/v1/notify-event-reminder \
+  -H "X-Reminder-Secret: $REMINDER_CRON_SECRET"
+```
+
+Set `RESEND_API_KEY`, `FROM_EMAIL`, `APP_URL`, `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, and `REMINDER_CRON_SECRET` in `supabase/.env`
+first. The functions accept `GET` for quick browser smoke tests too.
+
+### Edge function structured logs
+
+Every Edge Function under `supabase/functions/*` emits a single
+`console.log` / `console.error` line per event in a stable JSON schema (see
+[supabase/functions/_shared/log.ts](supabase/functions/_shared/log.ts)).
+The intent is to make Resend / RPC / config failures *greppable* in the
+**Supabase → Edge Functions → Logs** explorer (and forwardable to Logflare,
+Datadog, BetterStack, etc.) without re-deriving the shape every time. The
+schema is small on purpose:
+
+```json
+{
+  "level": "info" | "warn" | "error",
+  "fn": "notify-event-reminder",
+  "event": "resend.send_failed",
+  "ts": "2026-04-30T16:42:01.123Z",
+  "status": 422,
+  "error": "...",
+  "recipientHash": "9f2b...",
+  "context": { "event_id": "...", "kind": "pre_3d" }
+}
+```
+
+Raw email addresses are **never** logged — recipients are sha256-hashed and
+truncated to 12 hex chars (`recipientHash`), which is enough to correlate
+related failures without leaking PII.
+
+#### Useful queries
+
+The Supabase log explorer accepts a SQL-ish `where` clause against
+`event_message`. The functions emit one JSON object per line, so a JSON
+extraction works directly.
+
+**(a) All Resend failures in the last hour, across every function:**
+
+```sql
+select
+  timestamp,
+  event_message
+from function_logs
+where event_message like '%"event":"resend.send_failed"%'
+  and timestamp > now() - interval '1 hour'
+order by timestamp desc;
+```
+
+**(b) Success rate of `notify-event-reminder` over the last 24 hours
+(counts of completed runs vs. failed rows):**
+
+```sql
+select
+  count(*) filter (where event_message like '%"event":"run.complete"%') as runs_complete,
+  count(*) filter (where event_message like '%"event":"row.failed"%')  as rows_failed,
+  count(*) filter (where event_message like '%"event":"resend.send_failed"%') as resend_failed
+from function_logs
+where event_message like '%"fn":"notify-event-reminder"%'
+  and timestamp > now() - interval '24 hours';
+```
+
+**(c) All uncaught exceptions across functions (last 7 days):**
+
+```sql
+select
+  timestamp,
+  event_message
+from function_logs
+where event_message like '%"event":"uncaught"%'
+  and timestamp > now() - interval '7 days'
+order by timestamp desc;
+```
+
+The schema is intentionally stable and Logflare-friendly — the same fields
+(`level`, `fn`, `event`, `recipientHash`, `context`, `ts`) appear on every
+line, so you can pipe Edge Function logs into Logflare / Datadog / a
+warehouse later without back-filling. New events should follow the
+`<surface>.<verb>` convention (e.g. `rpc.events_select_failed`,
+`webpush.send_failed`) so dashboards stay grep-able.
+
+### Unsubscribe (one-click + Settings UI)
+
+Every `notify-event-reminder` and `notify-wrap-up` email now ships with a
+signed one-click unsubscribe footer link, plus a "Manage all your email
+preferences" deep link to `/settings#notifications`. The full plumbing is:
+
+- **Migration `0013_notification_opt_outs.sql`** — adds
+  `public.notification_opt_outs`, three RPCs (`is_user_opted_out`,
+  `upsert_notification_opt_out`, `remove_notification_opt_out`), and
+  re-issues `list_event_reminders_due()` so opted-out recipients silently
+  drop out of the cron RPC's result set. Apply with:
+
+  ```bash
+  npm run db:push
+  ```
+
+  The existing pg_cron jobs continue to work unchanged — the patched RPC
+  is what does the filtering, so you do **not** need to re-run
+  `enable_reminder_cron.sql`.
+
+- **Edge function `notify-unsubscribe`** — anonymous `GET /?token=...`
+  endpoint that validates an HMAC-signed token, calls
+  `upsert_notification_opt_out`, and returns a small inline-styled HTML
+  confirmation page. Deploy with:
+
+  ```bash
+  npm run functions:deploy:unsubscribe
+  ```
+
+  (alias for `npx supabase functions deploy notify-unsubscribe --no-verify-jwt`)
+
+- **Secret `UNSUBSCRIBE_TOKEN_SECRET`** — 32+ byte HMAC key used to sign
+  the per-recipient tokens. Set it once in Supabase, then rotate at any
+  time (existing tokens older than the rotation will start failing the
+  verify step):
+
+  ```bash
+  supabase secrets set UNSUBSCRIBE_TOKEN_SECRET="$(openssl rand -hex 32)"
+  ```
+
+  If the secret isn't set, the reminder + wrap-up functions still send
+  email but **omit** the unsubscribe footer (logged as a warning) so the
+  feature degrades gracefully during rollout.
+
+- **Settings UI** — `/settings#notifications` lists the four reminder
+  kinds (T-7 / T-3 / T-1 / Post-party wrap-up) as checkboxes. Toggling a
+  box inserts/deletes a row in `notification_opt_outs` directly via RLS
+  (the table's policies scope every read/write to `auth.uid()`). A
+  one-click `kind = 'all'` mute (set when a guest clicks the email
+  unsubscribe link without specifying a kind) shows a banner with a
+  "Lift global mute" button.
+
+| Secret | Notes |
+| --- | --- |
+| `UNSUBSCRIBE_TOKEN_SECRET` | **New.** HMAC-SHA-256 key for one-click unsubscribe tokens. ≥ 32 bytes; rotate any time. |

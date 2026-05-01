@@ -2,6 +2,11 @@ import { expect, type Page } from "@playwright/test";
 
 interface BlankEventOptions {
   location?: string;
+  /**
+   * Local date+time string in `YYYY-MM-DDTHH:mm` format. Will be split across
+   * the new dialog's separate Date / Start time inputs (see Item 16 — date
+   * picker disclosure).
+   */
   startsAt?: string;
   theme?: string;
 }
@@ -18,9 +23,16 @@ export class EventAgent {
       await this.page.getByLabel(/location/i).fill(options.location);
     }
     if (options.startsAt) {
-      await this.page.getByLabel(/date & time/i).fill(options.startsAt);
+      const { date, time } = splitLocalDateTime(options.startsAt);
+      if (date) await this.page.getByLabel(/^Date$/i).fill(date);
+      if (time) await this.page.getByLabel(/start time/i).fill(time);
     }
     if (options.theme) {
+      // Theme moved into "More options" disclosure (Item 16). Reveal it first.
+      const more = this.page.getByRole("button", { name: /more options/i });
+      if (await more.isVisible().catch(() => false)) {
+        await more.click();
+      }
       await this.page.getByLabel(/theme/i).fill(options.theme);
     }
 
@@ -59,12 +71,15 @@ export class EventAgent {
   }
 
   async openFood() {
-    await this.openSection("Food");
+    // Item 9 — IA refactor renamed the tab "Food" → "Menu" while the page
+    // heading remains "Food & Menu".
+    await this.openSection("Menu");
     await expect(this.page.getByRole("heading", { name: /food & menu/i })).toBeVisible();
   }
 
   async openShopping() {
-    await this.openSection("Food Purchasing");
+    // Item 11 — tab renamed "Food Purchasing" → "Shopping"; heading kept.
+    await this.openSection("Shopping");
     await expect(this.page.getByRole("heading", { name: /food purchasing/i })).toBeVisible();
   }
 
@@ -89,7 +104,8 @@ export class EventAgent {
   }
 
   async openWrapUp() {
-    await this.openSection("Wrap-up");
+    // Item 9 — tab renamed "Wrap-up" → "Post-party"; module heading kept.
+    await this.openSection("Post-party");
     await expect(this.page.getByRole("heading", { name: /post-event wrap-up/i })).toBeVisible();
   }
 
@@ -364,4 +380,14 @@ export class EventAgent {
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Split a `YYYY-MM-DDTHH:mm` value into the parts NewEventDialog expects on
+// its split <input type="date"> and <input type="time"> fields. Tolerant of
+// missing time and trailing seconds.
+function splitLocalDateTime(value: string): { date: string; time: string } {
+  if (!value) return { date: "", time: "" };
+  const [date, timePart = ""] = value.split("T");
+  const time = timePart.slice(0, 5); // HH:mm
+  return { date, time };
 }

@@ -1,12 +1,21 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { Link, NavLink, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Link,
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router-dom";
 import { ArrowLeft, MoreHorizontal } from "lucide-react";
 import clsx from "clsx";
 import { useEvent } from "../lib/hooks";
 import { ChecklistModule } from "../modules/ChecklistModule";
 import {
+  EVENT_PAGE_GROUPS,
   EVENT_PAGE_PRIMARY_MOBILE_TABS,
-  EVENT_PAGE_TABS,
+  type EventTabGroup,
 } from "./eventPageTabs";
 
 const Overview = lazy(() => import("../modules/Overview").then((m) => ({ default: m.Overview })));
@@ -44,10 +53,27 @@ const WrapUpModule = lazy(() =>
 export function EventPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const { event, loading, error, refresh } = useEvent(eventId);
+  const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
   const morePanelRef = useRef<HTMLDivElement>(null);
 
   const moreTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const activeGroup: EventTabGroup = useMemo(() => {
+    if (!event) return EVENT_PAGE_GROUPS[0];
+    const base = `/events/${event.id}`;
+    const match = EVENT_PAGE_GROUPS.find((g) =>
+      g.tabs.some((t) => {
+        const path = t.to ? `${base}/${t.to}` : base;
+        if (t.to === "") return location.pathname === path;
+        return (
+          location.pathname === path ||
+          location.pathname.startsWith(`${path}/`)
+        );
+      })
+    );
+    return match ?? EVENT_PAGE_GROUPS[0];
+  }, [event, location.pathname]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -132,6 +158,8 @@ export function EventPage() {
 
   const tabTo = (to: string) => (to ? `/events/${event.id}/${to}` : `/events/${event.id}`);
 
+  const showSubRow = activeGroup.tabs.length > 1;
+
   return (
     <div>
       <div
@@ -163,21 +191,57 @@ export function EventPage() {
             className="flex overflow-x-auto gap-1 py-2 scrollbar-thin"
             aria-label="Event sections"
           >
-            {EVENT_PAGE_TABS.map((t) => (
-              <NavLink
-                key={t.to}
-                to={tabTo(t.to)}
-                end={t.to === ""}
-                className={({ isActive }) =>
-                  clsx("tab whitespace-nowrap", isActive && "tab-active")
-                }
-              >
-                <t.icon size={16} />
-                {t.label}
-              </NavLink>
-            ))}
+            {EVENT_PAGE_GROUPS.map((g) => {
+              const primaryTab = g.tabs[0];
+              const isActive = activeGroup.id === g.id;
+              return (
+                <NavLink
+                  key={g.id}
+                  to={tabTo(primaryTab.to)}
+                  end={primaryTab.to === ""}
+                  data-tour={g.id === "settings" ? "settings-tab" : undefined}
+                  aria-current={isActive ? "page" : undefined}
+                  className={clsx(
+                    "tab whitespace-nowrap",
+                    isActive && "tab-active"
+                  )}
+                >
+                  <g.icon size={16} />
+                  {g.label}
+                </NavLink>
+              );
+            })}
           </nav>
         </div>
+        {showSubRow && (
+          <div className="bg-slate-50/60 border-t border-slate-100">
+            <div className="max-w-7xl mx-auto px-2 sm:px-4 sm:pl-6">
+              <nav
+                className="flex overflow-x-auto gap-1 py-1.5 scrollbar-thin"
+                aria-label={`${activeGroup.label} sub-sections`}
+              >
+                {activeGroup.tabs.map((t) => (
+                  <NavLink
+                    key={t.to}
+                    to={tabTo(t.to)}
+                    end={t.to === ""}
+                    className={({ isActive }) =>
+                      clsx(
+                        "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap min-h-[32px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
+                        isActive
+                          ? "bg-white text-brand-700 shadow-sm border border-slate-200"
+                          : "text-slate-600 hover:bg-white/60"
+                      )
+                    }
+                  >
+                    <t.icon size={14} />
+                    {t.label}
+                  </NavLink>
+                ))}
+              </nav>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-24 sm:pb-6">
@@ -359,25 +423,35 @@ export function EventPage() {
             <h2 className="font-display font-bold text-base px-2 mb-2" id="event-more-title">
               All sections
             </h2>
-            <div className="grid grid-cols-3 gap-2">
-              {EVENT_PAGE_TABS.map((t) => (
-                <NavLink
-                  key={t.to}
-                  to={tabTo(t.to)}
-                  end={t.to === ""}
-                  onClick={() => setMoreOpen(false)}
-                  className={({ isActive }) =>
-                    clsx(
-                      "flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-xs font-medium border",
-                      isActive
-                        ? "bg-brand-50 text-brand-700 border-brand-200"
-                        : "bg-white text-slate-700 border-slate-100 active:bg-slate-50"
-                    )
-                  }
-                >
-                  <t.icon size={20} />
-                  <span className="text-center leading-tight">{t.label}</span>
-                </NavLink>
+            <div className="space-y-4">
+              {EVENT_PAGE_GROUPS.map((g) => (
+                <section key={g.id} aria-label={g.label}>
+                  <div className="flex items-center gap-2 px-2 mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <g.icon size={14} aria-hidden />
+                    <span>{g.label}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {g.tabs.map((t) => (
+                      <NavLink
+                        key={t.to}
+                        to={tabTo(t.to)}
+                        end={t.to === ""}
+                        onClick={() => setMoreOpen(false)}
+                        className={({ isActive }) =>
+                          clsx(
+                            "flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-xs font-medium border",
+                            isActive
+                              ? "bg-brand-50 text-brand-700 border-brand-200"
+                              : "bg-white text-slate-700 border-slate-100 active:bg-slate-50"
+                          )
+                        }
+                      >
+                        <t.icon size={20} />
+                        <span className="text-center leading-tight">{t.label}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           </div>

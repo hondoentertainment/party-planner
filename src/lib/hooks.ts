@@ -404,6 +404,9 @@ export function useShareLinks(eventId: string | undefined) {
   return { links: rows, loading, refresh };
 }
 
+// Alias for callers (Overview, suggestion helpers) that prefer the `Event` prefix.
+export const useEventShareLinks = useShareLinks;
+
 export function useWrapUp(eventId: string | undefined) {
   const [wrapUp, setWrapUp] = useState<EventWrapUp | null>(null);
   const [loading, setLoading] = useState(true);
@@ -437,6 +440,9 @@ export function useWrapUp(eventId: string | undefined) {
 
   return { wrapUp, loading, refresh };
 }
+
+// Alias matching the Overview module's naming convention.
+export const useEventWrapUp = useWrapUp;
 
 /* ---------- Wrap-ups across all accessible events ---------- */
 export function useWrapUpsAcrossEvents() {

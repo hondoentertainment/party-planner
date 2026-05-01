@@ -7,13 +7,16 @@ import { formatEventDate } from "../src/lib/format";
 
 const credentials = getE2ECredentials();
 
+// Tab labels updated by Item 9 (IA refactor) and Item 11 (Food Purchasing →
+// Shopping). Module headings under each tab stayed the same to keep page
+// titles meaningful, so we still validate them via the `expected` regex.
 const EVENT_SECTIONS = [
   { label: "Overview", expected: /event details/i, kind: "card" },
   { label: "Timeline", expected: /^Timeline$/i },
   { label: "Guests", expected: /guest list/i },
-  { label: "Food", expected: /food & menu/i },
+  { label: "Menu", expected: /food & menu/i },
   { label: "Beverages", expected: /^Beverages$/i },
-  { label: "Food Purchasing", expected: /food purchasing/i },
+  { label: "Shopping", expected: /food purchasing/i },
   { label: "Budget", expected: /^Budget$/i },
   { label: "Vendors", expected: /vendors & contacts/i },
   { label: "Logistics", expected: /^Logistics$/i },
@@ -22,8 +25,8 @@ const EVENT_SECTIONS = [
   { label: "Music", expected: /^Music$/i },
   { label: "Restrooms", expected: /^Restrooms$/i },
   { label: "Decorations", expected: /^Decorations$/i },
-  { label: "Setup", expected: /setup & teardown/i },
-  { label: "Wrap-up", expected: /post-event wrap-up/i },
+  { label: "Day-of setup", expected: /setup & teardown/i },
+  { label: "Post-party", expected: /post-event wrap-up/i },
   { label: "Settings", expected: /settings & team/i },
 ];
 
@@ -33,7 +36,7 @@ const CHECKLIST_SECTIONS = [
   "Games",
   "Restrooms",
   "Decorations",
-  "Setup",
+  "Day-of setup",
 ];
 
 test.describe("with E2E credentials", () => {
@@ -175,7 +178,7 @@ test.describe("with E2E credentials", () => {
     await events.addChecklistItem("Decorations", "Hang string lights");
     await events.expandChecklistItem("Hang string lights");
     await events.fillChecklistDetail("Hang string lights", "Area", "Backyard");
-    await events.addChecklistItem("Setup", "Arrange lounge chairs");
+    await events.addChecklistItem("Day-of setup", "Arrange lounge chairs");
     await events.expandChecklistItem("Arrange lounge chairs");
     await events.fillChecklistDetail("Arrange lounge chairs", "Time needed", "30");
   });
@@ -294,7 +297,9 @@ test.describe("with E2E credentials", () => {
         location: "Public test venue",
         theme: "Share page luau",
       });
-      await publicEvent.expectRsvpSummary("Going", 1);
+      // Item 23 — public page no longer surfaces stat cards; the social
+      // proof chip only appears at ≥ 3 going, so 1 going should render none.
+      await publicEvent.expectNoSocialProofChip();
       await publicEvent.expectScheduleItem("Confirm guest list");
       await publicEvent.expectPublicSection("Food");
       await publicEvent.expectMenuItem(menuItem);
