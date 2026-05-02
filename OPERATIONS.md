@@ -8,18 +8,19 @@ The latest set of changes ships several new flows that aren't live until you run
 
 | # | Step | Command (PowerShell-safe) |
 |---|------|---------------------------|
-| 1 | Apply migrations 0010–0013 (RSVP recovery, reminders, pending invites, notification opt-outs) | `npm run db:push` |
+| 1 | Apply migrations through the latest in `supabase/migrations/` | `npm run db:push` |
 | 2 | Verify schema landed | Open Supabase → SQL Editor → paste `supabase/verify_remote.sql` |
-| 3 | Deploy the four new Edge Functions | `npm run functions:deploy:invite ; npm run functions:deploy:wrap-up ; npm run functions:deploy:reminders ; npm run functions:deploy:rsvp-recovery ; npm run functions:deploy:unsubscribe` |
-| 4 | Set the two new shared secrets | `supabase secrets set REMINDER_CRON_SECRET="$(openssl rand -hex 32)" UNSUBSCRIBE_TOKEN_SECRET="$(openssl rand -hex 32)"` |
-| 5 | Confirm existing secrets are still set | `supabase secrets list` — must show `RESEND_API_KEY`, `FROM_EMAIL`, `APP_URL` |
-| 6 | (optional) Enable the daily reminder + wrap-up cron | Open `supabase/sql/enable_reminder_cron.sql`, replace the two `REPLACE_ME` placeholders, paste into SQL Editor, run. Confirm with `supabase/sql/check_reminder_cron.sql`. |
-| 7 | (optional) Add `E2E_EMAIL` / `E2E_PASSWORD` / `E2E_DISPLAY_NAME` to repo secrets so the 30 currently-skipping signed-in tests run in CI | `gh secret set E2E_EMAIL --body "..." ; gh secret set E2E_PASSWORD --body "..." ; gh secret set E2E_DISPLAY_NAME --body "..."` |
-| 8 | (optional) Smoke-test the flows: create an event → public RSVP with email → click "Email me a recovery link" → open the link in a private window → verify the form pre-fills as an update | manual |
+| 3 | Deploy all notification Edge Functions | `npx supabase functions deploy notify-assignment notify-share notify-invite notify-wrap-up notify-event-reminder` then `npx supabase functions deploy notify-unsubscribe notify-rsvp-recovery --no-verify-jwt` (or the `functions:deploy:*` npm scripts) |
+| 4 | Set cron + unsubscribe secrets | `supabase secrets set REMINDER_CRON_SECRET="…" UNSUBSCRIBE_TOKEN_SECRET="…"` (64 hex chars each; e.g. `openssl rand -hex 32` or your preferred CSPRNG) |
+| 5 | Set Resend + sender + public app URL | `supabase secrets set RESEND_API_KEY="re_…"`. Confirm `FROM_EMAIL` and `APP_URL` match production (§10). Without `RESEND_API_KEY`, `notify-*` functions **do not send mail**. |
+| 6 | Confirm secrets | `supabase secrets list` — expect `RESEND_API_KEY`, `FROM_EMAIL`, `APP_URL`, `REMINDER_CRON_SECRET`, `UNSUBSCRIBE_TOKEN_SECRET`, plus auto `SUPABASE_*`. |
+| 7 | (optional) Enable daily reminder + wrap-up cron | `npm run sql:fill-reminder-cron` → edit `supabase/sql/enable_reminder_cron.generated.sql` (gitignored) → replace the remaining `REPLACE_ME_with_a_64_char_hex_secret` → paste into SQL Editor → run. Confirm with `supabase/sql/check_reminder_cron.sql`. |
+| 8 | (optional) CI E2E user | `gh secret set E2E_EMAIL --body "…"` ; `gh secret set E2E_PASSWORD --body "…"` ; `gh secret set E2E_DISPLAY_NAME --body "…"` |
+| 9 | (optional) Smoke-test RSVP recovery | Event → public RSVP with email → **Email me a recovery link** → open link in a private window → form pre-fills as an update |
 
-After step 6, guests on dated events will receive T-7 / T-3 / T-1 day digests. Each email carries a one-click `notify-unsubscribe` footer so collaborators can opt out per-kind without reaching the host. Track deliverability via the structured edge-function logs documented in §10.
+After **step 7** (optional cron), guests on dated events receive T-7 / T-3 / T-1 digests. Unsubscribe links hit `notify-unsubscribe`, which responds with **302** to `/email/unsubscribe?...` on `APP_URL` so browsers always render a real page.
 
-If you'd rather hold off on the cron, leave step 6 unrun — the rest of the flow (manual share, manual RSVP recovery, etc.) works fine without it.
+If you'd rather hold off on the cron, skip step 7 — manual share and RSVP recovery still work.
 
 ---
 
@@ -82,7 +83,8 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 
 1. Create a project in [Sentry](https://sentry.io) for a browser/React app.
 2. Add the client DSN to Vercel (and `.env.local` for local): `VITE_SENTRY_DSN=https://...`
-3. Redeploy. Errors caught by the root `ErrorBoundary` and `captureException` will appear in Sentry (when DSN is set).
+3. Redeploy. Errors caught by the root `ErrorBoundary`, global `error` / `unhandledrejection` listeners, and manual bug reports will appear in Sentry (when DSN is set).
+4. Manual reports are also stored in `public.bug_reports` after migration `0014_bug_reports.sql`; review them in Supabase Table Editor or with a service-role query. App users can submit and view only their own rows via RLS.
 
 ## 4. PWA (install and offline shell)
 
@@ -123,6 +125,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - [ ] Migrations 0001–0008 applied as needed (`npm run db:push` after `supabase link`, or SQL Editor)
 - [ ] Run `supabase/verify_remote.sql` in the SQL Editor once migrations and GUCs are in place
 - [ ] `VITE_SENTRY_DSN` (optional)
+- [ ] Migration `0014_bug_reports.sql` applied if you want in-app bug reports
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 - [ ] Resend + Edge `notify-assignment` + GUCs (optional, for email)
 - [ ] Edge `notify-share` deployed (optional, enables **Email me this link** in Settings & Team)

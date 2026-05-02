@@ -145,6 +145,53 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
       await publicContext.close();
     }
   });
+
+  test("after RSVP with email, recovery link CTA completes the happy-path banner", async ({
+    browser,
+    page,
+  }) => {
+    const events = new EventAgent(page);
+    const stamp = `E2E recovery ${Date.now()}`;
+    const guestName = `Recovery Guest ${Date.now()}`;
+    const guestEmail = `e2e-recovery-${Date.now()}@example.com`;
+
+    await events.createBlankEvent(stamp);
+    const publicUrl = await events.createPublicShareLink();
+
+    const publicContext = await browser.newContext();
+    const publicPage = await publicContext.newPage();
+
+    try {
+      await publicPage.goto(publicUrl);
+      await expect(
+        publicPage.getByRole("heading", { name: stamp, level: 1 })
+      ).toBeVisible({ timeout: 15_000 });
+
+      await publicPage.getByRole("radio", { name: /i'm in/i }).check();
+      await publicPage.getByLabel(/your name/i).fill(guestName);
+      await publicPage.getByLabel(/email \(optional\)/i).fill(guestEmail);
+
+      await publicPage
+        .getByRole("button", { name: /send rsvp|update rsvp|save changes/i })
+        .click();
+
+      await expect(
+        publicPage.getByRole("heading", {
+          name: new RegExp(`thanks,\\s*${escapeRegExp(guestName)}`, "i"),
+        })
+      ).toBeVisible({ timeout: 15_000 });
+
+      await publicPage
+        .getByRole("button", { name: /email me a recovery link/i })
+        .click();
+
+      await expect(publicPage.getByText(new RegExp(`Check ${guestEmail} for the link`, "i"))).toBeVisible({
+        timeout: 15_000,
+      });
+    } finally {
+      await publicContext.close();
+    }
+  });
 });
 
 function escapeRegExp(value: string) {

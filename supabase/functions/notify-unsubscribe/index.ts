@@ -1,25 +1,18 @@
 // Supabase Edge Function: notify-unsubscribe
 //
-// One-click email unsubscribe endpoint. Accepts `GET /?token=...` so that
-// every email client (including text-only / no-JS) can hit it from the link
-// in our reminder footer. Deploy with `--no-verify-jwt` because the recipient
-// is anonymous when they click — the HMAC token IS the auth.
+// One-click email unsubscribe. Accepts `GET /?token=...` (and `POST` for parity).
+// Deploy with `--no-verify-jwt` — the HMAC token IS the auth.
+//
+// We **302 redirect** to `${APP_URL}/email/unsubscribe?...` instead of returning
+// inline HTML. Some edge gateways rewrite non-2xx HTML responses to
+// `text/plain` with nosniff, which makes error pages unreadable in browsers.
 //
 // Flow:
-//   1. Verify the HMAC-SHA-256 signed token (see _shared/unsubscribe-token.ts).
-//      The token encodes (user_id, kind, expires_at). Tokens older than 30d
-//      are rejected with a friendly error.
-//   2. Call `public.upsert_notification_opt_out(user_id, kind)` via the
-//      service-role client. The RPC is SECURITY DEFINER + ON CONFLICT DO
-//      NOTHING, so repeated clicks (Gmail link prefetcher, scanners, etc.)
-//      are idempotent.
-//   3. Return a small inline-styled HTML page so the link works as a real
-//      browser destination — no JSON-only response, no client-side JS.
+//  1. Verify token (_shared/unsubscribe-token.ts).
+//  2. Call public.upsert_notification_opt_out via service role.
+//  3. Redirect to the SPA landing page with outcome + optional kind.
 //
-// Required secrets:
-//   UNSUBSCRIBE_TOKEN_SECRET (>= 32 bytes; `openssl rand -hex 32`)
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (auto-provided by Supabase)
-//   APP_URL (used for the "back to settings" link in the success / error pages)
+// Required secrets: UNSUBSCRIBE_TOKEN_SECRET, SUPABASE_* (auto), APP_URL
 
 // @ts-expect-error Deno
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
@@ -34,11 +27,23 @@ declare const Deno: { env: { get(name: string): string | undefined } };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const APP_URL = Deno.env.get("APP_URL") ?? "https://party-planner.vercel.app";
+const APP_URL_RAW = Deno.env.get("APP_URL") ?? "https://party-planner-five.vercel.app";
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+
+function appOrigin(): string {
+  return APP_URL_RAW.replace(/\/$/, "");
+}
+
+function redirect(pathAndQuery: string): Response {
+  const path = pathAndQuery.startsWith("/") ? pathAndQuery : `/${pathAndQuery}`;
+  return new Response(null, {
+    status: 302,
+    headers: { Location: `${appOrigin()}${path}` },
+  });
+}
 
 function checkRequiredEnv(): string | null {
   const required: Array<[string, string | undefined]> = [
@@ -54,59 +59,6 @@ function checkRequiredEnv(): string | null {
   return null;
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-const KIND_LABEL: Record<UnsubscribeKind, string> = {
-  pre_7d: "the 7-days-out reminder",
-  pre_3d: "the 3-days-out reminder",
-  pre_1d: "the day-before reminder",
-  wrap_up_1d: "the post-party wrap-up nudge",
-  all: "every Party Planner reminder",
-};
-
-function htmlPage(opts: {
-  status: number;
-  emoji: string;
-  heading: string;
-  body: string;
-  ctaLabel?: string;
-  ctaHref?: string;
-}): Response {
-  const cta =
-    opts.ctaLabel && opts.ctaHref
-      ? `<p style="margin:24px 0 0;">
-          <a href="${opts.ctaHref}" style="display:inline-block;background:#cc38f5;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">${escapeHtml(opts.ctaLabel)}</a>
-        </p>`
-      : "";
-
-  const html = `<!doctype html>
-<html><head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${escapeHtml(opts.heading)}</title>
-</head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;padding:24px;margin:0;">
-  <div style="max-width:520px;margin:48px auto;background:white;border-radius:12px;padding:32px;box-shadow:0 4px 20px rgba(0,0,0,0.05);">
-    <div style="font-size:40px;line-height:1;margin-bottom:12px;">${escapeHtml(opts.emoji)}</div>
-    <h1 style="font-size:22px;margin:0 0 8px;color:#0f172a;">${escapeHtml(opts.heading)}</h1>
-    <p style="color:#475569;margin:0;line-height:1.5;">${opts.body}</p>
-    ${cta}
-  </div>
-</body></html>`;
-
-  return new Response(html, {
-    status: opts.status,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
-}
-
 serve(async (req: Request) => {
   try {
     if (req.method !== "GET" && req.method !== "POST") {
@@ -115,18 +67,13 @@ serve(async (req: Request) => {
 
     const missingEnv = checkRequiredEnv();
     if (missingEnv) {
-      return htmlPage({
-        status: 500,
-        emoji: "🛠️",
-        heading: "Server misconfigured",
-        body: "We couldn't process your request right now. Please try again in a moment.",
-      });
+      return redirect("/email/unsubscribe?outcome=error&reason=config");
     }
 
     const url = new URL(req.url);
     const token = url.searchParams.get("token") ?? "";
 
-    let parsed;
+    let parsed: { userId: string; kind: UnsubscribeKind };
     try {
       parsed = await verifyToken(token);
     } catch (err) {
@@ -137,14 +84,7 @@ serve(async (req: Request) => {
         event: "token.verify_failed",
         error: message,
       });
-      return htmlPage({
-        status: 400,
-        emoji: "⚠️",
-        heading: "We couldn't unsubscribe you",
-        body: `${escapeHtml(message)} You can still manage your email preferences from your account settings.`,
-        ctaLabel: "Open settings",
-        ctaHref: `${APP_URL}/settings#notifications`,
-      });
+      return redirect("/email/unsubscribe?outcome=invalid");
     }
 
     try {
@@ -162,15 +102,7 @@ serve(async (req: Request) => {
         error: (err as Error).message,
         context: { user_id: parsed.userId, kind: parsed.kind },
       });
-      return htmlPage({
-        status: 500,
-        emoji: "🛠️",
-        heading: "Something went wrong",
-        body:
-          "We couldn't save your unsubscribe preference. Please try again in a moment, or update your preferences directly from your account settings.",
-        ctaLabel: "Open settings",
-        ctaHref: `${APP_URL}/settings#notifications`,
-      });
+      return redirect("/email/unsubscribe?outcome=error");
     }
 
     log({
@@ -180,15 +112,8 @@ serve(async (req: Request) => {
       context: { user_id: parsed.userId, kind: parsed.kind, sent: 0, failed: 0, skipped: 0, opt_out: 1 },
     });
 
-    const label = KIND_LABEL[parsed.kind] ?? "these reminders";
-    return htmlPage({
-      status: 200,
-      emoji: "✅",
-      heading: "You're unsubscribed",
-      body: `You won't get ${escapeHtml(label)} from Party Planner anymore. You can re-enable them anytime from your account settings.`,
-      ctaLabel: "Manage email preferences",
-      ctaHref: `${APP_URL}/settings#notifications`,
-    });
+    const kindQ = encodeURIComponent(parsed.kind);
+    return redirect(`/email/unsubscribe?outcome=success&kind=${kindQ}`);
   } catch (err) {
     log({ level: "error", fn: FN, event: "uncaught", error: String(err) });
     throw err;

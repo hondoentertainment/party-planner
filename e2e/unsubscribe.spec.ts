@@ -1,15 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-// Anonymous-only smoke: hitting the `notify-unsubscribe` Edge Function with
-// an obviously-bogus token must return a 400 with the friendly inline-styled
-// HTML page (the same one a user with an expired link would see).
-//
-// We deliberately skip the happy path because minting a *valid* token would
-// require the production `UNSUBSCRIBE_TOKEN_SECRET`, which we don't expose
-// to CI. The unhappy path is enough to catch deploy-time regressions like
-// "function isn't deployed" or "function is rejecting all GETs".
+// Anonymous smoke: `notify-unsubscribe` must redirect to the SPA landing page
+// (invalid / expired tokens → outcome=invalid). Minting a valid token requires
+// production `UNSUBSCRIBE_TOKEN_SECRET`, which CI does not expose.
 test.describe("notify-unsubscribe edge function", () => {
-  test("invalid token renders the 400 friendly page", async ({ request }) => {
+  test("invalid token responds with redirect to app unsubscribe page", async () => {
     const supabaseUrl =
       process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
     if (!supabaseUrl) {
@@ -20,16 +15,32 @@ test.describe("notify-unsubscribe edge function", () => {
       return;
     }
 
-    const res = await request.get(
+    const res = await fetch(
       `${supabaseUrl.replace(/\/$/, "")}/functions/v1/notify-unsubscribe?token=invalid`,
-      { failOnStatusCode: false },
+      { redirect: "manual" },
     );
 
-    expect(res.status()).toBe(400);
-    const body = await res.text();
-    // The error page should be the HTML "we couldn't unsubscribe you" card,
-    // not raw JSON or the Supabase auth gateway's default response.
-    expect(body).toContain("We couldn&#039;t unsubscribe you");
-    expect(body).toMatch(/Open settings/i);
+    expect([301, 302, 303, 307, 308]).toContain(res.status);
+    const loc = res.headers.get("location");
+    expect(loc).toBeTruthy();
+    expect(loc!).toMatch(/\/email\/unsubscribe\?/);
+    expect(loc!).toMatch(/outcome=invalid/);
+  });
+});
+
+test.describe("unsubscribe landing page (SPA)", () => {
+  test("invalid outcome copy is visible", async ({ page }) => {
+    await page.goto("/email/unsubscribe?outcome=invalid");
+
+    const setup = page.getByRole("heading", { name: /almost ready to party/i });
+    if (await setup.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      test.skip(true, "SetupNotice — build without VITE_SUPABASE_* env.");
+      return;
+    }
+
+    await expect(
+      page.getByRole("heading", { name: /finish that link/i }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: /email reminder preferences/i })).toBeVisible();
   });
 });

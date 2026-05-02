@@ -15,6 +15,7 @@
     "ci": "npm run verify",
     "db:push": "npx supabase db push",
     "db:types": "node scripts/gen-db-types.mjs",
+    "sql:fill-reminder-cron": "node scripts/fill-reminder-cron.mjs",
     "functions:deploy": "npx supabase functions deploy notify-assignment",
     "functions:deploy:share": "npx supabase functions deploy notify-share",
     "functions:deploy:invite": "npx supabase functions deploy notify-invite",

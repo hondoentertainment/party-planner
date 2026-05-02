@@ -9,14 +9,13 @@
 --
 -- BEFORE YOU RUN THIS:
 --   1. Apply migration 0011 (`npm run db:push`).
---   2. Deploy the two functions
---      (`npm run functions:deploy:reminders` and
---      `npm run functions:deploy:wrap-up`).
---   3. Set `REMINDER_CRON_SECRET`, `RESEND_API_KEY`, `FROM_EMAIL`,
---      and `APP_URL` via `supabase secrets set ...`. See OPERATIONS.md
---      §10 for the full list.
---   4. Replace the two placeholders below with real values.
---   5. Paste the entire file into Supabase → SQL Editor and run.
+--   2. Deploy `notify-event-reminder` and `notify-wrap-up`.
+--   3. Set `REMINDER_CRON_SECRET`, `RESEND_API_KEY`, `FROM_EMAIL`, `APP_URL`.
+--   4. Either replace the `REPLACE_ME` placeholder below manually, or run
+--      `npm run sql:fill-reminder-cron` (after `supabase link`) to generate
+--      `enable_reminder_cron.generated.sql` with the functions URL prefilled.
+--   5. Replace the `app.reminder_cron_secret` line with your secret.
+--   6. Paste into Supabase → SQL Editor and run.
 --
 -- See `disable_reminder_cron.sql` to roll this back, and
 -- `check_reminder_cron.sql` to confirm the jobs are scheduled.

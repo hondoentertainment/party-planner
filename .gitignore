@@ -1,7 +1,8 @@
 # Supabase CLI (e.g. `supabase link` — do not commit)
 .supabase/
 
-# Env
+# Generated SQL helpers (npm run sql:fill-reminder-cron)
+supabase/sql/*.generated.sql
 .env
 .env.local
 .env.*.local

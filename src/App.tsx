@@ -19,6 +19,9 @@ const UpdatePasswordPage = lazy(() =>
 const PublicEventPage = lazy(() =>
   import("./pages/PublicEventPage").then((m) => ({ default: m.PublicEventPage }))
 );
+const UnsubscribeLandingPage = lazy(() =>
+  import("./pages/UnsubscribeLandingPage").then((m) => ({ default: m.UnsubscribeLandingPage }))
+);
 
 const Loading = () => (
   <div className="h-full min-h-[18rem] flex items-center justify-center py-16" role="status" aria-live="polite">
@@ -34,6 +37,17 @@ export function App() {
 
   if (!configured) return <SetupNotice />;
   if (loading) return <Loading />;
+
+  if (window.location.pathname.startsWith("/email/unsubscribe")) {
+    return (
+      <Suspense fallback={<Loading />}>
+        <Routes>
+          <Route path="/email/unsubscribe" element={<UnsubscribeLandingPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    );
+  }
 
   if (window.location.pathname.startsWith("/s/")) {
     return (
