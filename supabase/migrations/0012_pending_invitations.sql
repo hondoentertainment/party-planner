@@ -8,6 +8,11 @@
 -- citext for case-insensitive email comparisons.
 create extension if not exists citext;
 
+-- pgcrypto for gen_random_bytes() used to generate invite tokens.
+-- Supabase installs extensions into the `extensions` schema, so the function
+-- must be schema-qualified everywhere it's called below.
+create extension if not exists pgcrypto with schema extensions;
+
 -- =============================================================
 -- 1. PENDING INVITATIONS TABLE
 -- =============================================================
@@ -17,7 +22,7 @@ create table if not exists public.pending_event_invitations (
   email citext not null,
   role text not null default 'editor' check (role in ('editor', 'viewer')),
   invited_by uuid not null references auth.users(id) on delete cascade,
-  token text not null unique default encode(gen_random_bytes(24), 'hex'),
+  token text not null unique default encode(extensions.gen_random_bytes(24), 'hex'),
   expires_at timestamptz not null default (now() + interval '30 days'),
   created_at timestamptz not null default now(),
   claimed_at timestamptz null,
