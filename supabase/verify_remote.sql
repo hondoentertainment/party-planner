@@ -208,11 +208,49 @@ with checks as (
       join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public'
         and p.proname = 'submit_public_rsvp'
-        and pg_get_function_identity_arguments(p.oid) = '_token text, _payload jsonb'
+        -- prefix match so later migrations (e.g. 0010 recovery token) can add
+        -- optional trailing parameters without breaking the check.
+        and pg_get_function_identity_arguments(p.oid) like '_token text, _payload jsonb%'
         and pg_get_function_result(p.oid) = 'jsonb'
         and has_function_privilege('anon', p.oid, 'EXECUTE')
     ),
-    're-run 0009_public_rsvp.sql so submit_public_rsvp(_token text, _payload jsonb) returns jsonb is granted to anon'
+    're-run 0009_public_rsvp.sql so submit_public_rsvp(_token text, _payload jsonb, ...) returns jsonb is granted to anon'
+
+  union all
+  select
+    14,
+    '0014 bug reports table',
+    exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'bug_reports'
+    ) and exists (
+      select 1 from pg_policies
+      where schemaname = 'public'
+        and tablename = 'bug_reports'
+        and policyname = 'Users submit own bug reports'
+    ),
+    'run 0014_bug_reports.sql'
+
+  union all
+  select
+    15,
+    '0015 public bug report + notify trigger',
+    exists (
+      select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'submit_public_bug_report'
+        and has_function_privilege('anon', p.oid, 'EXECUTE')
+    ) and exists (
+      select 1 from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname = 'bug_reports'
+        and t.tgname = 'bug_report_notify'
+        and not t.tgisinternal
+    ),
+    'run 0015_bug_reports_public_and_notify.sql'
 )
 select
   check_name,

@@ -6,11 +6,12 @@ import { AuthProvider } from "./lib/auth";
 import { ToastProvider } from "./lib/toast";
 import { ConfirmProvider } from "./lib/useConfirm";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { initSentry } from "./lib/sentry";
+import { initSentry, installGlobalErrorHandlers } from "./lib/sentry";
 import { App } from "./App";
 import "./index.css";
 
 initSentry();
+installGlobalErrorHandlers();
 
 registerSW({ immediate: true });
 

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
+  Bug,
   CalendarPlus,
   Check,
   ChevronDown,
@@ -33,6 +34,7 @@ import type {
 } from "../lib/types.rsvpRecovery";
 import { formatEventDate } from "../lib/format";
 import { downloadPublicEventIcs } from "../lib/exportIcs";
+import { BugReportDialog } from "../components/BugReportDialog";
 import {
   RSVP_ACCENT,
   RSVP_ICON,
@@ -66,6 +68,7 @@ export function PublicEventPage() {
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<LookupRsvpByTokenResult | null>(null);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [publicBugOpen, setPublicBugOpen] = useState(false);
 
   const refreshShare = useCallback(async () => {
     if (!token) return;
@@ -357,6 +360,26 @@ export function PublicEventPage() {
             </div>
           </section>
         )}
+
+        <footer className="pt-4 pb-2 text-center border-t border-slate-100">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 underline decoration-slate-300"
+            onClick={() => setPublicBugOpen(true)}
+          >
+            <Bug size={14} className="flex-shrink-0" aria-hidden />
+            Problem with this page?
+          </button>
+        </footer>
+
+        {token ? (
+          <BugReportDialog
+            open={publicBugOpen}
+            onClose={() => setPublicBugOpen(false)}
+            shareToken={token}
+            source="public-share"
+          />
+        ) : null}
       </div>
     </main>
   );

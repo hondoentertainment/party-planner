@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "./supabase";
+import { reportSupabaseReadFailure } from "./supabaseTelemetry";
 import type { Profile } from "./database.types";
 
 interface AuthContextValue {
@@ -22,12 +23,15 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function isRecoveryFromHash() {
+/** Password-reset links may put `type=recovery` in the hash (implicit) or query string (PKCE-style redirects). */
+function isRecoveryRedirect() {
   if (typeof window === "undefined") return false;
-  const h = window.location.hash.slice(1);
-  if (!h) return false;
-  const params = new URLSearchParams(h);
-  return params.get("type") === "recovery";
+  const hash = window.location.hash.slice(1);
+  if (hash) {
+    const fromHash = new URLSearchParams(hash).get("type");
+    if (fromHash === "recovery") return true;
+  }
+  return new URLSearchParams(window.location.search).get("type") === "recovery";
 }
 
 // Claim any pending event invitations addressed to the freshly-signed-in
@@ -69,11 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!active) return;
       setSession(data.session);
       setUser(data.session?.user ?? null);
-      if (isRecoveryFromHash() && data.session) {
+      if (isRecoveryRedirect() && data.session) {
         setPasswordRecovery(true);
       }
       setLoading(false);
-      if (data.session?.user?.id && !isRecoveryFromHash()) {
+      if (data.session?.user?.id && !isRecoveryRedirect()) {
         void claimPendingInvitationsOnce(data.session.user.id);
       }
     });
@@ -101,7 +105,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (!user) return setProfile(null);
-    const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+    const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+    if (error) {
+      reportSupabaseReadFailure("auth.refreshProfile", error, { userId: user.id });
+    }
     setProfile(data ?? null);
   };
 

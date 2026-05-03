@@ -22,6 +22,8 @@ export type ItemKind =
 export type ItemStatus = "todo" | "in_progress" | "done";
 export type Phase = "pre" | "day_of" | "post";
 export type CollabRole = "owner" | "editor" | "viewer";
+export type BugReportSeverity = "low" | "medium" | "high" | "critical";
+export type BugReportStatus = "open" | "triaging" | "resolved" | "wontfix";
 
 export interface Profile {
   id: string;
@@ -93,6 +95,19 @@ export interface UserNotification {
   url: string | null;
   read_at: string | null;
   created_at: string;
+}
+
+export interface BugReport {
+  id: string;
+  reporter_id: string | null;
+  event_id: string | null;
+  title: string;
+  description: string;
+  severity: BugReportSeverity;
+  status: BugReportStatus;
+  context: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface EventBudgetItem {
@@ -301,6 +316,15 @@ export interface Database {
         Update: Partial<UserNotification>;
         Relationships: [];
       };
+      bug_reports: {
+        Row: BugReport;
+        Insert: Partial<BugReport> & {
+          title: string;
+          description: string;
+        };
+        Update: Partial<BugReport>;
+        Relationships: [];
+      };
       event_budget_items: {
         Row: EventBudgetItem;
         Insert: Partial<EventBudgetItem> & { event_id: string; label: string };
@@ -394,6 +418,10 @@ export interface Database {
           _recovery_token?: string | null;
         };
         Returns: PublicRsvpResult;
+      };
+      submit_public_bug_report: {
+        Args: { _token: string; _payload: Record<string, unknown> };
+        Returns: { ok: boolean; id?: string };
       };
       request_rsvp_recovery: {
         Args: { _share_token: string; _email: string };

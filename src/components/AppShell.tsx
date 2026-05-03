@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import {
+  Bug,
   Calendar,
   ChevronDown,
   Home,
@@ -12,6 +13,7 @@ import { useAuth } from "../lib/auth";
 import { PushPrompt } from "./PushPrompt";
 import { NotificationCenter } from "./NotificationCenter";
 import { MobileAccountMenu } from "./MobileAccountMenu";
+import { BugReportDialog } from "./BugReportDialog";
 import clsx from "clsx";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -19,6 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
+  const [bugReportOpen, setBugReportOpen] = useState(false);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
   const desktopTriggerRef = useRef<HTMLButtonElement>(null);
   const desktopMenuRef = useRef<HTMLDivElement>(null);
@@ -113,7 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
-            <NotificationCenter />
+            <NotificationCenter onReportBug={() => setBugReportOpen(true)} />
 
             <button
               ref={mobileTriggerRef}
@@ -181,6 +184,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <button
                     type="button"
                     role="menuitem"
+                    onClick={() => {
+                      setDesktopMenuOpen(false);
+                      setBugReportOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 min-h-[40px]"
+                  >
+                    <Bug size={16} className="text-slate-500" aria-hidden />
+                    Report a bug
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
                     onClick={async () => {
                       await signOut();
                       setDesktopMenuOpen(false);
@@ -225,6 +240,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <MobileAccountMenu
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
+        onReportBug={() => setBugReportOpen(true)}
+      />
+      <BugReportDialog
+        open={bugReportOpen}
+        onClose={() => setBugReportOpen(false)}
+        source="app-shell"
       />
     </div>
   );

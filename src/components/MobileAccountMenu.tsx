@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Bell, Calendar, ChevronRight, LogOut, Settings } from "lucide-react";
+import { Bell, Bug, Calendar, ChevronRight, LogOut, Settings } from "lucide-react";
 import { useAuth } from "../lib/auth";
 
 const FOCUSABLE_SEL =
@@ -9,9 +9,10 @@ const FOCUSABLE_SEL =
 interface MobileAccountMenuProps {
   open: boolean;
   onClose: () => void;
+  onReportBug?: () => void;
 }
 
-export function MobileAccountMenu({ open, onClose }: MobileAccountMenuProps) {
+export function MobileAccountMenu({ open, onClose, onReportBug }: MobileAccountMenuProps) {
   const { profile, signOut } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
@@ -145,6 +146,19 @@ export function MobileAccountMenu({ open, onClose }: MobileAccountMenuProps) {
             </li>
           ))}
         </ul>
+
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            onReportBug?.();
+          }}
+          className="w-full flex items-center gap-3 px-3 min-h-[48px] rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+        >
+          <Bug size={18} className="text-slate-500" aria-hidden />
+          <span className="flex-1 text-left">Report a bug</span>
+          <ChevronRight size={16} className="text-slate-400" aria-hidden />
+        </button>
 
         <hr className="border-slate-100 my-2" />
 

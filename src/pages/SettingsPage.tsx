@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Bell,
   BellOff,
+  Bug,
   CalendarClock,
   CheckCircle2,
   Inbox,
@@ -23,6 +24,7 @@ import {
   unsubscribePush,
 } from "../lib/push";
 import { useToast } from "../lib/toast";
+import { BugReportDialog } from "../components/BugReportDialog";
 
 type NotificationPrefs = {
   assignment_email: boolean;
@@ -84,6 +86,7 @@ export function SettingsPage() {
   );
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [bugReportOpen, setBugReportOpen] = useState(false);
   const fadeTimer = useRef<number | null>(null);
 
   // Reminder opt-out state. `optOuts` is the set of kinds the user is
@@ -481,6 +484,34 @@ export function SettingsPage() {
           </p>
         </div>
       </SectionCard>
+
+      <SectionCard
+        id="bug-reports"
+        data-testid="bug-reports-section"
+        icon={<Bug size={18} className="text-brand-600" />}
+        title="Help and bug reports"
+        description="Send the team a bug report with page and browser diagnostics attached."
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-sm text-slate-500">
+            Use this when something does not save, looks broken, or blocks your
+            planning flow.
+          </p>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setBugReportOpen(true)}
+          >
+            <Bug size={16} /> Report a bug
+          </button>
+        </div>
+      </SectionCard>
+
+      <BugReportDialog
+        open={bugReportOpen}
+        onClose={() => setBugReportOpen(false)}
+        source="settings"
+      />
     </div>
   );
 }
@@ -490,14 +521,18 @@ function SectionCard({
   title,
   description,
   children,
+  id,
+  "data-testid": dataTestId,
 }: {
   icon: React.ReactNode;
   title: string;
   description?: string;
   children: React.ReactNode;
+  id?: string;
+  "data-testid"?: string;
 }) {
   return (
-    <section className="card p-5">
+    <section className="card p-5" id={id} data-testid={dataTestId}>
       <header className="mb-4">
         <h2 className="font-display font-bold text-lg flex items-center gap-2">
           {icon}

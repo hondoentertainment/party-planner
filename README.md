@@ -55,7 +55,7 @@ dropdown, and forward-to-a-friend share. Optionally integrates with
 - **Mobile-first** — bottom-tab navigation on phones, bottom-sheet account
   menu, optimistic UI, swipe-to-delete on checklist rows, large touch targets
 - **PWA** — installable, precached shell for faster loads (see `vite.config.ts`)
-- **Sentry (optional)** — set `VITE_SENTRY_DSN` for client error monitoring
+- **Bug tracking** — signed-in users can submit in-app bug reports with page/browser diagnostics; optional Sentry DSN links crashes to reports
 - **CI** — GitHub Actions runs `npm run verify` (lint, build, full Playwright suite under `e2e/`)
 
 **Production / ops:** migrations order, custom domain, backups, and secrets are documented in [OPERATIONS.md](./OPERATIONS.md).

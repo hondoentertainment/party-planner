@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import type { EventItem, EventRow } from "./database.types";
 import { logActivity } from "./activity";
+import { reportSupabaseUserActionFailure } from "./supabaseTelemetry";
 
 export interface DuplicateEventOptions {
   /** Override the new event's name. Defaults to "<source.name> (copy)". */
@@ -56,7 +57,12 @@ export async function duplicateEvent(
     .select("*")
     .single();
 
-  if (error || !created) return null;
+  if (error || !created) {
+    if (error) {
+      reportSupabaseUserActionFailure("duplicateEvent.insert_event", error, { sourceId: source.id });
+    }
+    return null;
+  }
   const newId = (created as { id: string }).id;
 
   const { data: items } = await supabase
@@ -79,7 +85,13 @@ export async function duplicateEvent(
       due_at: null,
       created_by: ownerId,
     }));
-    await supabase.from("event_items").insert(rows);
+    const { error: itemsErr } = await supabase.from("event_items").insert(rows);
+    if (itemsErr) {
+      reportSupabaseUserActionFailure("duplicateEvent.insert_items", itemsErr, {
+        newId,
+        count: rows.length,
+      });
+    }
   }
 
   void logActivity(

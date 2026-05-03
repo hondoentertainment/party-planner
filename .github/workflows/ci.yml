@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Lint, build, and E2E

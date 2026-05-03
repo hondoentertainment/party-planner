@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Bell, CheckCheck, Settings } from "lucide-react";
+import { Bell, Bug, CheckCheck, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { useNotifications } from "../lib/hooks";
 import { relative } from "../lib/format";
 
-export function NotificationCenter() {
+export function NotificationCenter({ onReportBug }: { onReportBug?: () => void }) {
   const { user } = useAuth();
   const { notifications, unreadCount, markRead, markAllRead } = useNotifications(user?.id);
   const [open, setOpen] = useState(false);
@@ -112,7 +112,7 @@ export function NotificationCenter() {
               })
             )}
           </div>
-          <div className="border-t border-slate-100">
+          <div className="border-t border-slate-100 divide-y divide-slate-100">
             <Link
               to="/settings"
               onClick={() => setOpen(false)}
@@ -121,6 +121,19 @@ export function NotificationCenter() {
               <Settings size={14} />
               Notification settings
             </Link>
+            {onReportBug ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onReportBug();
+                }}
+                className="w-full flex items-center gap-2 p-3 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-left"
+              >
+                <Bug size={14} aria-hidden />
+                Report an issue
+              </button>
+            ) : null}
           </div>
         </div>
       )}

@@ -16,6 +16,7 @@
     "db:push": "npx supabase db push",
     "db:types": "node scripts/gen-db-types.mjs",
     "sql:fill-reminder-cron": "node scripts/fill-reminder-cron.mjs",
+    "ops:check-resend": "node scripts/check-resend-secret.mjs",
     "functions:deploy": "npx supabase functions deploy notify-assignment",
     "functions:deploy:share": "npx supabase functions deploy notify-share",
     "functions:deploy:invite": "npx supabase functions deploy notify-invite",
@@ -23,6 +24,7 @@
     "functions:deploy:reminders": "npx supabase functions deploy notify-event-reminder",
     "functions:deploy:unsubscribe": "npx supabase functions deploy notify-unsubscribe --no-verify-jwt",
     "functions:deploy:rsvp-recovery": "npx supabase functions deploy notify-rsvp-recovery --no-verify-jwt",
+    "functions:deploy:bug-report": "npx supabase functions deploy notify-bug-report",
     "functions:serve": "npx supabase functions serve notify-assignment --no-verify-jwt"
   },
   "dependencies": {

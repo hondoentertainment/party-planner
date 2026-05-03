@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "./supabase";
 import { useAuth } from "./auth";
+import { reportSupabaseReadFailure } from "./supabaseTelemetry";
 import type {
   EventBudgetItem,
   EventCollaborator,
@@ -68,6 +69,7 @@ export function useEvent(eventId: string | undefined) {
     setError(null);
     const { data, error } = await supabase.from("events").select("*").eq("id", eventId).maybeSingle();
     if (error) {
+      reportSupabaseReadFailure("useEvent.events.select", error, { eventId });
       setError(error.message);
     } else {
       setEvent(data ?? null);
@@ -115,6 +117,7 @@ export function useEventItems(eventId: string | undefined, kind: ItemKind) {
       .order("position", { ascending: true })
       .order("created_at", { ascending: true });
     if (error) {
+      reportSupabaseReadFailure("useEventItems.event_items.select", error, { eventId, kind });
       setError(error.message);
     } else {
       setItems((data ?? []) as EventItem[]);
@@ -168,11 +171,16 @@ export function useAllItems(eventId: string | undefined) {
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("event_items")
       .select("*")
       .eq("event_id", eventId);
-    setItems((data ?? []) as EventItem[]);
+    if (error) {
+      reportSupabaseReadFailure("useAllItems.event_items.select", error, { eventId });
+      setItems([]);
+    } else {
+      setItems((data ?? []) as EventItem[]);
+    }
     setLoading(false);
   }, [eventId]);
 
@@ -349,12 +357,17 @@ function useEventScopedRows<T extends { event_id: string }>(
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from(table)
       .select("*")
       .eq("event_id", eventId)
       .order(orderColumn, { ascending: false });
-    setRows((data ?? []) as T[]);
+    if (error) {
+      reportSupabaseReadFailure(`useEventScopedRows.${table}.select`, error, { eventId });
+      setRows([]);
+    } else {
+      setRows((data ?? []) as T[]);
+    }
     setLoading(false);
   }, [eventId, orderColumn, table]);
 
