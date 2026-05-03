@@ -23,6 +23,10 @@ import {
   subscribeToPush,
   unsubscribePush,
 } from "../lib/push";
+import {
+  REMINDER_EMAIL_KIND_META,
+  type ReminderEmailKind,
+} from "../lib/reminderEmailMeta";
 import { useToast } from "../lib/toast";
 import { BugReportDialog } from "../components/BugReportDialog";
 
@@ -46,37 +50,6 @@ function readPrefs(metadata: unknown): NotificationPrefs {
   };
 }
 
-// User-facing labels for each scheduled-reminder kind (migration 0013).
-// Order matches the cadence guests experience.
-type ReminderKind = Exclude<NotificationOptOutKind, "all">;
-
-const REMINDER_KIND_META: Array<{
-  kind: ReminderKind;
-  label: string;
-  hint: string;
-}> = [
-  {
-    kind: "pre_7d",
-    label: "T-7 days reminder",
-    hint: "Quick checklist a week out — unassigned tasks, missing RSVPs.",
-  },
-  {
-    kind: "pre_3d",
-    label: "T-3 days reminder",
-    hint: "Lock-it-in nudge with what still needs attention.",
-  },
-  {
-    kind: "pre_1d",
-    label: "T-1 day reminder",
-    hint: "Final day-before pulse with the run-of-show link.",
-  },
-  {
-    kind: "wrap_up_1d",
-    label: "Post-party wrap-up",
-    hint: "One day after the event: capture lessons learned and final spend.",
-  },
-];
-
 export function SettingsPage() {
   const { user, profile, signOut } = useAuth();
   const toast = useToast();
@@ -99,7 +72,9 @@ export function SettingsPage() {
   );
   const [optOutsLoading, setOptOutsLoading] = useState(true);
   const [optOutsError, setOptOutsError] = useState<string | null>(null);
-  const [pendingKind, setPendingKind] = useState<ReminderKind | null>(null);
+  const [pendingKind, setPendingKind] = useState<ReminderEmailKind | null>(
+    null
+  );
 
   useEffect(() => {
     setPrefs(readPrefs(user?.user_metadata));
@@ -160,7 +135,7 @@ export function SettingsPage() {
   }, [optOutsLoading]);
 
   const toggleReminder = useCallback(
-    async (kind: ReminderKind) => {
+    async (kind: ReminderEmailKind) => {
       if (!user) return;
       const previous = optOuts;
       const wasOptedOut = previous.has(kind) || previous.has("all");
@@ -452,7 +427,7 @@ export function SettingsPage() {
           <p className="text-sm text-slate-500">Loading preferences…</p>
         ) : (
           <div>
-            {REMINDER_KIND_META.map((meta, idx) => {
+            {REMINDER_EMAIL_KIND_META.map((meta, idx) => {
               const muted = optOuts.has(meta.kind) || optOuts.has("all");
               return (
                 <div key={meta.kind}>

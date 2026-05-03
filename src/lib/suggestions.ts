@@ -311,6 +311,144 @@ export function computeSuggestions(
   return out;
 }
 
+/** Single owner-facing checklist: ordered items with pass/fail for pre-event (and post-event wrap-up). */
+export interface EventHealthChecklistItem {
+  id: string;
+  label: string;
+  done: boolean;
+  /** Relative path under `/events/:id/` */
+  href: string;
+  priority: number;
+}
+
+/**
+ * Deterministic health checklist derived from the same data as {@link computeSuggestions}.
+ * Omits redundant rows when not applicable (e.g. no budget set).
+ */
+export function computeEventHealthChecklist(
+  ctx: SuggestionContext,
+  now: Date = new Date()
+): EventHealthChecklistItem[] {
+  const days = daysUntilStart(ctx.event.starts_at, now);
+  const daysSince = daysSinceStart(ctx.event.starts_at, now);
+  const inFuture = isInFuture(ctx.event.starts_at, now);
+  const hasActiveLink = ctx.shareLinks.some((l) => l.enabled && !l.revoked_at);
+  const guestCount = ctx.items.filter((i) => i.kind === "guest").length;
+  const unassignedTasks = ctx.items.filter(
+    (i) => i.kind === "task" && i.assignee_id == null && i.status !== "done"
+  ).length;
+  const musicCount = ctx.items.filter((i) => i.kind === "music").length;
+  const confirmedYes = countConfirmedGuests(ctx.items);
+  const totalServings = countTotalServings(ctx.items);
+  const shoppingNoPrice = ctx.items.filter((i) => {
+    if (i.kind !== "shopping") return false;
+    const m = (i.meta ?? {}) as ShoppingMeta;
+    return !m.cost_cents || m.cost_cents <= 0;
+  }).length;
+  const totalShoppingCost = ctx.items
+    .filter((i) => i.kind === "shopping")
+    .reduce((acc, i) => {
+      const m = (i.meta ?? {}) as ShoppingMeta;
+      return acc + (m.cost_cents ?? 0);
+    }, 0);
+
+  const items: EventHealthChecklistItem[] = [];
+
+  if (inFuture || (days != null && days >= 0)) {
+    items.push({
+      id: "public_link",
+      label: "Public guest link is live",
+      done: hasActiveLink,
+      href: "settings",
+      priority: 1,
+    });
+    items.push({
+      id: "guests",
+      label: "Guest list started",
+      done: guestCount > 0,
+      href: "guests",
+      priority: 2,
+    });
+  }
+
+  if (inFuture && days != null && days > 3) {
+    items.push({
+      id: "collab",
+      label: "Co-host or collaborator invited",
+      done: ctx.collaborators.length > 0,
+      href: "settings",
+      priority: 3,
+    });
+  }
+
+  if (inFuture || (days != null && days >= 0)) {
+    items.push({
+      id: "tasks",
+      label: "Fewer than 3 unassigned open tasks",
+      done: unassignedTasks < 3,
+      href: "timeline",
+      priority: 4,
+    });
+  }
+
+  if ((inFuture || (days != null && days >= 0)) && days != null && days <= 14) {
+    items.push({
+      id: "music",
+      label: "Music or playlist added",
+      done: musicCount > 0,
+      href: "music",
+      priority: 5,
+    });
+  }
+
+  if (confirmedYes > 0 && totalServings > 0) {
+    items.push({
+      id: "servings",
+      label: "Menu servings cover confirmed guests",
+      done: confirmedYes <= totalServings,
+      href: "food",
+      priority: 6,
+    });
+  }
+
+  if (shoppingNoPrice >= 3) {
+    items.push({
+      id: "prices",
+      label: "Prices on shopping items (you have 3+ without)",
+      done: shoppingNoPrice < 3,
+      href: "shopping",
+      priority: 7,
+    });
+  }
+
+  if (ctx.event.budget_cents > 0) {
+    items.push({
+      id: "budget",
+      label: "Shopping spend within budget",
+      done: totalShoppingCost <= ctx.event.budget_cents,
+      href: "budget",
+      priority: 8,
+    });
+  }
+
+  if (
+    ctx.wrapUpFiled === false &&
+    daysSince != null &&
+    daysSince >= 1
+  ) {
+    items.push({
+      id: "wrap_up",
+      label: "Post-party wrap-up filed",
+      done: false,
+      href: "wrap-up",
+      priority: 9,
+    });
+  }
+
+  items.sort((a, b) => a.priority - b.priority);
+  return items;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
