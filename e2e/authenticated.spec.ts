@@ -49,6 +49,15 @@ test.describe("with E2E credentials", () => {
     await new AuthAgent(page).signIn(credentials!);
   });
 
+  test("opens bug report dialog from settings", async ({ page }) => {
+    await page.goto("/settings");
+    await page
+      .getByTestId("bug-reports-section")
+      .getByRole("button", { name: /report a bug/i })
+      .click();
+    await expect(page.getByRole("dialog", { name: /report a bug/i })).toBeVisible();
+  });
+
   test("reaches the dashboard", async ({ page }) => {
     await new AuthAgent(page).expectDashboard();
   });

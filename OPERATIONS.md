@@ -84,7 +84,8 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 1. Create a project in [Sentry](https://sentry.io) for a browser/React app.
 2. Add the client DSN to Vercel (and `.env.local` for local): `VITE_SENTRY_DSN=https://...`
 3. Redeploy. Errors caught by the root `ErrorBoundary`, global `error` / `unhandledrejection` listeners, and manual bug reports will appear in Sentry (when DSN is set).
-4. Manual reports are also stored in `public.bug_reports` after migration `0014_bug_reports.sql`; review them in Supabase Table Editor or with a service-role query. App users can submit and view only their own rows via RLS.
+4. **Bug reports (database)** — After `0014_bug_reports.sql` and `0015_bug_reports_public_and_notify.sql`, rows land in `public.bug_reports`. Signed-in users submit through RLS and only see their own rows; guests submit via `submit_public_bug_report` using a valid share token (same link gates as public RSVP). Optional **maintainer email:** when `app.functions_url` + `app.service_role_key` are configured (or `private.app_settings` fallback), each insert triggers pg_net → **`notify-bug-report`**. Set Supabase secret **`BUG_REPORT_NOTIFY_EMAIL`** for the inbox to receive alerts; if unset, the function derives a recipient from `FROM_EMAIL` (fine for solo operators, poor for `no-reply@`).
+5. **Triage** — In Supabase → Table Editor → `bug_reports`, filter `status = open`, sort by `created_at`. The `context` jsonb is intentionally coarse: `source`, `route`, `user_agent`, `language`, `viewport` `{width,height,device_pixel_ratio}`, `timezone`, `online`, `sentry_event_id`, `app_mode`, `captured_at`, and for public-share paths `share_token_prefix` (first 8 characters of the token only). There are no passwords or full session tokens. Status changes and spam deletion are **service-role** or SQL today (the app does not expose an operator UI).
 
 ## 4. PWA (install and offline shell)
 
@@ -125,7 +126,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - [ ] Migrations 0001–0008 applied as needed (`npm run db:push` after `supabase link`, or SQL Editor)
 - [ ] Run `supabase/verify_remote.sql` in the SQL Editor once migrations and GUCs are in place
 - [ ] `VITE_SENTRY_DSN` (optional)
-- [ ] Migration `0014_bug_reports.sql` applied if you want in-app bug reports
+- [ ] Migrations `0014_bug_reports.sql` and `0015_bug_reports_public_and_notify.sql` applied if you want in-app + public-share bug reports and optional maintainer email
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 - [ ] Resend + Edge `notify-assignment` + GUCs (optional, for email)
 - [ ] Edge `notify-share` deployed (optional, enables **Email me this link** in Settings & Team)
