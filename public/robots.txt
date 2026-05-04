@@ -1,0 +1,17 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Legal (public)
+Allow: /privacy
+Allow: /terms
+
+# Authenticated app surfaces (HTML is still SPA-delivered; this signals intent to crawlers.)
+Disallow: /events/
+Disallow: /calendar
+Disallow: /settings
+Disallow: /forgot
+Disallow: /update-password
+
+# Public guest invites
+Allow: /s/

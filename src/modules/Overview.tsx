@@ -29,7 +29,8 @@ import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { useToast } from "../lib/toast";
 import { logActivity } from "../lib/activity";
-import { computeSuggestions } from "../lib/suggestions";
+import { computeEventHealthChecklist, computeSuggestions } from "../lib/suggestions";
+import { Sentry } from "../lib/sentry";
 import { SuggestionsPanel } from "../components/SuggestionsPanel";
 import { EditEventDialog } from "../components/EditEventDialog";
 import { ActivityFeed } from "../components/ActivityFeed";
@@ -51,6 +52,7 @@ const KIND_TABS: { kind: string; label: string; route: string }[] = [
 ];
 
 const FIRST_RUN_BANNER_PREFIX = "pp:first-event-banner:";
+const FIRST_RUN_SENTRY_PREFIX = "pp:first-run-sentry:";
 
 function readDismissedFlag(eventId: string): boolean {
   if (typeof window === "undefined") return false;
@@ -127,6 +129,22 @@ export function Overview({ event }: { event: EventRow }) {
     [event, items, collabs, links, isOwner, hasWrapUp],
   );
 
+  const healthChecklist = useMemo(
+    () =>
+      computeEventHealthChecklist({
+        event,
+        items,
+        collaborators: collabs,
+        shareLinks: links,
+        wrapUpFiled: isOwner ? hasWrapUp : undefined,
+      }),
+    [event, items, collabs, links, isOwner, hasWrapUp],
+  );
+
+  const healthDone = healthChecklist.length
+    ? healthChecklist.filter((h) => h.done).length
+    : 0;
+
   const tCountdown = computeTCountdown(event.starts_at);
 
   const firstRunSteps = useMemo(
@@ -155,6 +173,22 @@ export function Overview({ event }: { event: EventRow }) {
     setBannerDismissed(true);
   };
 
+  useEffect(() => {
+    if (!firstRunComplete) return;
+    if (!import.meta.env.PROD || !import.meta.env.VITE_SENTRY_DSN) return;
+    const key = `${FIRST_RUN_SENTRY_PREFIX}${event.id}`;
+    try {
+      if (window.localStorage.getItem(key) === "1") return;
+      window.localStorage.setItem(key, "1");
+    } catch {
+      return;
+    }
+    Sentry.captureMessage("First-run onboarding checklist completed", {
+      level: "info",
+      tags: { event_id: event.id },
+    });
+  }, [firstRunComplete, event.id]);
+
   return (
     <div className="space-y-6">
       {tCountdown && <TMinusPin label={tCountdown} />}
@@ -168,6 +202,58 @@ export function Overview({ event }: { event: EventRow }) {
         basePath={`/events/${event.id}/`}
         localStorageDismissedKey={`pp:nudges:${event.id}`}
       />
+
+      {healthChecklist.length > 0 && (
+        <section
+          className="card p-5"
+          aria-labelledby="event-health-heading"
+        >
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2
+                id="event-health-heading"
+                className="font-display font-bold text-lg flex items-center gap-2"
+              >
+                <Check size={18} className="text-brand-600" aria-hidden />
+                Pre-event health
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                {healthDone}/{healthChecklist.length} checks · quick wins before go time
+              </p>
+            </div>
+          </div>
+          <ul className="mt-4 space-y-2">
+            {healthChecklist.map((row) => (
+              <li key={row.id}>
+                <Link
+                  to={row.href}
+                  className="flex items-start gap-3 rounded-lg border border-slate-100 px-3 py-2 hover:bg-slate-50/80 transition-colors"
+                >
+                  {row.done ? (
+                    <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center flex-shrink-0 mt-0.5">
+                      <Check size={14} aria-hidden />
+                    </span>
+                  ) : (
+                    <span
+                      className="w-6 h-6 rounded-full border-2 border-slate-200 grid place-items-center flex-shrink-0 mt-0.5"
+                      aria-hidden
+                    >
+                      <Circle size={8} className="text-slate-300 fill-current" />
+                    </span>
+                  )}
+                  <span
+                    className={
+                      row.done ? "text-sm text-slate-600 line-through" : "text-sm font-medium text-slate-800"
+                    }
+                  >
+                    {row.label}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="card p-5 lg:col-span-2 space-y-4">

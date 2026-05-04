@@ -1,16 +1,22 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "./supabase";
 import { useAuth } from "./auth";
-import { reportSupabaseReadFailure } from "./supabaseTelemetry";
+import {
+  reportSupabaseReadFailure,
+  reportSupabaseRealtimeStatus,
+  reportSupabaseUserActionFailure,
+} from "./supabaseTelemetry";
 import type {
   EventBudgetItem,
   EventCollaborator,
   EventItem,
+  EventNotificationMute,
   EventRow,
   EventShareLink,
   EventVendor,
   EventWrapUp,
   ItemKind,
+  NotificationOptOutKind,
   Profile,
   UserEventTemplate,
   UserNotification,
@@ -285,6 +291,116 @@ export function useEventPermissions(event: EventRow | null | undefined) {
     isOwner: currentRole === "owner",
     canEdit: currentRole === "owner" || currentRole === "editor",
     canView: !!currentRole,
+  };
+}
+
+/** Per-event scheduled-reminder mutes (migration 0016); complements account-wide `notification_opt_outs`. */
+export function useEventReminderMutes(eventId: string | undefined) {
+  const { user } = useAuth();
+  const [mutes, setMutes] = useState<Set<NotificationOptOutKind>>(() => new Set());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingKind, setPendingKind] = useState<NotificationOptOutKind | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!eventId || !user) {
+      setMutes(new Set());
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    setError(null);
+    const { data, error: reqErr } = await supabase
+      .from("event_notification_mutes")
+      .select("kind")
+      .eq("event_id", eventId);
+    if (reqErr) {
+      reportSupabaseReadFailure("useEventReminderMutes.event_notification_mutes.select", reqErr, {
+        eventId,
+      });
+      setError(reqErr.message);
+      setMutes(new Set());
+    } else {
+      const next = new Set<NotificationOptOutKind>();
+      for (const row of (data ?? []) as Pick<EventNotificationMute, "kind">[]) {
+        next.add(row.kind);
+      }
+      setMutes(next);
+    }
+    setLoading(false);
+  }, [eventId, user]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!eventId || !user) return;
+    const ch = supabase
+      .channel(`event-mutes-${eventId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "event_notification_mutes",
+          filter: `event_id=eq.${eventId}`,
+        },
+        () => void refresh()
+      )
+      .subscribe((status, err) => {
+        if (status === "SUBSCRIBED") return;
+        reportSupabaseRealtimeStatus(`event_notification_mutes:${eventId}`, status, err);
+      });
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [eventId, user, refresh]);
+
+  const toggleMute = useCallback(
+    async (kind: NotificationOptOutKind) => {
+      if (!eventId || !user) return;
+      if (kind !== "all" && mutes.has("all")) return;
+
+      const wasMuted = kind === "all" ? mutes.has("all") : mutes.has(kind);
+      const previous = mutes;
+      const next = new Set(previous);
+      if (wasMuted) next.delete(kind);
+      else next.add(kind);
+      setMutes(next);
+      setPendingKind(kind);
+      setError(null);
+
+      const { error: writeErr } = wasMuted
+        ? await supabase
+            .from("event_notification_mutes")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("event_id", eventId)
+            .eq("kind", kind)
+        : await supabase.from("event_notification_mutes").insert({
+            user_id: user.id,
+            event_id: eventId,
+            kind,
+          });
+
+      setPendingKind(null);
+      if (writeErr) {
+        setMutes(previous);
+        setError(writeErr.message);
+        reportSupabaseUserActionFailure("useEventReminderMutes.toggle", writeErr, { eventId, kind });
+      }
+    },
+    [eventId, user, mutes]
+  );
+
+  return {
+    mutes,
+    loading,
+    error,
+    pendingKind,
+    toggleMute,
+    refresh,
   };
 }
 

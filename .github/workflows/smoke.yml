@@ -1,0 +1,26 @@
+name: Smoke
+
+# Optional production check after deploy. Set repository secret SMOKE_URL (e.g. https://your-app.vercel.app/).
+# If unset, this workflow does nothing useful but still passes — safe to enable on every repo.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  http-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch production URL
+        env:
+          SMOKE_URL: ${{ secrets.SMOKE_URL }}
+        run: |
+          if [ -z "$SMOKE_URL" ]; then
+            echo "SMOKE_URL secret not set — skipping HTTP check."
+            exit 0
+          fi
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 -L "$SMOKE_URL")
+          echo "HTTP $code for $SMOKE_URL"
+          if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then
+            exit 0
+          fi
+          exit 1

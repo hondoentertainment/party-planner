@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import { AppShell } from "./components/AppShell";
 import { SetupNotice } from "./components/SetupNotice";
@@ -22,6 +22,12 @@ const PublicEventPage = lazy(() =>
 const UnsubscribeLandingPage = lazy(() =>
   import("./pages/UnsubscribeLandingPage").then((m) => ({ default: m.UnsubscribeLandingPage }))
 );
+const PrivacyPage = lazy(() =>
+  import("./pages/PrivacyPage").then((m) => ({ default: m.PrivacyPage }))
+);
+const TermsPage = lazy(() =>
+  import("./pages/TermsPage").then((m) => ({ default: m.TermsPage }))
+);
 
 const Loading = () => (
   <div className="h-full min-h-[18rem] flex items-center justify-center py-16" role="status" aria-live="polite">
@@ -33,9 +39,23 @@ const Loading = () => (
 );
 
 export function App() {
+  const { pathname } = useLocation();
   const { configured, loading, user, passwordRecovery } = useAuth();
 
-  if (!configured) return <SetupNotice />;
+  if (!configured) {
+    if (pathname === "/privacy" || pathname === "/terms") {
+      return (
+        <Suspense fallback={<Loading />}>
+          <Routes>
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      );
+    }
+    return <SetupNotice />;
+  }
   if (loading) return <Loading />;
 
   if (window.location.pathname.startsWith("/email/unsubscribe")) {
@@ -43,6 +63,8 @@ export function App() {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/email/unsubscribe" element={<UnsubscribeLandingPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
@@ -54,6 +76,8 @@ export function App() {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/s/:token" element={<PublicEventPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
@@ -65,6 +89,8 @@ export function App() {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/update-password" element={<UpdatePasswordPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="*" element={<UpdatePasswordPage />} />
         </Routes>
       </Suspense>
@@ -76,6 +102,8 @@ export function App() {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/forgot" element={<AuthPage startMode="forgot" />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="*" element={<AuthPage />} />
         </Routes>
       </Suspense>
@@ -90,6 +118,8 @@ export function App() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/events/:eventId/*" element={<EventPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="/update-password" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

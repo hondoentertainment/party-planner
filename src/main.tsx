@@ -6,6 +6,8 @@ import { AuthProvider } from "./lib/auth";
 import { ToastProvider } from "./lib/toast";
 import { ConfirmProvider } from "./lib/useConfirm";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { EssentialCookiesBanner } from "./components/EssentialCookiesBanner";
+import { PlausibleLoader } from "./components/PlausibleLoader";
 import { initSentry, installGlobalErrorHandlers } from "./lib/sentry";
 import { App } from "./App";
 import "./index.css";
@@ -22,6 +24,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <ToastProvider>
           <AuthProvider>
             <ConfirmProvider>
+              <EssentialCookiesBanner />
+              <PlausibleLoader />
               <App />
             </ConfirmProvider>
           </AuthProvider>

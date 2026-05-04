@@ -83,9 +83,13 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 
 1. Create a project in [Sentry](https://sentry.io) for a browser/React app.
 2. Add the client DSN to Vercel (and `.env.local` for local): `VITE_SENTRY_DSN=https://...`
+   Production builds set **`VITE_APP_RELEASE`** via Vite (`party-planner@` + package version locally; on Vercel/GitHub Actions the git commit SHA is used when exposed as `VERCEL_GIT_COMMIT_SHA` or `GITHUB_SHA`, unless you override with `VITE_APP_RELEASE`).
 3. Redeploy. Errors caught by the root `ErrorBoundary`, global `error` / `unhandledrejection` listeners, and manual bug reports will appear in Sentry (when DSN is set).
-4. **Bug reports (database)** — After `0014_bug_reports.sql` and `0015_bug_reports_public_and_notify.sql`, rows land in `public.bug_reports`. Signed-in users submit through RLS and only see their own rows; guests submit via `submit_public_bug_report` using a valid share token (same link gates as public RSVP). Optional **maintainer email:** when `app.functions_url` + `app.service_role_key` are configured (or `private.app_settings` fallback), each insert triggers pg_net → **`notify-bug-report`**. Set Supabase secret **`BUG_REPORT_NOTIFY_EMAIL`** for the inbox to receive alerts; if unset, the function derives a recipient from `FROM_EMAIL` (fine for solo operators, poor for `no-reply@`).
-5. **Triage** — In Supabase → Table Editor → `bug_reports`, filter `status = open`, sort by `created_at`. The `context` jsonb is intentionally coarse: `source`, `route`, `user_agent`, `language`, `viewport` `{width,height,device_pixel_ratio}`, `timezone`, `online`, `sentry_event_id`, `app_mode`, `captured_at`, and for public-share paths `share_token_prefix` (first 8 characters of the token only). There are no passwords or full session tokens. Status changes and spam deletion are **service-role** or SQL today (the app does not expose an operator UI).
+4. **Alerts & releases** — In Sentry, enable **issue alerts** (new issues, regressions, or volume spikes) for your production environment. Use **Releases** with the same `VITE_APP_RELEASE` / git SHA you deploy so you can compare errors across versions. Client events include the tag **`app:party-planner`** for filtering.
+5. **CSP** — Production uses a strict **Content-Security-Policy** on Vercel (`vercel.json`). If you add a new third-party script or API host, update the policy. Self-hosted Plausible needs its script and API origin in `script-src` and `connect-src`.
+6. **Bug reports (database)** — After `0014_bug_reports.sql` and `0015_bug_reports_public_and_notify.sql`, rows land in `public.bug_reports`. Signed-in users submit through RLS and only see their own rows; guests submit via `submit_public_bug_report` using a valid share token (same link gates as public RSVP). Apply `0017_public_bug_report_rate_limit.sql` so anonymous share pages cannot flood more than **20 reports per event per hour**. Optional **maintainer email:** when `app.functions_url` + `app.service_role_key` are configured (or `private.app_settings` fallback), each insert triggers pg_net → **`notify-bug-report`**. Set Supabase secret **`BUG_REPORT_NOTIFY_EMAIL`** for the inbox to receive alerts; if unset, the function derives a recipient from `FROM_EMAIL` (fine for solo operators, poor for `no-reply@`).
+7. **Per-event reminder muting** — `0016_event_notification_mutes.sql` adds `event_notification_mutes` and updates `list_event_reminders_due` so collaborators can suppress scheduled reminder emails for one event without changing global opt-outs (`notification_opt_outs`). Members manage mutes in the app under **Event → Settings & Team → Reminder emails for this event**.
+8. **Triage** — In Supabase → Table Editor → `bug_reports`, filter `status = open`, sort by `created_at`. The `context` jsonb is intentionally coarse: `source`, `route`, `user_agent`, `language`, `viewport` `{width,height,device_pixel_ratio}`, `timezone`, `online`, `sentry_event_id`, `app_mode`, `captured_at`, and for public-share paths `share_token_prefix` (first 8 characters of the token only). There are no passwords or full session tokens. Status changes and spam deletion are **service-role** or SQL today (the app does not expose an operator UI). Example **SQL** (SQL editor or `psql`): `select id, title, severity, status, created_at, context->>'source' as source from public.bug_reports where status = 'open' order by created_at desc limit 100;` — update with `update public.bug_reports set status = 'triaging' where id = '…';` when using the service role.
 
 ## 4. PWA (install and offline shell)
 
@@ -102,9 +106,11 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 
 ## 6. Backups and exports
 
-- **Supabase Pro** and team plans include automated backups; confirm under **Project Settings → Database** what retention you have on your plan.
+- **Supabase Pro** and team plans include automated backups and **point-in-time recovery (PITR)** on supported tiers; confirm under **Project Settings → Database** what retention and restore windows your plan allows.
+- On the **Free** tier, rely on **manual exports** and your own copy of critical data — do not assume the provider will restore a deleted project or row.
 - For a **manual export**, use **Table Editor** → select tables → **Export** as CSV, or use `pg_dump` with the database connection string from the dashboard.
 - For **full account portability**, plan periodic exports of `events` / `event_items` (and any other tables you care about) for critical parties.
+- **Recovery drill (recommended):** once a year (or after major schema changes), document how you would restore from backup or re-seed staging, and how long that takes (**RTO**) vs how much data you could lose (**RPO**). For production incidents, define who can access the Supabase dashboard and service role keys.
 
 ## 7. E2E tests in CI
 
@@ -113,6 +119,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
   Supabase project so the signed-in tests (dashboard, new event, settings) are not skipped.
 - **Local:** add the same two variables to `.env.local` (read by [playwright.config.ts](playwright.config.ts), not by Vite) and run `npm run verify` or `npm run ci` for a full pre-push check.
 - Before promoting a release, also run `supabase/verify_remote.sql` against the target Supabase project and confirm every required row reports `OK`. Optional rows for email/web push may remain `MISSING` only when those features are intentionally disabled.
+- Optional **post-deploy smoke:** set repository secret **`SMOKE_URL`** (full URL, e.g. `https://your-app.vercel.app/`) and run the **Smoke** workflow manually from GitHub Actions after a production deploy. When unset, that workflow is a no-op.
 
 ## 8. Local development on OneDrive (Windows)
 
@@ -126,7 +133,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - [ ] Migrations 0001–0008 applied as needed (`npm run db:push` after `supabase link`, or SQL Editor)
 - [ ] Run `supabase/verify_remote.sql` in the SQL Editor once migrations and GUCs are in place
 - [ ] `VITE_SENTRY_DSN` (optional)
-- [ ] Migrations `0014_bug_reports.sql` and `0015_bug_reports_public_and_notify.sql` applied if you want in-app + public-share bug reports and optional maintainer email
+- [ ] Migrations through `0017_public_bug_report_rate_limit.sql` applied if you want bug reports (`0014`–`0015`), rate-limited public share reports (`0017`), and per-event reminder muting (`0016`)
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 - [ ] Resend + Edge `notify-assignment` + GUCs (optional, for email)
 - [ ] Edge `notify-share` deployed (optional, enables **Email me this link** in Settings & Team)
@@ -134,6 +141,8 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - [ ] `APP_URL` in Edge matches production URL
 - [ ] Custom domain and Resend domain alignment (if using custom email domain)
 - [ ] GitHub Actions secrets `E2E_EMAIL` and `E2E_PASSWORD` (optional, so CI runs signed-in E2E)
+- [ ] `VITE_SECURITY_CONTACT` in Vercel / CI (optional — RFC 9116 address baked into `security.txt` on build)
+- [ ] `SMOKE_URL` + manual **Smoke** workflow after deploy (optional)
 
 ## 10. Reminder digests (T-7/T-3/T-1) and wrap-up nudges
 

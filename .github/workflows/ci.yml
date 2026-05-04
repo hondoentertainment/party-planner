@@ -2,7 +2,9 @@ name: CI
 
 # Repository secrets (Settings → Secrets and variables → Actions), all optional:
 #   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY — real app URL + anon key so the build is not the empty setup screen.
+#   VITE_SECURITY_CONTACT — RFC 9116 Contact value for dist/.well-known/security.txt (e.g. mailto:security@yourdomain.com).
 #   E2E_EMAIL, E2E_PASSWORD, E2E_DISPLAY_NAME — dedicated Auth user; without email/password, signed-in Playwright tests are skipped.
+# Optional manual workflow: .github/workflows/smoke.yml + secret SMOKE_URL for post-deploy HTTP check.
 # See README "E2E and CI" and OPERATIONS.md §7.
 
 on:
@@ -28,6 +30,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SECURITY_CONTACT: ${{ secrets.VITE_SECURITY_CONTACT }}
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
           E2E_DISPLAY_NAME: ${{ secrets.E2E_DISPLAY_NAME }}

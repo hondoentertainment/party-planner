@@ -34,7 +34,13 @@ import type {
 } from "../lib/types.rsvpRecovery";
 import { formatEventDate } from "../lib/format";
 import { downloadPublicEventIcs } from "../lib/exportIcs";
+import {
+  applyPublicPageMeta,
+  publicShareCanonicalUrl,
+  resetPublicPageMeta,
+} from "../lib/documentMeta";
 import { BugReportDialog } from "../components/BugReportDialog";
+import { LegalFooter } from "../components/LegalFooter";
 import {
   RSVP_ACCENT,
   RSVP_ICON,
@@ -131,6 +137,24 @@ export function PublicEventPage() {
       cancelled = true;
     };
   }, [recoveryParam]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (error || !share || !token) {
+      resetPublicPageMeta();
+      return;
+    }
+    const ev = share.event;
+    const description =
+      [ev.theme, formatEventDate(ev.starts_at)].filter(Boolean).join(" · ") ||
+      `RSVP and details for ${ev.name}`;
+    const canonicalUrl = publicShareCanonicalUrl(`/s/${token}`);
+    return applyPublicPageMeta({
+      title: `${ev.name} · Party Planner`,
+      description,
+      canonicalUrl,
+    });
+  }, [loading, error, share, token]);
 
   const tasks = useMemo(
     () => (share?.items ?? []).filter((item: EventItem) => item.kind === "task"),
@@ -361,7 +385,7 @@ export function PublicEventPage() {
           </section>
         )}
 
-        <footer className="pt-4 pb-2 text-center border-t border-slate-100">
+        <footer className="pt-4 pb-2 text-center border-t border-slate-100 space-y-2">
           <button
             type="button"
             className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 underline decoration-slate-300"
@@ -370,6 +394,11 @@ export function PublicEventPage() {
             <Bug size={14} className="flex-shrink-0" aria-hidden />
             Problem with this page?
           </button>
+          <p className="text-[11px] text-slate-400 max-w-md mx-auto leading-snug px-2">
+            Reports include this page URL, browser name, and display size so we can reproduce issues.
+            We never store passwords, payment details, or your full guest link in bug reports.
+          </p>
+          <LegalFooter className="text-[11px] gap-x-3" />
         </footer>
 
         {token ? (

@@ -251,6 +251,42 @@ with checks as (
         and not t.tgisinternal
     ),
     'run 0015_bug_reports_public_and_notify.sql'
+
+  union all
+  select
+    16,
+    '0016 event_notification_mutes',
+    exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'event_notification_mutes'
+    ) and exists (
+      select 1 from pg_policies
+      where schemaname = 'public'
+        and tablename = 'event_notification_mutes'
+        and policyname = 'Members see own event mutes'
+    ) and exists (
+      select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'list_event_reminders_due'
+        and pg_get_functiondef(p.oid) like '%event_notification_mutes%'
+    ),
+    'run 0016_event_notification_mutes.sql'
+
+  union all
+  select
+    17,
+    '0017 public bug report rate limit',
+    exists (
+      select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'submit_public_bug_report'
+        and pg_get_functiondef(p.oid) like '%Too many reports from this event right now%'
+    ),
+    'run 0017_public_bug_report_rate_limit.sql'
 )
 select
   check_name,

@@ -207,6 +207,17 @@ export interface NotificationOptOut {
   created_at: string;
 }
 
+/**
+ * Per-user, per-event scheduled-reminder mutes (migration 0016). Rows suppress
+ * that reminder kind for this event only; `kind = 'all'` mutes every cadence.
+ */
+export interface EventNotificationMute {
+  user_id: string;
+  event_id: string;
+  kind: NotificationOptOutKind;
+  created_at: string;
+}
+
 export interface PendingEventInvitation {
   id: string;
   event_id: string;
@@ -374,6 +385,13 @@ export interface Database {
         Insert: Pick<NotificationOptOut, "user_id" | "kind"> &
           Partial<Pick<NotificationOptOut, "created_at">>;
         Update: Partial<NotificationOptOut>;
+        Relationships: [];
+      };
+      event_notification_mutes: {
+        Row: EventNotificationMute;
+        Insert: Pick<EventNotificationMute, "user_id" | "event_id" | "kind"> &
+          Partial<Pick<EventNotificationMute, "created_at">>;
+        Update: Partial<EventNotificationMute>;
         Relationships: [];
       };
     };

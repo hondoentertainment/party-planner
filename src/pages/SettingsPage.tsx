@@ -449,15 +449,14 @@ export function SettingsPage() {
       <SectionCard
         icon={<CalendarClock size={18} className="text-brand-600" />}
         title="Per-event email overrides"
-        description="Mute or customize email notifications for specific events."
+        description="Mute scheduled reminders for one event without changing your account defaults."
       >
-        <div className="flex items-center gap-2">
-          <span className="chip bg-slate-100 text-slate-600">Coming soon</span>
-          <p className="text-sm text-slate-500">
-            We're working on per-event overrides so you can mute a single event without
-            affecting the rest.
-          </p>
-        </div>
+        <p className="text-sm text-slate-600">
+          Open any event you can edit, go to{" "}
+          <span className="font-medium text-slate-800">Settings &amp; Team</span>, then use{" "}
+          <span className="font-medium text-slate-800">Reminder emails for this event</span> to
+          turn off T-7 / T-3 / T-1 or wrap-up messages for that event only.
+        </p>
       </SectionCard>
 
       <SectionCard

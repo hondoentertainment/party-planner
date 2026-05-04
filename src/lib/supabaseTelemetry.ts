@@ -33,3 +33,30 @@ export function reportSupabaseUserActionFailure(
     extra: { ...extra, ...err },
   });
 }
+
+const realtimeDedup = new Map<string, number>();
+const REALTIME_DEDUP_MS = 120_000;
+
+/** Realtime channel errors — deduped; channel label should be short and stable. */
+export function reportSupabaseRealtimeStatus(
+  channelLabel: string,
+  status: string,
+  err?: Error | { message?: string } | null
+) {
+  if (!import.meta.env.VITE_SENTRY_DSN) return;
+  if (status === "SUBSCRIBED") return;
+  const key = `${channelLabel}:${status}:${err instanceof Error ? err.message : (err as { message?: string } | null)?.message ?? ""}`;
+  const now = Date.now();
+  if (now - (realtimeDedup.get(key) ?? 0) < REALTIME_DEDUP_MS) return;
+  realtimeDedup.set(key, now);
+  Sentry.captureMessage(`Supabase realtime: ${channelLabel} → ${status}`, {
+    level: status === "CHANNEL_ERROR" ? "warning" : "info",
+    fingerprint: [channelLabel, status],
+    extra: {
+      err:
+        err instanceof Error
+          ? { message: err.message, stack: err.stack }
+          : err ?? undefined,
+    },
+  });
+}

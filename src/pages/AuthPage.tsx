@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
+import { LegalFooter } from "../components/LegalFooter";
 
 type Mode = "signin" | "signup" | "magic" | "forgot";
 type StartMode = "signin" | "signup" | "forgot";
@@ -391,6 +392,7 @@ export function AuthPage({ startMode = "signup" }: { startMode?: StartMode }) {
 
         <ValueProp />
       </div>
+      <LegalFooter className="mt-8 pb-4" />
     </div>
   );
 }

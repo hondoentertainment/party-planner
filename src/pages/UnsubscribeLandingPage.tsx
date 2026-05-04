@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { LegalFooter } from "../components/LegalFooter";
 import { CheckCircle2, Mail, PartyPopper, TriangleAlert } from "lucide-react";
 
 const KIND_LABEL: Record<string, string> = {
@@ -76,6 +77,7 @@ export function UnsubscribeLandingPage() {
             Back to Party Planner
           </Link>
         </div>
+        <LegalFooter className="mt-6" />
       </div>
     </div>
   );

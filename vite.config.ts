@@ -3,9 +3,74 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // https://vite.dev/config/
+
+/** RFC 9116 — `public/.well-known/security.txt` is dev fallback; production overwrites in `dist/` from env. */
+function securityTxtBuild(): PluginOption {
+  return {
+    name: "security-txt-build",
+    closeBundle() {
+      const contact =
+        process.env.VITE_SECURITY_CONTACT?.trim() ||
+        process.env.SECURITY_CONTACT?.trim() ||
+        "mailto:security@example.com";
+      const dir = path.resolve("dist", ".well-known");
+      const body = [
+        `Contact: ${contact}`,
+        "Expires: 2028-12-31T23:59:59.000Z",
+        "Preferred-Languages: en",
+        "",
+        "Acknowledgments: We appreciate responsible disclosure. Include steps to reproduce; do not access other users' data.",
+      ].join("\n");
+      try {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(path.join(dir, "security.txt"), body, "utf8");
+      } catch (e) {
+        console.warn("[security-txt-build]", e);
+      }
+    },
+  };
+}
+
+function supabasePreconnect(): PluginOption {
+  return {
+    name: "supabase-preconnect",
+    transformIndexHtml(html) {
+      const raw = process.env.VITE_SUPABASE_URL?.trim();
+      if (!raw) return html;
+      try {
+        const origin = new URL(raw).origin;
+        const inject = `    <link rel="preconnect" href="${origin}" crossorigin />\n    <link rel="dns-prefetch" href="${origin}" />\n`;
+        return html.replace("<head>", `<head>\n${inject}`);
+      } catch {
+        return html;
+      }
+    },
+  };
+}
+
+function readPkgVersion(): string {
+  try {
+    const path = fileURLToPath(new URL("./package.json", import.meta.url));
+    const pkg = JSON.parse(readFileSync(path, "utf-8")) as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
 export default defineConfig(() => {
+  const pkgVersion = readPkgVersion();
+  const appRelease =
+    process.env.VITE_APP_RELEASE?.trim() ||
+    process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
+    process.env.GITHUB_SHA?.trim() ||
+    `party-planner@${pkgVersion}`;
+
   // Bundle visualization is opt-in via `ANALYZE=1 vite build`
   // (or `npm run build:analyze`). Gating it keeps normal `npm run build`
   // and `npm run dev` free of the extra rollup work / dist artifact.
@@ -13,6 +78,8 @@ export default defineConfig(() => {
 
   const plugins: PluginOption[] = [
     react(),
+    supabasePreconnect(),
+    securityTxtBuild(),
     VitePWA({
       registerType: "autoUpdate",
       strategies: "injectManifest",
@@ -55,6 +122,9 @@ export default defineConfig(() => {
   }
 
   return {
+    define: {
+      "import.meta.env.VITE_APP_RELEASE": JSON.stringify(appRelease),
+    },
     plugins,
   };
 });

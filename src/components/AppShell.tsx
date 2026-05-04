@@ -14,6 +14,7 @@ import { PushPrompt } from "./PushPrompt";
 import { NotificationCenter } from "./NotificationCenter";
 import { MobileAccountMenu } from "./MobileAccountMenu";
 import { BugReportDialog } from "./BugReportDialog";
+import { LegalFooter } from "./LegalFooter";
 import clsx from "clsx";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -236,6 +237,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main id="main-content" className="flex-1" tabIndex={-1}>
         {children}
       </main>
+
+      <footer className="border-t border-slate-100 py-4 mt-auto bg-white">
+        <LegalFooter />
+      </footer>
 
       <MobileAccountMenu
         open={mobileMenuOpen}

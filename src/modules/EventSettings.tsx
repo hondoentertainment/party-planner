@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarPlus, Clock, Copy, Link as LinkIcon, Loader2, LogOut, Mail, Save, Send, Trash2, UserPlus, X } from "lucide-react";
+import { Bell, CalendarPlus, Clock, Copy, Link as LinkIcon, Loader2, LogOut, Mail, Save, Send, Trash2, UserPlus, X } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import type { CollabRole, EventRow, PendingEventInvitation } from "../lib/database.types";
-import { useAllItems, useCollaborators, useEventPermissions, useShareLinks } from "../lib/hooks";
+import { REMINDER_EMAIL_KIND_META } from "../lib/reminderEmailMeta";
+import {
+  useAllItems,
+  useCollaborators,
+  useEventPermissions,
+  useEventReminderMutes,
+  useShareLinks,
+} from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
@@ -28,6 +36,13 @@ export function EventSettings({ event }: { event: EventRow }) {
   const { collabs, refresh: refreshCollabs } = useCollaborators(event.id);
   const { items } = useAllItems(event.id);
   const { links, refresh: refreshLinks } = useShareLinks(event.id);
+  const {
+    mutes: reminderMutes,
+    loading: reminderMutesLoading,
+    error: reminderMutesError,
+    pendingKind: reminderMutePending,
+    toggleMute: toggleReminderMute,
+  } = useEventReminderMutes(event.id);
   const perms = useEventPermissions(event);
   const { user } = useAuth();
   const toast = useToast();
@@ -428,11 +443,91 @@ export function EventSettings({ event }: { event: EventRow }) {
                 </button>
               )}
             </div>
+            <p className="text-xs text-slate-500 mt-2">
+              Active link created{" "}
+              {formatDistanceToNow(new Date(activeLink.created_at), { addSuffix: true })}
+            </p>
           </div>
         ) : (
           <button type="button" className="btn-primary" disabled={!perms.canEdit} onClick={() => void createShareLink()}>
             <LinkIcon size={16} /> Create public link
           </button>
+        )}
+      </div>
+
+      <div className="card p-5">
+        <h3 className="font-display font-bold mb-3 flex items-center gap-2">
+          <Bell size={18} className="text-brand-600" /> Reminder emails for this event
+        </h3>
+        <p className="text-sm text-slate-600 mb-3">
+          Turn off automated T-7 / T-3 / T-1 and wrap-up emails for this event only. This does not
+          change your account defaults in Account → Settings.
+        </p>
+        {reminderMutesError && (
+          <div role="alert" className="text-sm text-rose-600 mb-3 rounded-lg border border-rose-200 bg-rose-50/80 p-2">
+            {reminderMutesError}
+          </div>
+        )}
+        {reminderMutesLoading ? (
+          <p className="text-sm text-slate-500">Loading preferences…</p>
+        ) : (
+          <div className="space-y-3">
+            {reminderMutes.has("all") && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <span>Every reminder type is muted for this event.</span>
+                <button
+                  type="button"
+                  className="btn-secondary text-xs py-1 px-2 whitespace-nowrap"
+                  disabled={reminderMutePending === "all"}
+                  onClick={() => void toggleReminderMute("all")}
+                >
+                  Restore individual toggles
+                </button>
+              </div>
+            )}
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                className="mt-1 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                checked={reminderMutes.has("all")}
+                disabled={reminderMutePending === "all"}
+                onChange={() => void toggleReminderMute("all")}
+              />
+              <span>
+                <span className="font-medium text-slate-800">Mute all reminders for this event</span>
+                <span className="block text-xs text-slate-500 mt-0.5">
+                  One switch for every cadence below.
+                </span>
+              </span>
+            </label>
+            <div className="border-t border-slate-100 pt-3 space-y-2">
+              {REMINDER_EMAIL_KIND_META.map((meta) => {
+                const receiving = !reminderMutes.has(meta.kind) && !reminderMutes.has("all");
+                return (
+                  <label
+                    key={meta.kind}
+                    className="flex items-start gap-3 cursor-pointer group has-[:disabled]:cursor-not-allowed"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50"
+                      checked={receiving}
+                      disabled={
+                        reminderMutes.has("all") ||
+                        reminderMutePending === meta.kind ||
+                        reminderMutePending === "all"
+                      }
+                      onChange={() => void toggleReminderMute(meta.kind)}
+                    />
+                    <span>
+                      <span className="font-medium text-slate-800 text-sm">{meta.label}</span>
+                      <span className="block text-xs text-slate-500 mt-0.5">{meta.hint}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 
