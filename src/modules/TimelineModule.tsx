@@ -18,7 +18,7 @@ import { useToast } from "../lib/toast";
 import { useDebouncedSave } from "../lib/useDebouncedSave";
 import { logActivity } from "../lib/activity";
 import { AssigneePicker } from "./ChecklistModule";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { SortableList, SortableRow } from "../components/Sortable";
 
 const PHASES: { key: Phase; label: string; description: string; icon: typeof Sun; color: string }[] = [
@@ -70,6 +70,20 @@ const STARTER_TASKS: Record<Phase, string[]> = {
     "Save photos to shared album",
   ],
 };
+
+function dueDateInputValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = parseISO(iso);
+  if (!isValid(d)) return "";
+  return iso.slice(0, 10);
+}
+
+function dueDateLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = parseISO(iso);
+  if (!isValid(d)) return null;
+  return format(d, "MMM d");
+}
 
 export function TimelineModule({ event }: { event: EventRow }) {
   const { items, optimisticUpdate, optimisticDelete } = useEventItems(event.id, "task");
@@ -254,6 +268,7 @@ function TaskRow({
     }
   };
   const assignee = members.find((m) => m.id === item.assignee_id);
+  const dueLabel = dueDateLabel(item.due_at);
 
   return (
     <div className="group flex items-start gap-2 p-2 rounded-lg border border-slate-100 bg-white hover:border-slate-200">
@@ -279,7 +294,7 @@ function TaskRow({
           <input
             type="date"
             className="bg-transparent border-0 px-0 text-xs"
-            value={item.due_at ? item.due_at.slice(0, 10) : ""}
+            value={dueDateInputValue(item.due_at)}
             onChange={(e) =>
               update({
                 due_at: e.target.value ? new Date(e.target.value).toISOString() : null,
@@ -287,10 +302,10 @@ function TaskRow({
             }
             disabled={!canEdit}
           />
-          {item.due_at && (
+          {dueLabel && (
             <span className="flex items-center gap-1">
               <CalendarClock size={12} />
-              {format(parseISO(item.due_at), "MMM d")}
+              {dueLabel}
             </span>
           )}
         </div>

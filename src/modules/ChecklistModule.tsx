@@ -8,7 +8,7 @@ import { useToast } from "../lib/toast";
 import { useDebouncedSave } from "../lib/useDebouncedSave";
 import { logActivity } from "../lib/activity";
 import { SwipeableRow } from "../components/SwipeableRow";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 
 export type ChecklistField = "due" | "assignee" | "notes" | "status_chip";
 
@@ -337,7 +337,7 @@ function ChecklistRow({
               />
             </div>
           )}
-          {item.due_at && (
+          {item.due_at && isValid(parseISO(item.due_at)) && (
             <div className="text-xs text-slate-500">
               Due {format(parseISO(item.due_at), "MMM d, yyyy")}
             </div>
