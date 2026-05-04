@@ -1,5 +1,8 @@
 import { next } from "@vercel/functions";
 
+/** Vercel Edge compiles this file in isolation; avoid Node @types coupling. */
+declare const process: { env: Record<string, string | undefined> };
+
 export const config = {
   matcher: "/s/:path*",
 };
