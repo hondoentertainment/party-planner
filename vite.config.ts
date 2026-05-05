@@ -100,7 +100,7 @@ export default defineConfig(() => {
         name: "Party Planner",
         short_name: "Party",
         description: "Plan parties together — food, drinks, music, and more.",
-        theme_color: "#cc38f5",
+        theme_color: "#6366f1",
         background_color: "#f8fafc",
         display: "standalone",
         orientation: "portrait-primary",

@@ -255,7 +255,7 @@ serve(async (req: Request) => {
       <div style="font-size:16px;font-weight:600;color:#0f172a;margin-bottom:8px;">${escapeHtml(payload.title)}</div>
       ${dueLine}
     </div>
-    <a href="${link}" style="display:inline-block;background:#cc38f5;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Open in Party Planner</a>
+    <a href="${link}" style="display:inline-block;background:#6366f1;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Open in Party Planner</a>
     <p style="color:#94a3b8;font-size:12px;margin-top:24px;">You're getting this because you collaborate on ${eventName}.</p>
   </div>
 </body></html>`;

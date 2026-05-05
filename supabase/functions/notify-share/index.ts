@@ -218,7 +218,7 @@ serve(async (req: Request) => {
       <div style="font-size:11px;text-transform:uppercase;color:#64748b;letter-spacing:0.05em;margin-bottom:8px;">Copy &amp; paste blurb</div>
       <div style="font-size:14px;color:#0f172a;line-height:1.5;">${escapeHtml(blurb)}</div>
     </div>
-    <a href="${link}" style="display:inline-block;background:#cc38f5;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Open share page</a>
+    <a href="${link}" style="display:inline-block;background:#6366f1;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Open share page</a>
     <p style="color:#94a3b8;font-size:12px;margin-top:24px;word-break:break-all;">Direct link: <a href="${link}" style="color:#94a3b8;">${link}</a></p>
   </div>
 </body></html>`;

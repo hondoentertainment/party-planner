@@ -210,7 +210,7 @@ serve(async (req: Request) => {
     <div style="font-size:32px;line-height:1;margin-bottom:8px;">${escapeHtml(event.cover_emoji ?? "🎉")}</div>
     <h1 style="font-size:20px;margin:0 0 4px;color:#0f172a;">Update your RSVP</h1>
     <p style="color:#64748b;margin:0 0 20px;">Click below to update your RSVP for <strong>${escapeHtml(eventName)}</strong> from any device. This link is private to you — don't forward it.</p>
-    <a href="${recoveryUrl}" style="display:inline-block;background:#cc38f5;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Click to update your RSVP for ${escapeHtml(eventName)}</a>
+    <a href="${recoveryUrl}" style="display:inline-block;background:#6366f1;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Click to update your RSVP for ${escapeHtml(eventName)}</a>
     <p style="color:#94a3b8;font-size:12px;margin-top:24px;word-break:break-all;">Direct link: <a href="${recoveryUrl}" style="color:#94a3b8;">${recoveryUrl}</a></p>
     <p style="color:#cbd5e1;font-size:11px;margin-top:16px;">Link expires 90 days after issue. If you didn't request this, you can safely ignore the email.</p>
   </div>

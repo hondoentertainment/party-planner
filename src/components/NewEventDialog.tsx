@@ -9,10 +9,10 @@ import { logActivity } from "../lib/activity";
 import { useUserTemplates } from "../lib/hooks";
 
 const EMOJIS = ["🎉", "🎂", "🍻", "🥂", "🎃", "🎄", "💍", "👶", "🎓", "🌮", "🍕", "🪩", "🌊", "🏕️", "🔥"];
-const COLORS = ["#cc38f5", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#8b5cf6", "#0ea5e9"];
+const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#14b8a6", "#0ea5e9"];
 
 const DEFAULT_EMOJI = "🎉";
-const DEFAULT_COLOR = "#cc38f5";
+const DEFAULT_COLOR = "#6366f1";
 
 interface NewEventDialogProps {
   onClose: () => void;

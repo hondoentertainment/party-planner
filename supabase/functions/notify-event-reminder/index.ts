@@ -286,7 +286,7 @@ function emailLayout(opts: {
     <h1 style="font-size:20px;margin:0 0 4px;color:#0f172a;">${escapeHtml(opts.heading)}</h1>
     <p style="color:#64748b;margin:0 0 20px;">${escapeHtml(opts.intro)}</p>
     ${bullets}
-    <a href="${opts.cta.href}" style="display:inline-block;background:#cc38f5;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">${escapeHtml(opts.cta.label)}</a>
+    <a href="${opts.cta.href}" style="display:inline-block;background:#6366f1;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">${escapeHtml(opts.cta.label)}</a>
     <p style="color:#94a3b8;font-size:12px;margin-top:24px;word-break:break-all;">Direct link: <a href="${opts.cta.href}" style="color:#94a3b8;">${opts.cta.href}</a></p>
     ${footer}
     ${unsubscribe}

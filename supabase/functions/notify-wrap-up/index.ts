@@ -206,7 +206,7 @@ function buildWrapUpEmail(
         <li>Vendor rating (if you used any)</li>
       </ul>
     </div>
-    <a href="${link}" style="display:inline-block;background:#cc38f5;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">File the wrap-up</a>
+    <a href="${link}" style="display:inline-block;background:#6366f1;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">File the wrap-up</a>
     <p style="color:#94a3b8;font-size:12px;margin-top:24px;word-break:break-all;">Direct link: <a href="${link}" style="color:#94a3b8;">${link}</a></p>
     ${unsubscribeBlock}
   </div>

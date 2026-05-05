@@ -255,7 +255,7 @@ serve(async (req: Request) => {
     <h1 style="font-size:20px;margin:0 0 12px;color:#0f172a;">${escapeHtml(subject)}</h1>
     ${body}
     <p style="margin:24px 0 0;">
-      <a href="${cta}" style="display:inline-block;background:#cc38f5;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">${pending ? "Sign up &amp; join" : "Open event"}</a>
+      <a href="${cta}" style="display:inline-block;background:#6366f1;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">${pending ? "Sign up &amp; join" : "Open event"}</a>
     </p>
     <p style="color:#94a3b8;font-size:12px;margin-top:24px;word-break:break-all;">Direct link: <a href="${cta}" style="color:#94a3b8;">${cta}</a></p>
   </div>
