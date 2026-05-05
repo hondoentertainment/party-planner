@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
+import { subscribePostgresChanges } from "./hooks";
 import type { EventActivity, Profile } from "./database.types";
 
 export type ActivityRow = EventActivity & { actor?: Profile | null };
@@ -65,17 +66,11 @@ export function useActivity(eventId: string | undefined, limit = 30) {
   useEffect(() => {
     refresh();
     if (!eventId) return;
-    const ch = supabase
-      .channel(`activity-${eventId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "event_activity", filter: `event_id=eq.${eventId}` },
-        () => refresh()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      `activity-${eventId}`,
+      { event: "INSERT", schema: "public", table: "event_activity", filter: `event_id=eq.${eventId}` },
+      () => void refresh(),
+    );
   }, [eventId, refresh]);
 
   return { items, loading, refresh };

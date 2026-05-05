@@ -6,6 +6,104 @@ import {
   reportSupabaseRealtimeStatus,
   reportSupabaseUserActionFailure,
 } from "./supabaseTelemetry";
+
+/* ------------------------------------------------------------------
+ * Shared realtime subscriptions
+ *
+ * `supabase.channel(topic)` REUSES an existing channel for the same
+ * topic (see realtime-js RealtimeClient#channel). Calling `.on()` on
+ * a channel that has already been `.subscribe()`d throws:
+ *
+ *   "cannot add `postgres_changes` callbacks for realtime:<topic>
+ *    after `subscribe()`"
+ *
+ * Multiple components on the same page (e.g. `useCollaborators`
+ * called both directly and via `useEventPermissions`) hit this
+ * because they each try to attach a listener to the same topic.
+ *
+ * Solution: ref-count subscribers per topic. The first caller
+ * creates the channel and attaches one shared listener that fans out
+ * to every registered callback; later callers just append themselves.
+ * The channel is removed when the last caller unsubscribes.
+ * ------------------------------------------------------------------ */
+
+interface PostgresChangesFilter {
+  event: "*" | "INSERT" | "UPDATE" | "DELETE";
+  schema: string;
+  table: string;
+  filter?: string;
+}
+
+type RealtimePostgresPayload = {
+  eventType: "INSERT" | "UPDATE" | "DELETE";
+  new: Record<string, unknown>;
+  old: Record<string, unknown>;
+};
+
+type PayloadCallback = (payload: RealtimePostgresPayload) => void;
+
+interface SharedChannelEntry {
+  channel: ReturnType<typeof supabase.channel>;
+  subscribers: Set<PayloadCallback>;
+}
+
+const sharedChannels = new Map<string, SharedChannelEntry>();
+
+/**
+ * Subscribe to a `postgres_changes` event on a named realtime topic.
+ * Safe to call from multiple hook instances simultaneously — every
+ * subscriber after the first reuses the existing channel.
+ *
+ * The first caller's `config` defines the channel filter; in this
+ * codebase every caller for a given topic uses the same shape.
+ */
+export function subscribePostgresChanges(
+  topic: string,
+  config: PostgresChangesFilter,
+  callback: PayloadCallback,
+): () => void {
+  let entry = sharedChannels.get(topic);
+  if (!entry) {
+    const channel = supabase.channel(topic);
+    const subscribers = new Set<PayloadCallback>();
+    entry = { channel, subscribers };
+    sharedChannels.set(topic, entry);
+
+    channel
+      .on(
+        // realtime-js types are loose for postgres_changes; cast to keep
+        // call-sites identical to the previous inline `.on(...)` shape.
+        "postgres_changes" as never,
+        config as never,
+        (payload: RealtimePostgresPayload) => {
+          // Snapshot to avoid mutation during iteration.
+          for (const cb of [...subscribers]) {
+            try {
+              cb(payload);
+            } catch (err) {
+              console.error("[hooks] subscriber threw", err);
+            }
+          }
+        },
+      )
+      .subscribe((status, err) => {
+        if (status === "SUBSCRIBED") return;
+        reportSupabaseRealtimeStatus(topic, status, err);
+      });
+  }
+
+  entry.subscribers.add(callback);
+
+  return () => {
+    const current = sharedChannels.get(topic);
+    if (!current) return;
+    current.subscribers.delete(callback);
+    if (current.subscribers.size === 0) {
+      sharedChannels.delete(topic);
+      void supabase.removeChannel(current.channel);
+    }
+  };
+}
 import type {
   EventBudgetItem,
   EventCollaborator,
@@ -44,17 +142,11 @@ export function useMyEvents() {
 
   useEffect(() => {
     refresh();
-    const ch = supabase
-      .channel("my-events")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "events" },
-        () => refresh()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      "my-events",
+      { event: "*", schema: "public", table: "events" },
+      () => void refresh(),
+    );
   }, [refresh]);
 
   return { events, loading, error, refresh };
@@ -86,17 +178,11 @@ export function useEvent(eventId: string | undefined) {
   useEffect(() => {
     refresh();
     if (!eventId) return;
-    const ch = supabase
-      .channel(`event-${eventId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "events", filter: `id=eq.${eventId}` },
-        () => refresh()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      `event-${eventId}`,
+      { event: "*", schema: "public", table: "events", filter: `id=eq.${eventId}` },
+      () => void refresh(),
+    );
   }, [eventId, refresh]);
 
   return { event, loading, error, refresh };
@@ -134,25 +220,21 @@ export function useEventItems(eventId: string | undefined, kind: ItemKind) {
   useEffect(() => {
     refresh();
     if (!eventId) return;
-    const ch = supabase
-      .channel(`items-${eventId}-${kind}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "event_items",
-          filter: `event_id=eq.${eventId}`,
-        },
-        (payload) => {
-          const row = (payload.new ?? payload.old) as EventItem | undefined;
-          if (row?.kind === kind) refresh();
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    // Topic is per-event (not per-kind) so all `useEventItems` callers on the
+    // same event share one channel; each subscriber filters by kind.
+    return subscribePostgresChanges(
+      `items-${eventId}`,
+      {
+        event: "*",
+        schema: "public",
+        table: "event_items",
+        filter: `event_id=eq.${eventId}`,
+      },
+      (payload) => {
+        const row = (payload.new ?? payload.old) as unknown as EventItem | undefined;
+        if (row?.kind === kind) void refresh();
+      },
+    );
   }, [eventId, kind, refresh]);
 
   /** Optimistic local mutators. Each mutates the local items array immediately,
@@ -193,17 +275,11 @@ export function useAllItems(eventId: string | undefined) {
   useEffect(() => {
     refresh();
     if (!eventId) return;
-    const ch = supabase
-      .channel(`all-items-${eventId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "event_items", filter: `event_id=eq.${eventId}` },
-        () => refresh()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      `all-items-${eventId}`,
+      { event: "*", schema: "public", table: "event_items", filter: `event_id=eq.${eventId}` },
+      () => void refresh(),
+    );
   }, [eventId, refresh]);
 
   return { items, loading, refresh };
@@ -236,22 +312,16 @@ export function useCollaborators(eventId: string | undefined) {
   useEffect(() => {
     refresh();
     if (!eventId) return;
-    const ch = supabase
-      .channel(`collabs-${eventId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "event_collaborators",
-          filter: `event_id=eq.${eventId}`,
-        },
-        () => refresh()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      `collabs-${eventId}`,
+      {
+        event: "*",
+        schema: "public",
+        table: "event_collaborators",
+        filter: `event_id=eq.${eventId}`,
+      },
+      () => void refresh(),
+    );
   }, [eventId, refresh]);
 
   return { collabs, loading, refresh };
@@ -336,25 +406,16 @@ export function useEventReminderMutes(eventId: string | undefined) {
 
   useEffect(() => {
     if (!eventId || !user) return;
-    const ch = supabase
-      .channel(`event-mutes-${eventId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "event_notification_mutes",
-          filter: `event_id=eq.${eventId}`,
-        },
-        () => void refresh()
-      )
-      .subscribe((status, err) => {
-        if (status === "SUBSCRIBED") return;
-        reportSupabaseRealtimeStatus(`event_notification_mutes:${eventId}`, status, err);
-      });
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      `event-mutes-${eventId}`,
+      {
+        event: "*",
+        schema: "public",
+        table: "event_notification_mutes",
+        filter: `event_id=eq.${eventId}`,
+      },
+      () => void refresh(),
+    );
   }, [eventId, user, refresh]);
 
   const toggleMute = useCallback(
@@ -423,17 +484,11 @@ export function useNotifications(userId: string | undefined) {
   useEffect(() => {
     refresh();
     if (!userId) return;
-    const ch = supabase
-      .channel(`notifications-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "user_notifications", filter: `user_id=eq.${userId}` },
-        () => refresh()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      `notifications-${userId}`,
+      { event: "*", schema: "public", table: "user_notifications", filter: `user_id=eq.${userId}` },
+      () => void refresh(),
+    );
   }, [refresh, userId]);
 
   const markRead = useCallback(async (id: string) => {
@@ -490,17 +545,11 @@ function useEventScopedRows<T extends { event_id: string }>(
   useEffect(() => {
     refresh();
     if (!eventId) return;
-    const ch = supabase
-      .channel(`${table}-${eventId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table, filter: `event_id=eq.${eventId}` },
-        () => refresh()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      `${table}-${eventId}`,
+      { event: "*", schema: "public", table, filter: `event_id=eq.${eventId}` },
+      () => void refresh(),
+    );
   }, [eventId, refresh, table]);
 
   return { rows, loading, refresh };
@@ -554,17 +603,11 @@ export function useWrapUp(eventId: string | undefined) {
   useEffect(() => {
     refresh();
     if (!eventId) return;
-    const ch = supabase
-      .channel(`wrap-up-${eventId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "event_wrap_ups", filter: `event_id=eq.${eventId}` },
-        () => refresh()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      `wrap-up-${eventId}`,
+      { event: "*", schema: "public", table: "event_wrap_ups", filter: `event_id=eq.${eventId}` },
+      () => void refresh(),
+    );
   }, [eventId, refresh]);
 
   return { wrapUp, loading, refresh };
@@ -589,17 +632,11 @@ export function useWrapUpsAcrossEvents() {
 
   useEffect(() => {
     refresh();
-    const ch = supabase
-      .channel("wrap-ups-all")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "event_wrap_ups" },
-        () => refresh()
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return subscribePostgresChanges(
+      "wrap-ups-all",
+      { event: "*", schema: "public", table: "event_wrap_ups" },
+      () => void refresh(),
+    );
   }, [refresh]);
 
   return { wrapUps, loading, refresh };
