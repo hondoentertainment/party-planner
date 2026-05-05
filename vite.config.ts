@@ -89,6 +89,12 @@ export default defineConfig(() => {
     supabasePreconnect(),
     securityTxtBuild(),
     VitePWA({
+      // NOTE: vite-plugin-pwa@1.2.0 still passes the deprecated
+      // `inlineDynamicImports` option to Vite 8 when bundling the SW,
+      // which prints a "use codeSplitting: false instead" warning.
+      // The option isn't part of the plugin's public surface, so the
+      // fix has to land upstream — we live with the warning until the
+      // next plugin release.
       registerType: "autoUpdate",
       strategies: "injectManifest",
       srcDir: "src",
