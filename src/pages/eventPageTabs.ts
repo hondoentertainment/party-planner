@@ -23,6 +23,8 @@ export interface EventTabDef {
   to: string;
   label: string;
   icon: LucideIcon;
+  /** Short label for the mobile bottom bar (desktop group nav still uses {@link EventTabGroup.label}). */
+  mobileShortLabel?: string;
 }
 
 export interface EventTabGroup {
@@ -104,8 +106,8 @@ export const EVENT_PAGE_TABS: EventTabDef[] = EVENT_PAGE_GROUPS.flatMap((g) => g
 
 export const EVENT_PAGE_PRIMARY_MOBILE_TABS: EventTabDef[] = [
   EVENT_PAGE_GROUPS[0].tabs[0],
-  { to: "timeline", label: "Timeline", icon: CalendarClock },
-  { to: "guests", label: "Guests", icon: Users },
-  { to: "food", label: "Menu", icon: Cookie },
-  { to: "shopping", label: "Shopping", icon: ShoppingCart },
+  { ...EVENT_PAGE_GROUPS[1].tabs[0], mobileShortLabel: "Plan" },
+  EVENT_PAGE_GROUPS[2].tabs[0],
+  EVENT_PAGE_GROUPS[3].tabs[0],
+  EVENT_PAGE_GROUPS[3].tabs[2],
 ];

@@ -94,7 +94,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 ## 4. PWA (install and offline shell)
 
 - Production builds include a service worker (via `vite-plugin-pwa`) and `manifest.webmanifest`. Users on supported browsers can **Install** the app; assets are precached for offline *shell* access. API calls (Supabase) still require the network.
-- You can add larger icons (`192x192` / `512x512` PNG) under `public/` and reference them in `vite.config.ts` for broader install prompts.
+- Regenerate install icons after changing `public/party.svg`: `npm run pwa:icons` (writes `public/icon-192.png` and `public/icon-512.png`; `sharp` is a devDependency).
 
 ## 5. Web push (browser notifications)
 
@@ -111,6 +111,12 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - For a **manual export**, use **Table Editor** → select tables → **Export** as CSV, or use `pg_dump` with the database connection string from the dashboard.
 - For **full account portability**, plan periodic exports of `events` / `event_items` (and any other tables you care about) for critical parties.
 - **Recovery drill (recommended):** once a year (or after major schema changes), document how you would restore from backup or re-seed staging, and how long that takes (**RTO**) vs how much data you could lose (**RPO**). For production incidents, define who can access the Supabase dashboard and service role keys.
+- **Drill template (fill in for your org):**
+  - **RTO target:** e.g. "App read-only ≤ 4h; full restore ≤ 24h."
+  - **RPO target:** e.g. "≤ 1h of writes" (depends on backup/PITR tier).
+  - **Restore path:** Supabase backup / PITR vs. redeploy app + `db:push` to empty project.
+  - **Owner + backup:** who runs the restore and who has the service role key.
+  - **Last exercised:** date of last test restore or table export.
 
 ## 7. E2E tests in CI
 
@@ -119,7 +125,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
   Supabase project so the signed-in tests (dashboard, new event, settings) are not skipped.
 - **Local:** add the same two variables to `.env.local` (read by [playwright.config.ts](playwright.config.ts), not by Vite) and run `npm run verify` or `npm run ci` for a full pre-push check.
 - Before promoting a release, also run `supabase/verify_remote.sql` against the target Supabase project and confirm every required row reports `OK`. Optional rows for email/web push may remain `MISSING` only when those features are intentionally disabled.
-- Optional **post-deploy smoke:** set repository secret **`SMOKE_URL`** (full URL, e.g. `https://your-app.vercel.app/`) and run the **Smoke** workflow manually from GitHub Actions after a production deploy. When unset, that workflow is a no-op.
+- Optional **post-deploy smoke:** set repository secret **`SMOKE_URL`** (origin or full URL, e.g. `https://your-app.vercel.app` — trailing slash is stripped). Run the **Smoke** workflow manually from GitHub Actions after a production deploy. By default it requests `/`, `/privacy`, and `/terms` (all must return 2xx/3xx). Override paths with repository **variable** **`SMOKE_PATHS`** (space-separated, e.g. `/ /privacy /terms /s/test-token`). When `SMOKE_URL` is unset, the workflow is a no-op.
 
 ## 8. Local development on OneDrive (Windows)
 
@@ -139,6 +145,8 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - [ ] Edge `notify-share` deployed (optional, enables **Email me this link** in Settings & Team)
 - [ ] Migration `0013_notification_opt_outs.sql` applied + Edge `notify-unsubscribe` deployed + `UNSUBSCRIBE_TOKEN_SECRET` set (required if `notify-event-reminder` / `notify-wrap-up` are scheduled — see §10)
 - [ ] `APP_URL` in Edge matches production URL
+- [ ] `VITE_PUBLIC_SITE_URL` in Vercel / GitHub Actions (recommended — OG URLs and middleware)
+- [ ] `VITE_PLAUSIBLE_DOMAIN` / script URL (optional)
 - [ ] Custom domain and Resend domain alignment (if using custom email domain)
 - [ ] GitHub Actions secrets `E2E_EMAIL` and `E2E_PASSWORD` (optional, so CI runs signed-in E2E)
 - [ ] `VITE_SECURITY_CONTACT` in Vercel / CI (optional — RFC 9116 address baked into `security.txt` on build)

@@ -2,9 +2,12 @@ name: CI
 
 # Repository secrets (Settings → Secrets and variables → Actions), all optional:
 #   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY — real app URL + anon key so the build is not the empty setup screen.
-#   VITE_SECURITY_CONTACT — RFC 9116 Contact value for dist/.well-known/security.txt (e.g. mailto:security@yourdomain.com).
+#   VITE_PUBLIC_SITE_URL — canonical origin (no trailing slash); OG + middleware.
+#   VITE_SECURITY_CONTACT — RFC 9116 Contact for dist/.well-known/security.txt.
+#   VITE_SENTRY_DSN, VITE_PLAUSIBLE_DOMAIN — optional analytics / errors.
 #   E2E_EMAIL, E2E_PASSWORD, E2E_DISPLAY_NAME — dedicated Auth user; without email/password, signed-in Playwright tests are skipped.
-# Optional manual workflow: .github/workflows/smoke.yml + secret SMOKE_URL for post-deploy HTTP check.
+#   SMOKE_URL — for manual Smoke workflow (OPERATIONS.md §7).
+# Optional repo **Variables**: SMOKE_PATHS (space-separated paths; default / /privacy /terms).
 # See README "E2E and CI" and OPERATIONS.md §7.
 
 on:
@@ -30,10 +33,21 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PUBLIC_SITE_URL: ${{ secrets.VITE_PUBLIC_SITE_URL }}
           VITE_SECURITY_CONTACT: ${{ secrets.VITE_SECURITY_CONTACT }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_PLAUSIBLE_DOMAIN: ${{ secrets.VITE_PLAUSIBLE_DOMAIN }}
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
           E2E_DISPLAY_NAME: ${{ secrets.E2E_DISPLAY_NAME }}
+      - name: Deploy env parity (non-blocking hints)
+        run: node scripts/check-deploy-env.mjs
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PUBLIC_SITE_URL: ${{ secrets.VITE_PUBLIC_SITE_URL }}
+          VITE_SECURITY_CONTACT: ${{ secrets.VITE_SECURITY_CONTACT }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
       - name: Upload Playwright artifacts
         if: failure()
         uses: actions/upload-artifact@v4

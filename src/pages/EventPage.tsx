@@ -50,6 +50,18 @@ const WrapUpModule = lazy(() =>
   import("../modules/WrapUpModule").then((m) => ({ default: m.WrapUpModule }))
 );
 
+/** Match tab groups even when the location has a trailing slash (or lacks one). */
+function stripTrailingSlash(path: string): string {
+  if (path.length > 1) return path.replace(/\/+$/, "");
+  return path;
+}
+
+function EventUnknownSectionRedirect() {
+  const { eventId } = useParams<{ eventId: string }>();
+  if (!eventId) return <Navigate to="/" replace />;
+  return <Navigate to={`/events/${eventId}`} replace />;
+}
+
 export function EventPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const { event, loading, error, refresh } = useEvent(eventId);
@@ -62,14 +74,12 @@ export function EventPage() {
   const activeGroup: EventTabGroup = useMemo(() => {
     if (!event) return EVENT_PAGE_GROUPS[0];
     const base = `/events/${event.id}`;
+    const pathname = stripTrailingSlash(location.pathname);
     const match = EVENT_PAGE_GROUPS.find((g) =>
       g.tabs.some((t) => {
-        const path = t.to ? `${base}/${t.to}` : base;
-        if (t.to === "") return location.pathname === path;
-        return (
-          location.pathname === path ||
-          location.pathname.startsWith(`${path}/`)
-        );
+        const path = stripTrailingSlash(t.to ? `${base}/${t.to}` : base);
+        if (t.to === "") return pathname === path;
+        return pathname === path || pathname.startsWith(`${path}/`);
       })
     );
     return match ?? EVENT_PAGE_GROUPS[0];
@@ -361,7 +371,7 @@ export function EventPage() {
             />
             <Route path="wrap-up" element={<WrapUpModule event={event} />} />
             <Route path="settings" element={<EventSettings event={event} />} />
-            <Route path="*" element={<Navigate to="" replace />} />
+            <Route path="*" element={<EventUnknownSectionRedirect />} />
           </Routes>
         </Suspense>
       </div>
@@ -372,11 +382,18 @@ export function EventPage() {
         aria-label="Event primary sections"
       >
         <div className="grid grid-cols-6">
-          {EVENT_PAGE_PRIMARY_MOBILE_TABS.map((t) => (
+          {EVENT_PAGE_PRIMARY_MOBILE_TABS.map((t) => {
+              const short = t.mobileShortLabel ?? t.label;
+              const a11y =
+                t.mobileShortLabel && t.mobileShortLabel !== t.label
+                  ? `${t.mobileShortLabel}, ${t.label}`
+                  : t.label;
+              return (
             <NavLink
               key={t.to}
               to={tabTo(t.to)}
               end={t.to === ""}
+              aria-label={a11y}
               className={({ isActive }) =>
                 clsx(
                   "flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium min-h-[56px]",
@@ -385,9 +402,10 @@ export function EventPage() {
               }
             >
               <t.icon size={20} />
-              <span className="leading-tight">{t.label}</span>
+              <span className="leading-tight">{short}</span>
             </NavLink>
-          ))}
+              );
+            })}
           <button
             type="button"
             ref={moreTriggerRef}

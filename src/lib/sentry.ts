@@ -31,6 +31,18 @@ export function initSentry() {
     release: import.meta.env.VITE_APP_RELEASE || undefined,
     ignoreErrors: IGNORE_ERROR_MESSAGES,
     denyUrls: [/extensions\//i, /^chrome:\/\//i, /^moz-extension:\/\//i],
+    maxBreadcrumbs: 40,
+    beforeSend(event) {
+      const msg = event.exception?.values?.[0]?.value ?? "";
+      if (
+        /Failed to fetch dynamically imported module|Loading chunk [\d]+ failed|Load failed \(404/i.test(
+          msg,
+        )
+      ) {
+        return null;
+      }
+      return event;
+    },
   });
 }
 

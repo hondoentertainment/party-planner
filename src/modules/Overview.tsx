@@ -154,16 +154,16 @@ export function Overview({ event }: { event: EventRow }) {
         id: "guest",
         label: "Add at least 1 guest",
         done: guests.length > 0,
-        to: "guests" as const,
+        to: `/events/${event.id}/guests` as const,
       },
       {
         id: "share",
         label: "Share your public RSVP page",
         done: hasPublicLink,
-        to: "settings" as const,
+        to: `/events/${event.id}/settings` as const,
       },
     ],
-    [guests.length, hasPublicLink],
+    [guests.length, hasPublicLink, event.id],
   );
   const firstRunComplete = firstRunSteps.every((s) => s.done);
   const showFirstRunBanner = !bannerDismissed && !firstRunComplete;
@@ -226,7 +226,7 @@ export function Overview({ event }: { event: EventRow }) {
             {healthChecklist.map((row) => (
               <li key={row.id}>
                 <Link
-                  to={row.href}
+                  to={`/events/${event.id}/${row.href}`}
                   className="flex items-start gap-3 rounded-lg border border-slate-100 px-3 py-2 hover:bg-slate-50/80 transition-colors"
                 >
                   {row.done ? (
@@ -301,13 +301,13 @@ export function Overview({ event }: { event: EventRow }) {
             </Detail>
             <Detail icon={Users} label="Confirmed guests">
               {confirmedGuests > 0 ? (
-                <Link to="guests" className="text-brand-600 hover:underline">
+                <Link to={`/events/${event.id}/guests`} className="text-brand-600 hover:underline">
                   {confirmedGuests} attending
                 </Link>
               ) : event.rsvp_count > 0 ? (
                 `${event.rsvp_count} (Partiful)`
               ) : (
-                <Link to="guests" className="text-slate-400 hover:text-brand-600">
+                <Link to={`/events/${event.id}/guests`} className="text-slate-400 hover:text-brand-600">
                   Add guests →
                 </Link>
               )}
@@ -382,7 +382,7 @@ export function Overview({ event }: { event: EventRow }) {
               ))}
             </div>
             <Link
-              to="settings"
+              to={`/events/${event.id}/settings`}
               className="text-xs text-brand-600 mt-2 inline-block hover:underline"
             >
               Invite collaborators →
@@ -401,7 +401,7 @@ export function Overview({ event }: { event: EventRow }) {
               const tPct = list.length ? Math.round((tDone / list.length) * 100) : 0;
               return (
                 <Link
-                  to={t.route}
+                  to={`/events/${event.id}/${t.route}`}
                   key={t.kind}
                   className="card p-3 hover:shadow-pop transition-shadow"
                 >

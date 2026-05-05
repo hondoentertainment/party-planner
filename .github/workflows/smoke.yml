@@ -1,7 +1,10 @@
 name: Smoke
 
-# Optional production check after deploy. Set repository secret SMOKE_URL (e.g. https://your-app.vercel.app/).
-# If unset, this workflow does nothing useful but still passes — safe to enable on every repo.
+# Optional production checks after deploy.
+# Secrets:
+#   SMOKE_URL — origin only or full URL, e.g. https://your-app.vercel.app (no trailing slash ok)
+# Optional:
+#   SMOKE_PATHS — space-separated paths (default: / /privacy /terms)
 
 on:
   workflow_dispatch:
@@ -10,17 +13,24 @@ jobs:
   http-smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch production URL
+      - name: Fetch production URLs
         env:
           SMOKE_URL: ${{ secrets.SMOKE_URL }}
+          SMOKE_PATHS: ${{ vars.SMOKE_PATHS }}
         run: |
           if [ -z "$SMOKE_URL" ]; then
-            echo "SMOKE_URL secret not set — skipping HTTP check."
+            echo "SMOKE_URL secret not set — skipping HTTP checks."
             exit 0
           fi
-          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 -L "$SMOKE_URL")
-          echo "HTTP $code for $SMOKE_URL"
-          if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then
-            exit 0
-          fi
-          exit 1
+          base="${SMOKE_URL%/}"
+          paths="${SMOKE_PATHS:-/ /privacy /terms}"
+          failed=0
+          for p in $paths; do
+            url="${base}${p}"
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 -L "$url")
+            echo "HTTP $code — $url"
+            if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
+              failed=1
+            fi
+          done
+          exit $failed

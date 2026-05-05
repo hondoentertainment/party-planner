@@ -13,11 +13,19 @@ import { fileURLToPath } from "node:url";
 function securityTxtBuild(): PluginOption {
   return {
     name: "security-txt-build",
-    closeBundle() {
+      closeBundle() {
       const contact =
         process.env.VITE_SECURITY_CONTACT?.trim() ||
         process.env.SECURITY_CONTACT?.trim() ||
         "mailto:security@example.com";
+      if (
+        process.env.NODE_ENV === "production" &&
+        /@example\.com|security@example/i.test(contact)
+      ) {
+        console.warn(
+          "[security-txt-build] VITE_SECURITY_CONTACT still looks like a placeholder — set a real address in Vercel / CI before shipping.",
+        );
+      }
       const dir = path.resolve("dist", ".well-known");
       const body = [
         `Contact: ${contact}`,
@@ -86,7 +94,7 @@ export default defineConfig(() => {
       srcDir: "src",
       filename: "sw.ts",
       injectManifest: {
-        globPatterns: ["**/*.{js,css,html,ico,svg,woff2}"],
+        globPatterns: ["**/*.{js,css,html,ico,svg,png,woff2}"],
       },
       manifest: {
         name: "Party Planner",
@@ -99,6 +107,24 @@ export default defineConfig(() => {
         start_url: "/",
         scope: "/",
         icons: [
+          {
+            src: "/icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
           {
             src: "/party.svg",
             sizes: "any",

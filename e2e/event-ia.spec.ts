@@ -60,6 +60,31 @@ test.describe("with E2E credentials — event IA structure", () => {
         subNav.getByRole("link", { name: new RegExp(`^${escapeRegExp(sub)}$`, "i") })
       ).toBeVisible();
     }
+
+    // Plan group: primary nav should open Timeline (and show Plan sub-row).
+    await groupNav.getByRole("link", { name: /^Plan$/i }).click();
+    await expect(page.getByRole("heading", { name: /^Timeline$/i })).toBeVisible();
+    const planSub = page.getByRole("navigation", { name: /plan sub-sections/i });
+    await expect(planSub.getByRole("link", { name: /^Timeline$/i })).toBeVisible();
+    await expect(planSub.getByRole("link", { name: /^Post-party$/i })).toBeVisible();
+  });
+
+  test("from Menu route, Plan opens Timeline (absolute navigation)", async ({ page }) => {
+    const events = new EventAgent(page);
+    const stamp = `E2E route ${Date.now()}`;
+
+    await events.createBlankEvent(stamp);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    const groupNav = page.getByRole("navigation", { name: /event sections/i });
+    await groupNav.getByRole("link", { name: /^Food & Drink$/i }).click();
+    await groupNav.getByRole("link", { name: /^Menu$/i }).click();
+
+    await expect(page.getByRole("heading", { name: /Food & Menu/i })).toBeVisible();
+
+    await groupNav.getByRole("link", { name: /^Plan$/i }).click();
+    await expect(page.getByRole("heading", { name: /^Timeline$/i })).toBeVisible();
   });
 
   test("mobile More sheet groups tabs under category headers", async ({ page }) => {
