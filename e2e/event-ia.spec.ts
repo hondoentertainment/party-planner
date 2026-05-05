@@ -115,6 +115,47 @@ test.describe("with E2E credentials — event IA structure", () => {
     await expect(sheet.getByRole("link", { name: /^Post-party$/i })).toBeVisible();
     await expect(sheet.getByRole("link", { name: /^Day-of setup$/i })).toBeVisible();
   });
+
+  test("every event tab loads its module heading", async ({ page }) => {
+    const events = new EventAgent(page);
+    const stamp = `E2E tabs ${Date.now()}`;
+    await events.createBlankEvent(stamp);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    const eventId = page.url().match(/\/events\/([0-9a-f-]+)/i)?.[1];
+    expect(eventId, "event id from URL").toBeTruthy();
+
+    /** [path segment, expected heading regex] for every rendered tab. */
+    const tabs: Array<[string, RegExp]> = [
+      ["", new RegExp(`^${escapeRegExp(stamp)}$`, "i")],
+      ["timeline", /^Timeline$/i],
+      ["wrap-up", /post-event wrap-up/i],
+      ["guests", /guest list/i],
+      ["food", /food & menu/i],
+      ["beverages", /^Beverages$/i],
+      ["shopping", /food purchasing/i],
+      ["budget", /^Budget$/i],
+      ["vendors", /vendors & contacts/i],
+      ["logistics", /^Logistics$/i],
+      ["signs", /^Signs$/i],
+      ["decorations", /^Decorations$/i],
+      ["restrooms", /^Restrooms$/i],
+      ["setup", /setup & teardown/i],
+      ["music", /^Music$/i],
+      ["games", /^Games$/i],
+      ["settings", /settings & team/i],
+    ];
+
+    for (const [seg, headingRe] of tabs) {
+      const path = seg ? `/events/${eventId}/${seg}` : `/events/${eventId}`;
+      await page.goto(path);
+      await expect(
+        page.getByRole("heading", { name: headingRe }).first(),
+        `tab "${seg || "overview"}" should render its heading`,
+      ).toBeVisible({ timeout: 15_000 });
+    }
+  });
 });
 
 function escapeRegExp(value: string) {

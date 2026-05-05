@@ -15,8 +15,46 @@ import { ChecklistModule } from "../modules/ChecklistModule";
 import {
   EVENT_PAGE_GROUPS,
   EVENT_PAGE_PRIMARY_MOBILE_TABS,
+  EVENT_PAGE_TABS,
   type EventTabGroup,
 } from "./eventPageTabs";
+
+/**
+ * Keep this set in sync with the `<Route path="…">` declarations below.
+ * In dev (Vite) we cross-check `EVENT_PAGE_TABS` against this list and
+ * throw early if a tab is missing a route — preventing "tab opens blank
+ * page → catch-all redirect → looks broken" bugs in production.
+ */
+const RENDERED_ROUTE_PATHS = new Set<string>([
+  "",
+  "timeline",
+  "guests",
+  "food",
+  "beverages",
+  "shopping",
+  "budget",
+  "vendors",
+  "logistics",
+  "signs",
+  "games",
+  "music",
+  "restrooms",
+  "decorations",
+  "setup",
+  "wrap-up",
+  "settings",
+]);
+
+if (import.meta.env.DEV) {
+  const missing = EVENT_PAGE_TABS.filter((t) => !RENDERED_ROUTE_PATHS.has(t.to));
+  if (missing.length > 0) {
+    const labels = missing.map((t) => `"${t.label}" (to=${JSON.stringify(t.to)})`).join(", ");
+    throw new Error(
+      `EventPage: tabs missing a <Route> match: ${labels}. ` +
+        `Add the route in src/pages/EventPage.tsx and update RENDERED_ROUTE_PATHS.`,
+    );
+  }
+}
 
 const Overview = lazy(() => import("../modules/Overview").then((m) => ({ default: m.Overview })));
 const TimelineModule = lazy(() =>
