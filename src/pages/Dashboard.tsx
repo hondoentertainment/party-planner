@@ -26,6 +26,7 @@ import { duplicateEvent, duplicateEventNextYear } from "../lib/duplicateEvent";
 import { useToast } from "../lib/toast";
 import { supabase } from "../lib/supabase";
 import { TEMPLATES, type EventTemplate } from "../lib/templates";
+import { createSampleEvent } from "../lib/sampleEvent";
 import type { EventRow, EventShareLink, EventWrapUp } from "../lib/database.types";
 
 type StatusFilter = "all" | "upcoming" | "past" | "no-date";
@@ -118,6 +119,9 @@ async function fetchActiveShareLink(eventId: string): Promise<ActiveShareLink | 
 export function Dashboard() {
   const { events, loading, error, refresh } = useMyEvents();
   const { wrapUps } = useWrapUpsAcrossEvents();
+  const { user } = useAuth();
+  const toast = useToast();
+  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [creatingTemplateId, setCreatingTemplateId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
@@ -209,6 +213,16 @@ export function Dashboard() {
         <EmptyState
           onCreateBlank={() => openNewEvent()}
           onPickTemplate={(templateId) => openNewEvent(templateId)}
+          onCreateSample={async () => {
+            if (!user) return;
+            const id = await createSampleEvent(user.id);
+            if (id) {
+              toast.success("Sample party loaded — explore every module.");
+              navigate(`/events/${id}`);
+            } else {
+              toast.error("Couldn't load the sample party. Try a template instead.");
+            }
+          }}
         />
       ) : filteredActive.length === 0 ? (
         <NoResults
@@ -834,27 +848,52 @@ function LoadError({ message, onRetry }: { message: string; onRetry: () => void 
 interface EmptyStateProps {
   onCreateBlank: () => void;
   onPickTemplate: (templateId: string) => void;
+  onCreateSample: () => void | Promise<void>;
 }
 
-function EmptyState({ onCreateBlank, onPickTemplate }: EmptyStateProps) {
+function EmptyState({ onCreateBlank, onPickTemplate, onCreateSample }: EmptyStateProps) {
+  const [loadingSample, setLoadingSample] = useState(false);
+  const onSample = async () => {
+    if (loadingSample) return;
+    setLoadingSample(true);
+    try {
+      await onCreateSample();
+    } finally {
+      setLoadingSample(false);
+    }
+  };
+
   return (
     <section
       className="card p-6 sm:p-8"
       role="region"
       aria-label="Get started with your first event"
     >
-      <div className="flex items-start gap-3 mb-6">
-        <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 grid place-items-center flex-shrink-0">
-          <Sparkles size={22} />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
+        <div className="flex items-start gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 grid place-items-center flex-shrink-0">
+            <Sparkles size={22} />
+          </div>
+          <div>
+            <h2 className="font-display text-xl font-bold">
+              Throw your first party in 60 seconds
+            </h2>
+            <p className="text-slate-500 text-sm mt-1 max-w-md">
+              Pick a template to get a head start, or build from scratch.
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="font-display text-xl font-bold">
-            Throw your first party in 60 seconds
-          </h2>
-          <p className="text-slate-500 text-sm mt-1 max-w-md">
-            Pick a template to get a head start, or build from scratch.
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={onSample}
+          disabled={loadingSample}
+          aria-busy={loadingSample}
+          data-testid="dashboard-load-sample"
+          className="btn-secondary self-start sm:self-auto whitespace-nowrap"
+        >
+          <Sparkles size={14} />
+          {loadingSample ? "Loading sample…" : "Try a sample party"}
+        </button>
       </div>
 
       <div
