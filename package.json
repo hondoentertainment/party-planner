@@ -20,6 +20,7 @@
     "ops:check-resend": "node scripts/check-resend-secret.mjs",
     "ops:check-env": "node scripts/check-deploy-env.mjs",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs",
+    "og:image": "node scripts/generate-og-image.mjs",
     "functions:deploy": "npx supabase functions deploy notify-assignment",
     "functions:deploy:share": "npx supabase functions deploy notify-share",
     "functions:deploy:invite": "npx supabase functions deploy notify-invite",

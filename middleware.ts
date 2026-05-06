@@ -96,11 +96,21 @@ function canonicalShareUrl(request: Request, token: string): string {
   return `${u.origin}/s/${token}`;
 }
 
+/**
+ * 1200×630 PNG generated at build time by `npm run og:image`. iMessage / Slack /
+ * Twitter / Facebook all render summary_large_image cards from this asset.
+ * `party.svg` was the previous fallback and renders as a tiny square in most
+ * link unfurlers — keep it only as a defensive fallback if the PNG ever 404s.
+ */
+const OG_IMAGE_PATH = "/og-image.png";
+const OG_IMAGE_WIDTH = "1200";
+const OG_IMAGE_HEIGHT = "630";
+
 function ogImageUrl(request: Request): string {
   const base = (process.env.VITE_PUBLIC_SITE_URL ?? "").replace(/\/$/, "").trim();
-  if (base) return `${base}/party.svg`;
+  if (base) return `${base}${OG_IMAGE_PATH}`;
   const u = new URL(request.url);
-  return `${u.origin}/party.svg`;
+  return `${u.origin}${OG_IMAGE_PATH}`;
 }
 
 function buildLinkerPreviewHtml(
@@ -128,9 +138,13 @@ function buildLinkerPreviewHtml(
 <meta property="og:type" content="website" />
 <meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}" />
 <meta property="og:image" content="${escapeHtmlAttr(imageUrl)}" />
-<meta name="twitter:card" content="summary" />
+<meta property="og:image:width" content="${OG_IMAGE_WIDTH}" />
+<meta property="og:image:height" content="${OG_IMAGE_HEIGHT}" />
+<meta property="og:image:alt" content="Party Planner — collaborative party planning" />
+<meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="${safeTitle}" />
 <meta name="twitter:description" content="${safeDesc}" />
+<meta name="twitter:image" content="${escapeHtmlAttr(imageUrl)}" />
 <link rel="canonical" href="${escapeHtmlAttr(canonicalUrl)}" />
 </head>
 <body></body>
@@ -145,6 +159,7 @@ function buildLinkerPreviewHtml(
 
   const safeTitle = escapeHtmlAttr(title);
   const safeDesc = escapeHtmlAttr(description.slice(0, 500));
+  const altText = `${event.name} on Party Planner`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -158,9 +173,14 @@ function buildLinkerPreviewHtml(
 <meta property="og:type" content="website" />
 <meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}" />
 <meta property="og:image" content="${escapeHtmlAttr(imageUrl)}" />
-<meta name="twitter:card" content="summary" />
+<meta property="og:image:width" content="${OG_IMAGE_WIDTH}" />
+<meta property="og:image:height" content="${OG_IMAGE_HEIGHT}" />
+<meta property="og:image:alt" content="${escapeHtmlAttr(altText)}" />
+<meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="${safeTitle}" />
 <meta name="twitter:description" content="${safeDesc}" />
+<meta name="twitter:image" content="${escapeHtmlAttr(imageUrl)}" />
+<meta name="twitter:image:alt" content="${escapeHtmlAttr(altText)}" />
 <link rel="canonical" href="${escapeHtmlAttr(canonicalUrl)}" />
 </head>
 <body></body>
