@@ -2,6 +2,31 @@
 
 This document covers **production** setup beyond local development: database migrations, hosting, monitoring, data safety, and optional web push / email.
 
+## 0a. Standing operator checklist (recurring ops items)
+
+These are the recurring operator items most likely to drift if no one is watching.
+Re-check them on every release that touches migrations, edge functions, or branding.
+
+| Item | When | How |
+|------|------|-----|
+| Run `supabase/verify_remote.sql` against production | After every migration batch (e.g. `0017`–`0019`) | Supabase → SQL Editor → paste the file → confirm every row is `OK` (or intentional `MISSING`). |
+| Reminder + wrap-up cron healthy | Weekly while enabled | Run [`supabase/sql/check_reminder_cron.sql`](supabase/sql/check_reminder_cron.sql) — verify both jobs scheduled, no failed invocations in the last 24h. If you're holding off on the cron, document the deliberate "off" state (no action needed). |
+| Sentry alerts firing on new issues + spikes | Quarterly verification | Sentry → Alerts → confirm rules exist for **new issue**, **regression**, and **volume spike** scoped to `environment:production` and `app:party-planner`. Re-test after each major release by triggering a synthetic error. |
+| Sentry release tracking | Per deploy | `VITE_APP_RELEASE` is set automatically (Vite uses git SHA on Vercel/CI). Confirm Sentry → Releases shows the most recent commit. |
+| Resend secret + sender domain still verified | Quarterly | `node scripts/check-resend-secret.mjs` (must exit 0); Resend dashboard → Domains. |
+| Backup / recovery drill | Annual | Fill in §6 RTO / RPO / restore-path / owner / last-exercised. At minimum: `pg_dump` to local once a year and verify it restores into a scratch project. |
+| Custom domain / Resend domain alignment | After any DNS change | If `APP_URL` or `VITE_PUBLIC_SITE_URL` changes, update Supabase Edge secrets and the Resend sender domain. Re-run the smoke workflow. |
+| `SMOKE_URL` / `SMOKE_PATHS` repo variables current | After re-deploying or changing routes | `gh variable list` — `SMOKE_URL` should match the current public origin; the **Smoke** workflow runs automatically on Vercel `deployment_status` (production) and surfaces 4xx/5xx within minutes. |
+| Regenerate the social card after a brand refresh | After tweaking gradients / wordmark | `npm run og:image` writes `public/og-image.png` (1200×630). Used by `/s/<token>` link previews via `middleware.ts`. |
+| Migration order matches the directory listing | On every release that adds SQL | `supabase/migrations/` are applied lexically; never rename or re-number a shipped file. |
+
+> **Future work tracked here, not in code:**
+>
+> - Per-event dynamic OG image (`@vercel/og` route + CSP update). The static
+>   1200×630 brand asset shipped at `public/og-image.png` is the safe interim.
+> - Switching `src/lib/database.types.ts` over to a checked-in
+>   `database.types.gen.ts` to remove a class of drift bugs.
+
 ## 0. v2 deploy checklist (run this once after pulling the UX redesign)
 
 The latest set of changes ships several new flows that aren't live until you run the items below. Everything is idempotent. Skip any row marked **(optional)** if you don't want that flow.
@@ -95,6 +120,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 
 - Production builds include a service worker (via `vite-plugin-pwa`) and `manifest.webmanifest`. Users on supported browsers can **Install** the app; assets are precached for offline *shell* access. API calls (Supabase) still require the network.
 - Regenerate install icons after changing `public/party.svg`: `npm run pwa:icons` (writes `public/icon-192.png` and `public/icon-512.png`; `sharp` is a devDependency).
+- Regenerate the **social-share card** after a brand refresh (gradient / wordmark / accent): `npm run og:image` writes `public/og-image.png` (1200×630). The Edge middleware (`middleware.ts`) serves this as the `og:image` for every `/s/<token>` link preview, so iMessage / Slack / Twitter / Facebook all render `summary_large_image`. Without re-running the script after a brand change, link previews keep showing the previous palette.
 
 ## 5. Web push (browser notifications)
 
@@ -125,7 +151,7 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
   Supabase project so the signed-in tests (dashboard, new event, settings) are not skipped.
 - **Local:** add the same two variables to `.env.local` (read by [playwright.config.ts](playwright.config.ts), not by Vite) and run `npm run verify` or `npm run ci` for a full pre-push check.
 - Before promoting a release, also run `supabase/verify_remote.sql` against the target Supabase project and confirm every required row reports `OK`. Optional rows for email/web push may remain `MISSING` only when those features are intentionally disabled.
-- Optional **post-deploy smoke:** set repository secret **`SMOKE_URL`** (origin or full URL, e.g. `https://your-app.vercel.app` — trailing slash is stripped). Run the **Smoke** workflow manually from GitHub Actions after a production deploy. By default it requests `/`, `/privacy`, and `/terms` (all must return 2xx/3xx). Override paths with repository **variable** **`SMOKE_PATHS`** (space-separated, e.g. `/ /privacy /terms /s/test-token`). When `SMOKE_URL` is unset, the workflow is a no-op.
+- **Post-deploy smoke (automatic + manual):** the **Smoke** workflow runs automatically on `deployment_status` for the **Production** environment (Vercel's GitHub integration fires this for every prod deploy). It also accepts `workflow_dispatch` for ad-hoc runs. Set the repository **variable** **`SMOKE_URL`** (origin or full URL, e.g. `https://your-app.vercel.app` — trailing slash is stripped); the workflow falls back to `deployment_status.target_url` when the variable is unset. By default it requests `/`, `/privacy`, and `/terms` (all must return 2xx/3xx). Override paths with repository **variable** **`SMOKE_PATHS`** (space-separated, e.g. `/ /privacy /terms /s/test-token`).
 
 ## 8. Local development on OneDrive (Windows)
 
