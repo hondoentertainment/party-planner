@@ -1,28 +1,43 @@
 name: Smoke
 
-# Optional production checks after deploy.
-# Secrets:
-#   SMOKE_URL — origin only or full URL, e.g. https://your-app.vercel.app (no trailing slash ok)
-# Optional:
-#   SMOKE_PATHS — space-separated paths (default: / /privacy /terms)
+# Production HTTP smoke checks.
+#
+# Triggers:
+#   - workflow_dispatch  — run manually any time
+#   - deployment_status  — fired automatically by Vercel's GitHub integration
+#                          on every deployment; this workflow filters to
+#                          successful Production deployments only.
+#
+# Configuration (Settings → Secrets and variables → Actions):
+#   Variable SMOKE_URL    — origin or full URL, e.g. https://party-planner-five.vercel.app
+#                           (no trailing slash needed). Falls back to the deployment
+#                           target URL when running on `deployment_status`.
+#   Variable SMOKE_PATHS  — space-separated paths (default: / /privacy /terms).
 
 on:
   workflow_dispatch:
+  deployment_status:
 
 jobs:
   http-smoke:
     runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
     steps:
       - name: Fetch production URLs
         env:
-          SMOKE_URL: ${{ secrets.SMOKE_URL }}
+          SMOKE_URL: ${{ vars.SMOKE_URL }}
           SMOKE_PATHS: ${{ vars.SMOKE_PATHS }}
+          DEPLOYMENT_URL: ${{ github.event.deployment_status.target_url }}
         run: |
-          if [ -z "$SMOKE_URL" ]; then
-            echo "SMOKE_URL secret not set — skipping HTTP checks."
+          base="${SMOKE_URL:-$DEPLOYMENT_URL}"
+          base="${base%/}"
+          if [ -z "$base" ]; then
+            echo "Neither SMOKE_URL variable nor deployment target_url available — skipping."
             exit 0
           fi
-          base="${SMOKE_URL%/}"
           paths="${SMOKE_PATHS:-/ /privacy /terms}"
           failed=0
           for p in $paths; do
