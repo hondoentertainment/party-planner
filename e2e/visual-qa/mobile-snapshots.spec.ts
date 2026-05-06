@@ -34,17 +34,21 @@ async function signIn(page: import("@playwright/test").Page) {
   await page.waitForLoadState("domcontentloaded");
   // If already signed in, the dashboard shows.
   const dashboardMarker = page.getByRole("button", { name: /new event|create event/i });
-  const signInLink = page.getByRole("button", { name: /^sign in$/i });
   if (await dashboardMarker.first().isVisible().catch(() => false)) {
     return true;
   }
-  // Auth page may default to sign-up; click the "Sign in" toggle if available.
-  if (await signInLink.first().isVisible().catch(() => false)) {
-    await signInLink.first().click();
+  // Auth page defaults to sign-up; flip to sign-in via the stable testid tab.
+  const signinTab = page.getByTestId("auth-tab-signin");
+  const submit = page.getByTestId("auth-submit");
+  if (await signinTab.isVisible().catch(() => false)) {
+    const currentMode = await submit.getAttribute("data-auth-mode").catch(() => null);
+    if (currentMode !== "signin") {
+      await signinTab.click();
+    }
   }
   await page.getByLabel(/email/i).fill(E2E_EMAIL!);
   await page.getByLabel(/password/i).fill(E2E_PASSWORD!);
-  await page.getByRole("button", { name: /sign in|log in/i }).click();
+  await submit.click();
   await page.waitForLoadState("networkidle").catch(() => {});
   return await dashboardMarker.first().isVisible().catch(() => false);
 }

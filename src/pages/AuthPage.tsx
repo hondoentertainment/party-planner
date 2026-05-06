@@ -271,6 +271,7 @@ export function AuthPage({ startMode = "signup" }: { startMode?: StartMode }) {
                       role="tab"
                       aria-selected={mode === m}
                       onClick={() => switchMode(m)}
+                      data-testid={`auth-tab-${m}`}
                       className={
                         "flex-1 py-1.5 rounded-md font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 " +
                         (mode === m ? "bg-white shadow-sm text-slate-900" : "text-slate-600")
@@ -350,6 +351,8 @@ export function AuthPage({ startMode = "signup" }: { startMode?: StartMode }) {
                     disabled={loading}
                     aria-busy={loading}
                     type="submit"
+                    data-testid="auth-submit"
+                    data-auth-mode={mode}
                   >
                     {loading && <Loader2 size={16} className="animate-spin" aria-hidden />}
                     {ctaLabel}

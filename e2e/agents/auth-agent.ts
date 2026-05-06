@@ -17,9 +17,19 @@ export class AuthAgent {
       throw new Error("Supabase is not configured for authenticated E2E tests.");
     }
 
+    const signinTab = this.page.getByTestId("auth-tab-signin");
+    if (await signinTab.isVisible().catch(() => false)) {
+      const submit = this.page.getByTestId("auth-submit");
+      const currentMode = await submit.getAttribute("data-auth-mode").catch(() => null);
+      if (currentMode !== "signin") {
+        await signinTab.click();
+        await expect(submit).toHaveAttribute("data-auth-mode", "signin");
+      }
+    }
+
     await emailInput.fill(credentials.email);
     await this.page.getByLabel(/password/i).first().fill(credentials.password);
-    await this.page.getByRole("button", { name: /sign in|log in/i }).click();
+    await this.page.getByTestId("auth-submit").click();
     await this.expectDashboard();
   }
 

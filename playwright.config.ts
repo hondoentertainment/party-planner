@@ -52,7 +52,21 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      // Visual-QA snapshots have their own iPhone viewport + baseline workflow.
+      // Keep them out of the default suite so a missing baseline / mobile-only
+      // selector regression doesn't fail the build.
+      testIgnore: ["**/visual-qa/**"],
+    },
+    {
+      name: "visual-qa",
+      testMatch: ["**/visual-qa/**/*.spec.ts"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
   webServer: shouldStartPreview
     ? {
         command: `npm run preview -- --host 127.0.0.1 --port ${previewPort}`,
