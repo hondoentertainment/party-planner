@@ -110,6 +110,13 @@ export interface BugReport {
   updated_at: string;
 }
 
+export interface EventBudgetItemMeta {
+  paid_by_name?: string | null;
+  split_with?: string[] | null;
+  payment_app?: "venmo" | "cashapp" | "zelle" | null;
+  payment_handle?: string | null;
+}
+
 export interface EventBudgetItem {
   id: string;
   event_id: string;
@@ -120,6 +127,7 @@ export interface EventBudgetItem {
   paid_by: string | null;
   due_at: string | null;
   notes: string | null;
+  meta: EventBudgetItemMeta;
   created_at: string;
   updated_at: string;
 }
