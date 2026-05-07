@@ -1,0 +1,49 @@
+name: CodeQL
+
+# GitHub-native static analysis for JavaScript / TypeScript.
+# Runs on PRs touching app code, on pushes to main, and weekly so freshly
+# disclosed query packs apply to the existing tree even without commits.
+#
+# Free for public repos; counts against GHAS minutes on private repos with
+# code scanning enabled. The default `security-and-quality` query set covers
+# XSS, prototype pollution, unsafe regex, and injection patterns.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "supabase/functions/**"
+      - "middleware.ts"
+      - "vite.config.ts"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/codeql.yml"
+  schedule:
+    # Mondays 06:30 UTC — staggered before Dependabot's 09:00 run so that
+    # CodeQL alerts and dep PRs don't compete for reviewer attention.
+    - cron: "30 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  analyze:
+    name: Analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"

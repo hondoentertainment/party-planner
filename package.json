@@ -19,6 +19,7 @@
     "sql:fill-reminder-cron": "node scripts/fill-reminder-cron.mjs",
     "ops:check-resend": "node scripts/check-resend-secret.mjs",
     "ops:check-env": "node scripts/check-deploy-env.mjs",
+    "ops:secrets-audit": "node scripts/secrets-audit.mjs",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs",
     "og:image": "node scripts/generate-og-image.mjs",
     "functions:deploy": "npx supabase functions deploy notify-assignment",

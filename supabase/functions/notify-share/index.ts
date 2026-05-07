@@ -155,7 +155,7 @@ serve(async (req: Request) => {
 
       const { data: linkRow, error: linkErr } = await userClient
         .from("event_share_links")
-        .select("id, token, enabled, revoked_at")
+        .select("id, token, enabled, revoked_at, last_emailed_at")
         .eq("event_id", eventId)
         .eq("token", shareToken)
         .maybeSingle();
@@ -173,6 +173,47 @@ serve(async (req: Request) => {
       }
       if (!linkRow || !linkRow.enabled || linkRow.revoked_at) {
         return jsonResponse({ error: "Public share link is not active." }, 404);
+      }
+
+      // Per-share-link cool-down. JWT-gated callers can otherwise hammer this
+      // endpoint and burn Resend quota — same threat model as the anon path
+      // covered by migration 0020 / notify-rsvp-recovery, just with a different
+      // pre-condition (a session) instead of a recovery token. 60s is well
+      // above any reasonable user-driven cadence; the UI shows a confirmation
+      // banner after one click.
+      const SHARE_EMAIL_COOLDOWN_MS = 60_000;
+      if (linkRow.last_emailed_at) {
+        const elapsed = Date.now() - new Date(linkRow.last_emailed_at).getTime();
+        if (Number.isFinite(elapsed) && elapsed >= 0 && elapsed < SHARE_EMAIL_COOLDOWN_MS) {
+          const retryAfter = Math.max(
+            1,
+            Math.ceil((SHARE_EMAIL_COOLDOWN_MS - elapsed) / 1000),
+          );
+          log({
+            level: "warn",
+            fn: FN,
+            event: "ratelimit.cooldown_hit",
+            context: {
+              event_id: eventId,
+              user_id: user.id,
+              retry_after: retryAfter,
+            },
+          });
+          return new Response(
+            JSON.stringify({
+              error:
+                "We just emailed this share link. Check your inbox — you can request another in a minute.",
+              retry_after: retryAfter,
+            }),
+            {
+              status: 429,
+              headers: {
+                "Content-Type": "application/json",
+                "Retry-After": String(retryAfter),
+              },
+            },
+          );
+        }
       }
 
       const { data: adminUser, error: adminErr } = await adminClient.auth.admin.getUserById(user.id);
@@ -225,6 +266,28 @@ serve(async (req: Request) => {
 
       const emailResult = await sendEmail(recipient, subject, html, { event_id: eventId });
       const skipped = "skipped" in emailResult && emailResult.skipped ? 1 : 0;
+
+      // Stamp the cool-down timestamp through the admin client so we are not
+      // bound by the user's RLS UPDATE policy (the 0021 row trigger still
+      // restricts service-role writes to legitimate columns by virtue of only
+      // touching last_emailed_at here). Failures are logged but do not break
+      // the overall request — the email already went out.
+      if (skipped === 0) {
+        const { error: stampErr } = await adminClient
+          .from("event_share_links")
+          .update({ last_emailed_at: new Date().toISOString() })
+          .eq("id", linkRow.id);
+        if (stampErr) {
+          log({
+            level: "warn",
+            fn: FN,
+            event: "rpc.event_share_links_stamp_failed",
+            error: stampErr.message,
+            context: { event_id: eventId, link_id: linkRow.id },
+          });
+        }
+      }
+
       log({
         level: "info",
         fn: FN,

@@ -54,8 +54,8 @@ want(
 );
 want(
   "VITE_SECURITY_CONTACT",
-  "RFC 9116 Contact for security.txt (avoid @example.com in production).",
-  (v) => !!v?.trim() && !/@example\.com|security@example/i.test(v),
+  "RFC 9116 Contact for security.txt (avoid @example.com / @invalid placeholders in production).",
+  (v) => !!v?.trim() && !/@example\.com|security@example|@invalid|not-configured/i.test(v),
 );
 want("VITE_SENTRY_DSN", "browser error reporting (optional but recommended for prod).");
 

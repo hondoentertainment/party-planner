@@ -13,5 +13,15 @@ Disallow: /settings
 Disallow: /forgot
 Disallow: /update-password
 
-# Public guest invites
+# Carries a single-use HMAC token in the query string (notify-unsubscribe redirects
+# here on click). Crawling/archiving these would log the token in third-party caches.
+Disallow: /email/unsubscribe
+
+# Public guest invites: the index page is shareable, but the recovery query
+# parameter (?rsvp_token=...) is private to the recipient. Crawlers should
+# index the bare /s/<token> page only.
 Allow: /s/
+Disallow: /s/*?*rsvp_token=*
+
+# Health endpoint is intentionally crawlable but uninteresting (returns "ok"
+# with Cache-Control: no-store).

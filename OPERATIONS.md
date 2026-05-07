@@ -19,6 +19,12 @@ Re-check them on every release that touches migrations, edge functions, or brand
 | `SMOKE_URL` / `SMOKE_PATHS` repo variables current | After re-deploying or changing routes | `gh variable list` — `SMOKE_URL` should match the current public origin; the **Smoke** workflow runs automatically on Vercel `deployment_status` (production) and surfaces 4xx/5xx within minutes. |
 | Regenerate the social card after a brand refresh | After tweaking gradients / wordmark | `npm run og:image` writes `public/og-image.png` (1200×630). Used by `/s/<token>` link previews via `middleware.ts`. |
 | Migration order matches the directory listing | On every release that adds SQL | `supabase/migrations/` are applied lexically; never rename or re-number a shipped file. |
+| Email-emitter rate limits still firing | After every `notify-*` function deploy | Migrations `0020` + `0021` ship the storage half: 30/hour/user cap on `bug_reports`, 60s cool-down on `request_rsvp_recovery`, and a 60s cool-down on `event_share_links.last_emailed_at`. Confirm with `supabase/verify_remote.sql` rows 18 + 19 = `OK`, then smoke-test each path — two consecutive recovery requests, two consecutive **Email me this link** clicks, and >30 signed-in bug reports inside an hour should each surface a `429` (or the in-app rate-limit error for SQL-only paths). |
+| `/healthz` reachable on every deploy | Per deploy (auto via Smoke) | `curl -fsS https://<host>/healthz` should return `200 ok` with `Content-Type: text/plain`. Wired into `Smoke` workflow's default path list and into `vercel.json` (`Cache-Control: no-store`). External uptime monitors should target this path, not `/`. |
+| CodeQL alerts triaged | On every push to `main` and weekly cron | GitHub → **Security → Code scanning**. Treat new `error`-severity alerts as merge blockers; `warning`-severity alerts get fixed during the next refactor of that file. Workflow file: [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml). |
+| Dependabot PRs reviewed weekly | Mondays after 09:00 UTC | Grouped patch/minor PRs (eslint, types, tailwind, dnd-kit, sentry, workbox) should auto-merge after CI; major bumps (Vite, React, Supabase, Tailwind majors) land individually for manual review. Config: [`.github/dependabot.yml`](.github/dependabot.yml). |
+| `npm audit` advisories | Per CI run | The CI workflow runs `npm audit --omit=dev --audit-level=high` non-blocking; review the job log when Dependabot lands a security PR. Strict-mode (fail on advisory) is opt-in only — flip `continue-on-error: false` in `.github/workflows/ci.yml` if you want to enforce it. |
+| Production `VITE_SECURITY_CONTACT` set | Per deploy | If the env is unset, `dist/.well-known/security.txt` ships an RFC 2606 `.invalid` placeholder (`security-not-configured@invalid`) and the build prints a warning. Set a real `mailto:` or HTTPS endpoint on Vercel + GitHub Actions secrets before pushing to a custom domain. |
 
 > **Future work tracked here, not in code:**
 >
@@ -69,7 +75,10 @@ If you'd rather hold off on the cron, skip step 7 — manual share and RSVP reco
    - `supabase/migrations/0005_notification_settings_fallback.sql` (optional notification settings fallback for hosted projects where custom `app.*` GUCs cannot be updated from the CLI),
    - `supabase/migrations/0006_feature_expansion_mvp.sql` (notifications, budgets, vendors, templates, public share links, and wrap-ups),
    - `supabase/migrations/0007_production_hardening.sql` (server-generated public links and activity notifications),
-   - `supabase/migrations/0008_public_share_details.sql` (guest-facing schedule, menu, drink, and music details).
+   - `supabase/migrations/0008_public_share_details.sql` (guest-facing schedule, menu, drink, and music details),
+   - …`0009`–`0019` as documented in this file,
+   - `supabase/migrations/0020_rate_limit_email_and_reports.sql` (signed-in `bug_reports` 30/hour/user cap + 60s cool-down inside `request_rsvp_recovery` so `notify-rsvp-recovery` cannot burn Resend quota),
+   - `supabase/migrations/0021_event_share_email_cooldown.sql` (60s cool-down on `event_share_links.last_emailed_at` so a JWT-gated caller cannot hammer `notify-share`; ships a tightly-scoped UPDATE policy + row trigger that lets editors touch only the cool-down column).
 
 After either approach, run **`supabase/verify_remote.sql`** in the SQL Editor for a quick read-only checklist (policies, `pg_net`, GUCs, feature tables, public share RPCs, and notification triggers).
 
@@ -153,6 +162,28 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - Before promoting a release, also run `supabase/verify_remote.sql` against the target Supabase project and confirm every required row reports `OK`. Optional rows for email/web push may remain `MISSING` only when those features are intentionally disabled.
 - **Post-deploy smoke (automatic + manual):** the **Smoke** workflow runs automatically on `deployment_status` for the **Production** environment (Vercel's GitHub integration fires this for every prod deploy). It also accepts `workflow_dispatch` for ad-hoc runs. Set the repository **variable** **`SMOKE_URL`** (origin or full URL, e.g. `https://your-app.vercel.app` — trailing slash is stripped); the workflow falls back to `deployment_status.target_url` when the variable is unset. By default it requests `/`, `/privacy`, and `/terms` (all must return 2xx/3xx). Override paths with repository **variable** **`SMOKE_PATHS`** (space-separated, e.g. `/ /privacy /terms /s/test-token`).
 
+## 7a. Secret rotation runbook (annual)
+
+Rotate the long-lived secrets below at least once a year, immediately after any suspected leak, and any time a person with access leaves the project. **Run `npm run ops:secrets-audit`** for an at-a-glance view of what is set in your shell vs what production needs.
+
+| Secret | Where it lives | How to rotate | Blast radius |
+|---|---|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → **Project Settings → API** + Edge function secrets + `app.service_role_key` GUC (or `private.app_settings` fallback) | Supabase dashboard → **Reset service role key**, then `supabase secrets set SUPABASE_SERVICE_ROLE_KEY=…` for every project that uses it; re-run the GUC `alter database postgres set "app.service_role_key" = '…';` and redeploy any function that caches the value (`functions:deploy:*`). | All trigger emails, every Edge function, and pg_net cron jobs stop authenticating until updated. **Outage window during rotation is normal — do this in a maintenance slot.** |
+| `REMINDER_CRON_SECRET` | `supabase secrets set` + pg_cron headers (`enable_reminder_cron.sql`) | `supabase secrets set REMINDER_CRON_SECRET="$(openssl rand -hex 32)"`, then re-run `supabase/sql/enable_reminder_cron.sql` with the new value. Old tokens stop working immediately. | Reminder + wrap-up cron stops sending until cron headers updated. No data loss; missed digests can be back-filled by clearing `event_reminder_log` rows for the relevant kinds. |
+| `UNSUBSCRIBE_TOKEN_SECRET` | `supabase secrets set` only | `supabase secrets set UNSUBSCRIBE_TOKEN_SECRET="$(openssl rand -hex 32)"`. **All previously-emailed unsubscribe links stop working** — recipients must click a fresh email or use the in-app `/settings#notifications` toggles. | One-click unsubscribe links in older emails return an error page; users can still mute via the SPA. |
+| `RESEND_API_KEY` | Resend dashboard + `supabase secrets set` | Resend → **API keys → revoke + create**, then `supabase secrets set RESEND_API_KEY="re_…"`. Until updated, every `notify-*` Edge function logs `resend.send_failed` (status 401). | All transactional emails stop until updated. No queue exists — missed emails are not retried. |
+| Vercel project secrets (`VITE_*`) | Vercel → **Settings → Environment Variables** + GitHub Actions secrets (for CI parity) | Update both, then trigger a fresh deploy / CI run. `VITE_*` values are baked into the bundle — old deploys keep working until the next push. | Old bundles stay functional with old keys. New deploys pick up new keys. |
+
+After every rotation:
+
+1. Run `node scripts/check-resend-secret.mjs` (must exit 0).
+2. Run `supabase/verify_remote.sql` (every row should still be `OK`).
+3. Trigger the **Smoke** workflow (`gh workflow run smoke.yml`) and confirm all paths return 2xx/3xx.
+4. Tail Edge function logs for ~30 minutes and grep for `"event":"resend.send_failed"` and `"event":"config.missing_env"` to catch any function that was missed.
+5. Update §6 "Last exercised" date in this file (the dashboard never lies — write it down).
+
+If you've not rotated in over a year, treat this as the first item on the next operations day.
+
 ## 8. Local development on OneDrive (Windows)
 
 - If you clone this repo into a OneDrive-synced folder (e.g. `OneDrive\Desktop\Party Planner`), OneDrive may create transient sync artifacts that show up as untracked files in `git status` (`*.tmp`, `~$*`, `desktop.ini`, `Thumbs.db`, `Icon?`).
@@ -166,6 +197,8 @@ If this returns a row, non-owners can use **Leave event** in the app. If it retu
 - [ ] Run `supabase/verify_remote.sql` in the SQL Editor once migrations and GUCs are in place
 - [ ] `VITE_SENTRY_DSN` (optional)
 - [ ] Migrations through `0017_public_bug_report_rate_limit.sql` applied if you want bug reports (`0014`–`0015`), rate-limited public share reports (`0017`), and per-event reminder muting (`0016`)
+- [ ] `0020_rate_limit_email_and_reports.sql` applied (signed-in `bug_reports` capped at 30/hour/user; `request_rsvp_recovery` enforces a 60s cool-down on `last_sent_at` so `notify-rsvp-recovery` cannot be hammered to burn Resend quota)
+- [ ] `0021_event_share_email_cooldown.sql` applied + `notify-share` re-deployed (`event_share_links.last_emailed_at` enforces a 60s cool-down so a compromised session cannot loop-call **Email me this link**)
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 - [ ] Resend + Edge `notify-assignment` + GUCs (optional, for email)
 - [ ] Edge `notify-share` deployed (optional, enables **Email me this link** in Settings & Team)

@@ -287,6 +287,48 @@ with checks as (
         and pg_get_functiondef(p.oid) like '%Too many reports from this event right now%'
     ),
     'run 0017_public_bug_report_rate_limit.sql'
+
+  union all
+  select
+    18,
+    '0020 rate limits (bug_reports + rsvp recovery cool-down)',
+    exists (
+      select 1 from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname = 'bug_reports'
+        and t.tgname = 'bug_reports_rate_limit'
+        and not t.tgisinternal
+    ) and exists (
+      select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'request_rsvp_recovery'
+        and pg_get_functiondef(p.oid) like '%cool-down%'
+    ),
+    'run 0020_rate_limit_email_and_reports.sql'
+
+  union all
+  select
+    19,
+    '0021 share-link email cool-down',
+    exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'event_share_links'
+        and column_name = 'last_emailed_at'
+    ) and exists (
+      select 1 from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname = 'event_share_links'
+        and t.tgname = 'event_share_links_guard_update'
+        and not t.tgisinternal
+    ),
+    'run 0021_event_share_email_cooldown.sql'
 )
 select
   check_name,

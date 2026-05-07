@@ -1,3 +1,13 @@
-Contact: mailto:security@example.com
+# RFC 9116 development placeholder.
+#
+# Production and CI overwrite this in `dist/.well-known/` from
+# `VITE_SECURITY_CONTACT` via `securityTxtBuild()` in vite.config.ts.
+# If you are reading this on a deployed site, the env var is unset —
+# set it on Vercel / GitHub Actions to a real `mailto:` or HTTPS endpoint
+# before treating this as actionable.
+#
+# `.invalid` is reserved by RFC 2606 for placeholder addresses so this can
+# never be mistaken for a real inbox.
+Contact: mailto:security-not-configured@invalid
 Expires: 2028-12-31T23:59:59.000Z
 Preferred-Languages: en

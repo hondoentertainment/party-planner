@@ -174,6 +174,8 @@ export interface EventShareLink {
   created_by: string | null;
   created_at: string;
   revoked_at: string | null;
+  /** Set by the notify-share Edge Function (migration 0021) — 60s cool-down. */
+  last_emailed_at: string | null;
 }
 
 export interface EventWrapUp {

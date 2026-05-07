@@ -26,6 +26,12 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
+      - name: npm audit (high+ only, non-blocking)
+        # Surfaces known advisories on every PR. Non-blocking because a
+        # transient advisory in a transitive dep should not stop merges
+        # (Dependabot picks up the actual fix on the weekly cadence).
+        run: npm audit --omit=dev --audit-level=high || true
+        continue-on-error: true
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Lint, build, and E2E

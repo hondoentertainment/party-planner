@@ -12,7 +12,7 @@ name: Smoke
 #   Variable SMOKE_URL    — origin or full URL, e.g. https://party-planner-five.vercel.app
 #                           (no trailing slash needed). Falls back to the deployment
 #                           target URL when running on `deployment_status`.
-#   Variable SMOKE_PATHS  — space-separated paths (default: / /privacy /terms).
+#   Variable SMOKE_PATHS  — space-separated paths (default: / /healthz /privacy /terms).
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
             echo "Neither SMOKE_URL variable nor deployment target_url available — skipping."
             exit 0
           fi
-          paths="${SMOKE_PATHS:-/ /privacy /terms}"
+          paths="${SMOKE_PATHS:-/ /healthz /privacy /terms}"
           failed=0
           for p in $paths; do
             url="${base}${p}"

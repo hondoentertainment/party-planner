@@ -17,10 +17,12 @@ function securityTxtBuild(): PluginOption {
       const contact =
         process.env.VITE_SECURITY_CONTACT?.trim() ||
         process.env.SECURITY_CONTACT?.trim() ||
-        "mailto:security@example.com";
+        // RFC 2606 reserved TLD — guaranteed-unroutable, so a missing env can
+        // never be mistaken for a real disclosure address downstream.
+        "mailto:security-not-configured@invalid";
       if (
         process.env.NODE_ENV === "production" &&
-        /@example\.com|security@example/i.test(contact)
+        /@example\.com|security@example|@invalid|not-configured/i.test(contact)
       ) {
         console.warn(
           "[security-txt-build] VITE_SECURITY_CONTACT still looks like a placeholder — set a real address in Vercel / CI before shipping.",

@@ -156,7 +156,7 @@ serve(async (req: Request) => {
 
       const { data: tokenRow, error: tokenErr } = await adminClient
         .from("public_rsvp_tokens")
-        .select("token, share_token, item_id, email, expires_at")
+        .select("token, share_token, item_id, email, expires_at, last_sent_at")
         .eq("token", recoveryToken)
         .maybeSingle();
 
@@ -176,6 +176,47 @@ serve(async (req: Request) => {
       }
       if (tokenRow.expires_at && new Date(tokenRow.expires_at) < new Date()) {
         return jsonResponse({ error: "Recovery token has expired." }, 410);
+      }
+
+      // Cool-down: refuse to resend within 60s of the last successful send.
+      // Pairs with the SQL guard in migration 0020 (request_rsvp_recovery
+      // preserves last_sent_at while inside the window). Returns 429 so the
+      // client can surface a "you'll receive an email shortly" message
+      // instead of triggering Resend repeatedly and burning quota.
+      const COOLDOWN_MS = 60_000;
+      if (tokenRow.last_sent_at) {
+        const elapsed = Date.now() - new Date(tokenRow.last_sent_at).getTime();
+        if (elapsed >= 0 && elapsed < COOLDOWN_MS) {
+          const retryAfter = Math.max(1, Math.ceil((COOLDOWN_MS - elapsed) / 1000));
+          log({
+            level: "warn",
+            fn: FN,
+            event: "ratelimit.cooldown_hit",
+            context: {
+              event_id: linkRow.event_id,
+              item_id: tokenRow.item_id,
+              retry_after: retryAfter,
+            },
+          });
+          return new Response(
+            JSON.stringify({
+              error:
+                "We just sent you a recovery link. Check your inbox — you can request another in a minute.",
+              retry_after: retryAfter,
+            }),
+            {
+              status: 429,
+              headers: {
+                "Content-Type": "application/json",
+                "Retry-After": String(retryAfter),
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers":
+                  "authorization, x-client-info, apikey, content-type",
+              },
+            },
+          );
+        }
       }
 
       const { data: eventRow, error: eventErr } = await adminClient
