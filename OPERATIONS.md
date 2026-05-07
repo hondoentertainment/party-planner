@@ -28,8 +28,11 @@ Re-check them on every release that touches migrations, edge functions, or brand
 
 > **Future work tracked here, not in code:**
 >
-> - Per-event dynamic OG image (`@vercel/og` route + CSP update). The static
->   1200×630 brand asset shipped at `public/og-image.png` is the safe interim.
+> - ~~Per-event dynamic OG image (`@vercel/og` route + CSP update). The static
+>   1200×630 brand asset shipped at `public/og-image.png` is the safe interim.~~
+>   **Shipped:** `/api/og?token=<token>` renders a per-event OG card with the
+>   event's name, date, theme, cover emoji, and gradient. Static
+>   `public/og-image.png` is the fallback for unknown / revoked tokens.
 > - Switching `src/lib/database.types.ts` over to a checked-in
 >   `database.types.gen.ts` to remove a class of drift bugs.
 
