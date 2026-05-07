@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, CalendarPlus, Clock, Copy, Link as LinkIcon, Loader2, LogOut, Mail, Save, Send, Trash2, UserPlus, X } from "lucide-react";
+import { Bell, Calendar, CalendarPlus, Clock, Copy, Link as LinkIcon, Loader2, LogOut, Mail, Save, Send, Trash2, UserPlus, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { CollabRole, EventRow, PendingEventInvitation } from "../lib/database.types";
 import { REMINDER_EMAIL_KIND_META } from "../lib/reminderEmailMeta";
@@ -62,6 +62,12 @@ export function EventSettings({ event }: { event: EventRow }) {
   const canLeave = !isOwner && isCollaborator;
   const activeLink = links.find((link) => link.enabled && !link.revoked_at);
   const publicUrl = activeLink ? `${window.location.origin}/s/${activeLink.token}` : "";
+  // Apple/Google/Outlook all recognise `webcal://` as "subscribe to this
+  // calendar feed". Reusing the public share token means the feed inherits
+  // the same enable/revoke semantics as the public guest page.
+  const webcalUrl = activeLink
+    ? `webcal://${window.location.host}/api/event.ics?token=${encodeURIComponent(activeLink.token)}`
+    : "";
 
   const askConfirm = useCallback(
     async (opts: {
@@ -329,6 +335,16 @@ export function EventSettings({ event }: { event: EventRow }) {
     }
   };
 
+  const copyWebcalUrl = async () => {
+    if (!webcalUrl) return;
+    try {
+      await navigator.clipboard.writeText(webcalUrl);
+      setMsg({ type: "ok", text: "Calendar subscription URL copied. Paste into your calendar app." });
+    } catch {
+      setMsg({ type: "err", text: "Clipboard access failed. Select and copy the URL manually." });
+    }
+  };
+
   const emailShareLink = async () => {
     if (!activeLink || emailingShare) return;
     setEmailingShare(true);
@@ -447,6 +463,34 @@ export function EventSettings({ event }: { event: EventRow }) {
               Active link created{" "}
               {formatDistanceToNow(new Date(activeLink.created_at), { addSuffix: true })}
             </p>
+
+            <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
+              <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                <Calendar size={14} className="text-brand-600" aria-hidden />
+                Subscribe in your calendar
+              </h4>
+              <p className="text-xs text-slate-500">
+                Paste this <code className="bg-slate-100 rounded px-1">webcal://</code> URL into Apple
+                Calendar, Google Calendar, or Outlook to subscribe. The event auto-updates if you change
+                the date, name, or location — no need to re-share.
+              </p>
+              <div className="bg-slate-50 rounded-lg p-2 text-xs break-all border border-slate-200">
+                {webcalUrl}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-secondary" onClick={() => void copyWebcalUrl()}>
+                  <Copy size={16} /> Copy subscribe URL
+                </button>
+                <a
+                  href={webcalUrl}
+                  className="btn-ghost border border-slate-200"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Calendar size={16} /> Open in calendar app
+                </a>
+              </div>
+            </div>
           </div>
         ) : (
           <button type="button" className="btn-primary" disabled={!perms.canEdit} onClick={() => void createShareLink()}>
