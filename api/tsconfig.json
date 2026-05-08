@@ -1,0 +1,15 @@
+{
+  "// purpose": "Local tsconfig for the api/ directory. Vercel's deploy-time typecheck looks for a tsconfig that covers each function file; the root tsconfig.json is a solution file with no compilerOptions and the app/node ones don't include api/. JSX is needed for api/og.tsx (uses @vercel/og's <ImageResponse>).",
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "**/*.tsx"]
+}

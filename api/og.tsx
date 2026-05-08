@@ -10,14 +10,13 @@
  * previews so iMessage / Slack / Twitter / Facebook all unfurl with a
  * personalised hero.
  *
- * Runtime: Edge. `@vercel/og` is implemented as a Satori-based image
- * generator that ships with Vercel's Edge runtime.
+ * Runtime: Node.js (Vercel's current recommended runtime for @vercel/og as
+ * of 2026 — see https://vercel.com/docs/functions/og-image-generation). The
+ * Edge runtime caused the deploy validator to grab @vercel/og into the
+ * middleware bundle, which middleware can't carry. Defaulting to Node here
+ * cleanly separates the two bundles.
  */
 import { ImageResponse } from "@vercel/og";
-
-export const config = {
-  runtime: "edge",
-};
 
 interface ShareEvent {
   name: string;
