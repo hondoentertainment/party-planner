@@ -17,9 +17,9 @@
  * cleanly separates the two bundles.
  */
 import { ImageResponse } from "@vercel/og";
+import { Buffer } from "node:buffer";
 
-interface ShareEvent {
-  name: string;
+interface ShareEvent {  name: string;
   theme: string | null;
   description: string | null;
   starts_at: string | null;
