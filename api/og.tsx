@@ -17,7 +17,6 @@
  * cleanly separates the two bundles.
  */
 import { ImageResponse } from "@vercel/og";
-import { Buffer } from "node:buffer";
 
 interface ShareEvent {  name: string;
   theme: string | null;
@@ -108,6 +107,15 @@ async function fetchPublicShare(token: string): Promise<SharePayload | null> {
   }
 }
 
+/** Base64 without `Buffer` so Vercel's API-route typecheck succeeds (≤ ~6MiB blobs). */
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return btoa(binary);
+}
+
 async function fetchOgCoverDataUrl(url: string): Promise<string | null> {
   const trimmed = url.trim();
   if (!trimmed.startsWith("https://")) return null;
@@ -116,9 +124,9 @@ async function fetchOgCoverDataUrl(url: string): Promise<string | null> {
     if (!res.ok) return null;
     const ct = (res.headers.get("content-type") ?? "").split(";")[0].trim();
     if (!ct.startsWith("image/")) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.byteLength > 6 * 1024 * 1024) return null;
-    return `data:${ct};base64,${buf.toString("base64")}`;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.byteLength > 6 * 1024 * 1024) return null;
+    return `data:${ct};base64,${uint8ArrayToBase64(bytes)}`;
   } catch {
     return null;
   }
