@@ -19,7 +19,7 @@ Re-check them on every release that touches migrations, edge functions, or brand
 | `SMOKE_URL` / `SMOKE_PATHS` repo variables current | After re-deploying or changing routes | `gh variable list` — `SMOKE_URL` should match the current public origin; the **Smoke** workflow runs automatically on Vercel `deployment_status` (production) and surfaces 4xx/5xx within minutes. |
 | Regenerate the social card after a brand refresh | After tweaking gradients / wordmark | `npm run og:image` writes `public/og-image.png` (1200×630). Used by `/s/<token>` link previews via `middleware.ts`. |
 | Migration order matches the directory listing | On every release that adds SQL | `supabase/migrations/` are applied lexically; never rename or re-number a shipped file. |
-| Email-emitter rate limits still firing | After every `notify-*` function deploy | Migrations `0020` + `0021` ship the storage half: 30/hour/user cap on `bug_reports`, 60s cool-down on `request_rsvp_recovery`, and a 60s cool-down on `event_share_links.last_emailed_at`. Confirm with `supabase/verify_remote.sql` rows 18 + 19 = `OK`, then smoke-test each path — two consecutive recovery requests, two consecutive **Email me this link** clicks, and >30 signed-in bug reports inside an hour should each surface a `429` (or the in-app rate-limit error for SQL-only paths). |
+| Rate-limit + cover photo checks post-deploy | After `0020`–`0023` + first cover upload | `supabase/verify_remote.sql` rows 18–19 = rate limits OK; row 20 = `0023` OK. Upload a JPEG in **Edit event** and confirm URL is `…/storage/v1/object/public/event-covers/<event_id>/…`. |
 | `/healthz` reachable on every deploy | Per deploy (auto via Smoke) | `curl -fsS https://<host>/healthz` should return `200 ok` with `Content-Type: text/plain`. Wired into `Smoke` workflow's default path list and into `vercel.json` (`Cache-Control: no-store`). External uptime monitors should target this path, not `/`. |
 | CodeQL alerts triaged | On every push to `main` and weekly cron | GitHub → **Security → Code scanning**. Treat new `error`-severity alerts as merge blockers; `warning`-severity alerts get fixed during the next refactor of that file. Workflow file: [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml). |
 | Dependabot PRs reviewed weekly | Mondays after 09:00 UTC | Grouped patch/minor PRs (eslint, types, tailwind, dnd-kit, sentry, workbox) should auto-merge after CI; major bumps (Vite, React, Supabase, Tailwind majors) land individually for manual review. Config: [`.github/dependabot.yml`](.github/dependabot.yml). |
@@ -31,7 +31,8 @@ Re-check them on every release that touches migrations, edge functions, or brand
 > - ~~Per-event dynamic OG image (`@vercel/og` route + CSP update). The static
 >   1200×630 brand asset shipped at `public/og-image.png` is the safe interim.~~
 >   **Shipped:** `/api/og?token=<token>` renders a per-event OG card with the
->   event's name, date, theme, cover emoji, and gradient. Static
+>   event's name, date, theme, cover emoji, gradient, and optional wide cover
+>   photo when `cover_image_url` is set. Static
 >   `public/og-image.png` is the fallback for unknown / revoked tokens.
 > - Switching `src/lib/database.types.ts` over to a checked-in
 >   `database.types.gen.ts` to remove a class of drift bugs.
@@ -42,7 +43,7 @@ The latest set of changes ships several new flows that aren't live until you run
 
 | # | Step | Command (PowerShell-safe) |
 |---|------|---------------------------|
-| 1 | Apply migrations through the latest in `supabase/migrations/` | `npm run db:push` |
+| 1 | Apply migrations through the latest in `supabase/migrations/` (includes `0023_event_cover_photos.sql` for cover photos + Storage) | `npm run db:push` |
 | 2 | Verify schema landed | Open Supabase → SQL Editor → paste `supabase/verify_remote.sql` |
 | 3 | Deploy all notification Edge Functions | Includes **`notify-bug-report`** (maintainer email on new `bug_reports` rows when pg_net + `app.functions_url` are configured). Example: `npx supabase functions deploy notify-assignment notify-share notify-invite notify-wrap-up notify-event-reminder notify-bug-report` then `npx supabase functions deploy notify-unsubscribe notify-rsvp-recovery --no-verify-jwt`. Or use the `functions:deploy:*` npm scripts. |
 | 4 | Set cron + unsubscribe secrets | `supabase secrets set REMINDER_CRON_SECRET="…" UNSUBSCRIBE_TOKEN_SECRET="…"` (64 hex chars each; e.g. `openssl rand -hex 32` or your preferred CSPRNG) |
@@ -82,6 +83,7 @@ If you'd rather hold off on the cron, skip step 7 — manual share and RSVP reco
    - …`0009`–`0019` as documented in this file,
    - `supabase/migrations/0020_rate_limit_email_and_reports.sql` (signed-in `bug_reports` 30/hour/user cap + 60s cool-down inside `request_rsvp_recovery` so `notify-rsvp-recovery` cannot burn Resend quota),
    - `supabase/migrations/0021_event_share_email_cooldown.sql` (60s cool-down on `event_share_links.last_emailed_at` so a JWT-gated caller cannot hammer `notify-share`; ships a tightly-scoped UPDATE policy + row trigger that lets editors touch only the cool-down column).
+   - `supabase/migrations/0023_event_cover_photos.sql` (`events.cover_image_url`, public **`event-covers`** Storage bucket, editor-only writes, optional guest-page / OG hero photo).
 
 After either approach, run **`supabase/verify_remote.sql`** in the SQL Editor for a quick read-only checklist (policies, `pg_net`, GUCs, feature tables, public share RPCs, and notification triggers).
 
@@ -202,6 +204,7 @@ If you've not rotated in over a year, treat this as the first item on the next o
 - [ ] Migrations through `0017_public_bug_report_rate_limit.sql` applied if you want bug reports (`0014`–`0015`), rate-limited public share reports (`0017`), and per-event reminder muting (`0016`)
 - [ ] `0020_rate_limit_email_and_reports.sql` applied (signed-in `bug_reports` capped at 30/hour/user; `request_rsvp_recovery` enforces a 60s cool-down on `last_sent_at` so `notify-rsvp-recovery` cannot be hammered to burn Resend quota)
 - [ ] `0021_event_share_email_cooldown.sql` applied + `notify-share` re-deployed (`event_share_links.last_emailed_at` enforces a 60s cool-down so a compromised session cannot loop-call **Email me this link**)
+- [ ] `0023_event_cover_photos.sql` applied (optional cover photo uploads: `events.cover_image_url` + **`event-covers`** Storage bucket; **Edit event** uploads a hero image for `/events/:id`, the public guest page, dashboard cards, and `/api/og` when the share token is valid)
 - [ ] `VITE_VAPID_PUBLIC_KEY` (optional, for push)
 - [ ] Resend + Edge `notify-assignment` + GUCs (optional, for email)
 - [ ] Edge `notify-share` deployed (optional, enables **Email me this link** in Settings & Team)

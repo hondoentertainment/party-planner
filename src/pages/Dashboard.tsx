@@ -692,13 +692,26 @@ function EventCard({ ev }: { ev: EventRow }) {
         to={`/events/${ev.id}`}
         className="card overflow-hidden hover:shadow-pop transition-shadow group block"
       >
-        <div
-          className="h-24 flex items-center justify-center text-4xl"
-          style={{
-            background: `linear-gradient(135deg, ${ev.cover_color}22, ${ev.cover_color}55)`,
-          }}
-        >
-          <span className="drop-shadow-sm">{ev.cover_emoji}</span>
+        <div className="relative h-24 overflow-hidden flex items-center justify-center text-4xl">
+          {ev.cover_image_url ? (
+            <img
+              src={ev.cover_image_url}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover"
+              aria-hidden
+            />
+          ) : null}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: ev.cover_image_url
+                ? `linear-gradient(135deg, ${ev.cover_color}99, ${ev.cover_color}bb)`
+                : `linear-gradient(135deg, ${ev.cover_color}22, ${ev.cover_color}55)`,
+            }}
+          />
+          <span className="relative z-[1] drop-shadow-sm">{ev.cover_emoji}</span>
         </div>
         <div className="p-4 space-y-2">
           <div className="flex items-start justify-between gap-2">

@@ -10,6 +10,7 @@ import {
 } from "react-router-dom";
 import { ArrowLeft, MoreHorizontal } from "lucide-react";
 import clsx from "clsx";
+import { EventCoverBackdrop } from "../components/EventCoverBackdrop";
 import { useEvent } from "../lib/hooks";
 import { ChecklistModule } from "../modules/ChecklistModule";
 import {
@@ -210,28 +211,27 @@ export function EventPage() {
 
   return (
     <div>
-      <div
-        className="relative"
-        style={{
-          background: `linear-gradient(135deg, ${event.cover_color}33, ${event.cover_color}88)`,
-        }}
-      >
+      <EventCoverBackdrop coverColor={event.cover_color} coverImageUrl={event.cover_image_url}>
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
           <Link
             to="/"
-            className="inline-flex items-center gap-1 text-sm text-slate-700 hover:text-slate-900 mb-2"
+            className="inline-flex items-center gap-1 text-sm text-slate-900/90 hover:text-slate-900 mb-2"
           >
             <ArrowLeft size={14} /> All events
           </Link>
           <div className="flex items-center gap-3">
             <span className="text-5xl drop-shadow-sm">{event.cover_emoji}</span>
             <div>
-              <h1 className="font-display text-3xl font-bold">{event.name}</h1>
-              {event.theme && <p className="text-slate-700 text-sm">{event.theme}</p>}
+              <h1 className="font-display text-3xl font-bold text-slate-900 drop-shadow-sm">
+                {event.name}
+              </h1>
+              {event.theme && (
+                <p className="text-slate-800 text-sm drop-shadow-sm">{event.theme}</p>
+              )}
             </div>
           </div>
         </div>
-      </div>
+      </EventCoverBackdrop>
 
       <div className="hidden sm:block bg-white border-b border-slate-200 sticky top-14 z-20">
         <div className="max-w-7xl mx-auto px-2 sm:px-4">

@@ -47,6 +47,8 @@ export interface EventRow {
   budget_cents: number;
   cover_emoji: string;
   cover_color: string;
+  /** Migration 0023 — public Storage URL (`event-covers` bucket); null uses emoji gradient only. */
+  cover_image_url: string | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -284,6 +286,7 @@ export interface PublicEventShare {
     | "rsvp_count"
     | "cover_emoji"
     | "cover_color"
+    | "cover_image_url"
   >;
   host: PublicEventShareHost;
   items: EventItem[];

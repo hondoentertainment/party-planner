@@ -52,6 +52,8 @@ export async function duplicateEvent(
       budget_cents: source.budget_cents,
       cover_emoji: source.cover_emoji,
       cover_color: source.cover_color,
+      /** Storage paths include `source.id` — never copy the URL to a new event. */
+      cover_image_url: null,
       archived: false,
     })
     .select("*")

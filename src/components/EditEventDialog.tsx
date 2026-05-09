@@ -1,8 +1,16 @@
-import { useId, useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ImagePlus, Loader2, Trash2, XCircle } from "lucide-react";
 import { Modal } from "./Modal";
 import { supabase } from "../lib/supabase";
 import type { EventRow } from "../lib/database.types";
+import {
+  EVENT_COVER_MAX_BYTES,
+  EVENT_COVERS_BUCKET,
+  EVENT_COVER_ACCEPT_TYPES,
+  eventCoverExtForMime,
+  eventCoverObjectPathFromPublicUrl,
+  validateEventCoverFile,
+} from "../lib/eventCoverStorage";
 import { useNavigate } from "react-router-dom";
 import { formatMoney, parseMoneyToCents } from "../lib/format";
 import { useAuth } from "../lib/auth";
@@ -24,6 +32,7 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
   const { user } = useAuth();
   const confirm = useConfirm();
   const formId = useId();
+  const coverFileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(event.name);
   const [startsAt, setStartsAt] = useState(toLocalDateTime(event.starts_at));
   const [location, setLocation] = useState(event.location ?? "");
@@ -34,11 +43,108 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
   const [budget, setBudget] = useState(formatMoney(event.budget_cents ?? 0));
   const [emoji, setEmoji] = useState(event.cover_emoji);
   const [color, setColor] = useState(event.cover_color);
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(
+    event.cover_image_url ?? null,
+  );
+  const [coverBusy, setCoverBusy] = useState(false);
   const [archived, setArchived] = useState(event.archived);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setCoverImageUrl(event.cover_image_url ?? null);
+  }, [event.cover_image_url]);
+
   const canDelete = user?.id === event.owner_id;
+
+  const removeStoredCoverIfAny = async (url: string | null) => {
+    const path = url ? eventCoverObjectPathFromPublicUrl(url) : null;
+    if (!path) return;
+    await supabase.storage.from(EVENT_COVERS_BUCKET).remove([path]);
+  };
+
+  const onPickCoverPhoto = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    const msg = validateEventCoverFile(file);
+    if (msg) {
+      setError(msg);
+      return;
+    }
+    const ext = eventCoverExtForMime(file.type);
+    if (!ext) {
+      setError("Unsupported image type.");
+      return;
+    }
+
+    setCoverBusy(true);
+    setError(null);
+    const prevUrl = coverImageUrl;
+    const storagePath = `${event.id}/${crypto.randomUUID()}.${ext}`;
+
+    try {
+      const { error: upErr } = await supabase.storage
+        .from(EVENT_COVERS_BUCKET)
+        .upload(storagePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type,
+        });
+      if (upErr) {
+        setError(upErr.message ?? "Upload failed.");
+        return;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(EVENT_COVERS_BUCKET).getPublicUrl(storagePath);
+
+      const now = new Date().toISOString();
+      const { error: dbErr } = await supabase
+        .from("events")
+        .update({
+          cover_image_url: publicUrl,
+          updated_at: now,
+        })
+        .eq("id", event.id);
+
+      if (dbErr) {
+        await supabase.storage.from(EVENT_COVERS_BUCKET).remove([storagePath]);
+        setError(dbErr.message ?? "Could not save cover URL.");
+        return;
+      }
+
+      if (prevUrl && prevUrl !== publicUrl) {
+        await removeStoredCoverIfAny(prevUrl);
+      }
+      setCoverImageUrl(publicUrl);
+    } finally {
+      setCoverBusy(false);
+      if (coverFileRef.current) coverFileRef.current.value = "";
+    }
+  };
+
+  const onRemoveCoverPhoto = async () => {
+    if (!coverImageUrl) return;
+    setCoverBusy(true);
+    setError(null);
+    const urlToRemove = coverImageUrl;
+    try {
+      const now = new Date().toISOString();
+      const { error: dbErr } = await supabase
+        .from("events")
+        .update({ cover_image_url: null, updated_at: now })
+        .eq("id", event.id);
+      if (dbErr) {
+        setError(dbErr.message ?? "Could not remove cover.");
+        return;
+      }
+      await removeStoredCoverIfAny(urlToRemove);
+      setCoverImageUrl(null);
+    } finally {
+      setCoverBusy(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,7 +266,55 @@ export function EditEventDialog({ event, onClose }: { event: EventRow; onClose: 
         </div>
 
         <div>
-          <div className="label">Cover</div>
+          <div className="label">Cover photo (optional)</div>
+          <p className="text-xs text-slate-500 mb-2">
+            Shown behind the emoji on your event header and guest page. JPEG / PNG / WebP / GIF, max{" "}
+            {EVENT_COVER_MAX_BYTES / (1024 * 1024)} MB.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <input
+              ref={coverFileRef}
+              type="file"
+              accept={EVENT_COVER_ACCEPT_TYPES.join(",")}
+              id={`${formId}-cover`}
+              className="sr-only"
+              aria-label="Upload cover photo"
+              disabled={coverBusy}
+              onChange={(e) => void onPickCoverPhoto(e.target.files)}
+            />
+            <label htmlFor={`${formId}-cover`}>
+              <span className="btn-secondary inline-flex items-center gap-1.5 cursor-pointer">
+                {coverBusy ? (
+                  <Loader2 size={16} className="animate-spin" aria-hidden />
+                ) : (
+                  <ImagePlus size={16} aria-hidden />
+                )}
+                {coverImageUrl ? "Replace photo" : "Add photo"}
+              </span>
+            </label>
+            {coverImageUrl ? (
+              <button
+                type="button"
+                className="btn-ghost inline-flex items-center gap-1 text-rose-600 border border-rose-200"
+                disabled={coverBusy}
+                onClick={() => void onRemoveCoverPhoto()}
+              >
+                <XCircle size={16} aria-hidden /> Remove photo
+              </button>
+            ) : null}
+          </div>
+          {coverImageUrl ? (
+            <div className="mb-3 rounded-lg overflow-hidden border border-slate-200 max-w-xs">
+              <img
+                src={coverImageUrl}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                className="w-full h-28 object-cover"
+              />
+            </div>
+          ) : null}
+          <div className="label">Emoji & tint</div>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {EMOJIS.map((em) => (
               <button

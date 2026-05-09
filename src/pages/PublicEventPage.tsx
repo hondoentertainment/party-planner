@@ -41,6 +41,7 @@ import {
 } from "../lib/documentMeta";
 import { BugReportDialog } from "../components/BugReportDialog";
 import { LegalFooter } from "../components/LegalFooter";
+import { EventCoverBackdrop } from "../components/EventCoverBackdrop";
 import {
   RSVP_ACCENT,
   RSVP_ICON,
@@ -222,20 +223,21 @@ export function PublicEventPage() {
   return (
     <main className="min-h-screen bg-slate-50">
       {/* Item 2.1 — Hero */}
-      <section
-        className="p-6 sm:p-10"
-        style={{
-          background: `linear-gradient(135deg, ${event.cover_color}33, ${event.cover_color}88)`,
-        }}
-      >
-        <div className="max-w-3xl mx-auto">
-          <div className="text-6xl mb-3" aria-hidden>
-            {event.cover_emoji}
+      <EventCoverBackdrop coverColor={event.cover_color} coverImageUrl={event.cover_image_url}>
+        <section className="p-6 sm:p-10">
+          <div className="max-w-3xl mx-auto">
+            <div className="text-6xl mb-3 drop-shadow-sm" aria-hidden>
+              {event.cover_emoji}
+            </div>
+            <h1 className="font-display text-4xl font-bold text-slate-900 drop-shadow-sm">
+              {event.name}
+            </h1>
+            {event.theme && (
+              <p className="text-slate-800 mt-1 drop-shadow-sm">{event.theme}</p>
+            )}
           </div>
-          <h1 className="font-display text-4xl font-bold">{event.name}</h1>
-          {event.theme && <p className="text-slate-700 mt-1">{event.theme}</p>}
-        </div>
-      </section>
+        </section>
+      </EventCoverBackdrop>
 
       <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
         {/* Item 2.2 — Date / time + location pill (single line on desktop) */}

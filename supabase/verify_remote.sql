@@ -329,6 +329,32 @@ with checks as (
         and not t.tgisinternal
     ),
     'run 0021_event_share_email_cooldown.sql'
+
+  union all
+  select
+    20,
+    '0023 event cover photos (column + storage bucket + policies)',
+    exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'events'
+        and column_name = 'cover_image_url'
+    ) and exists (
+      select 1 from storage.buckets
+      where id = 'event-covers' and public = true
+    ) and exists (
+      select 1 from pg_policies
+      where schemaname = 'storage'
+        and tablename = 'objects'
+        and policyname = 'Anyone can read event covers'
+    ) and exists (
+      select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'get_public_event_share'
+        and pg_get_functiondef(p.oid) like '%cover_image_url%'
+    ),
+    'run 0023_event_cover_photos.sql'
 )
 select
   check_name,

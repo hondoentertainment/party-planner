@@ -25,6 +25,7 @@ interface ShareEvent {
   starts_at: string | null;
   cover_emoji?: string | null;
   cover_color?: string | null;
+  cover_image_url?: string | null;
 }
 
 interface SharePayload {
@@ -107,6 +108,22 @@ async function fetchPublicShare(token: string): Promise<SharePayload | null> {
   }
 }
 
+async function fetchOgCoverDataUrl(url: string): Promise<string | null> {
+  const trimmed = url.trim();
+  if (!trimmed.startsWith("https://")) return null;
+  try {
+    const res = await fetch(trimmed);
+    if (!res.ok) return null;
+    const ct = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+    if (!ct.startsWith("image/")) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength > 6 * 1024 * 1024) return null;
+    return `data:${ct};base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const token = url.searchParams.get("token") ?? "";
@@ -125,6 +142,10 @@ export default async function handler(req: Request): Promise<Response> {
   const coverHex = normalizeHex(event?.cover_color);
   const gradStart = coverHex ?? FALLBACK_GRADIENT_START;
   const gradEnd = coverHex ? lightenHex(coverHex, 0.45) : FALLBACK_GRADIENT_END;
+
+  const coverPhotoDataUrl = event?.cover_image_url
+    ? await fetchOgCoverDataUrl(event.cover_image_url)
+    : null;
 
   // Truncate to keep Satori from breaking layout on very long names. The
   // OG box is 1200 wide — ~24 chars at 96px feels right with the chosen
@@ -149,14 +170,28 @@ export default async function handler(req: Request): Promise<Response> {
         <div
           style={{
             position: "absolute",
-            top: 80,
-            right: 96,
-            fontSize: 220,
-            opacity: 0.85,
+            top: coverPhotoDataUrl ? 0 : 80,
+            right: coverPhotoDataUrl ? 0 : 96,
+            bottom: coverPhotoDataUrl ? 0 : undefined,
+            width: coverPhotoDataUrl ? 520 : undefined,
+            fontSize: coverPhotoDataUrl ? undefined : 220,
+            opacity: coverPhotoDataUrl ? 1 : 0.85,
             display: "flex",
           }}
         >
-          {emoji}
+          {coverPhotoDataUrl ? (
+            <img
+              src={coverPhotoDataUrl}
+              alt=""
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+              }}
+            />
+          ) : (
+            emoji
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 16, opacity: 0.92 }}>
@@ -185,7 +220,7 @@ export default async function handler(req: Request): Promise<Response> {
             display: "flex",
             flexDirection: "column",
             gap: 18,
-            paddingRight: 320,
+            paddingRight: coverPhotoDataUrl ? 560 : 320,
           }}
         >
           <div
