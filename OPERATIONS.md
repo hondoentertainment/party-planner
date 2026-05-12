@@ -34,8 +34,10 @@ Re-check them on every release that touches migrations, edge functions, or brand
 >   event's name, date, theme, cover emoji, gradient, and optional wide cover
 >   photo when `cover_image_url` is set. Static
 >   `public/og-image.png` is the fallback for unknown / revoked tokens.
-> - Switching `src/lib/database.types.ts` over to a checked-in
->   `database.types.gen.ts` to remove a class of drift bugs.
+> - ~~Switching `src/lib/database.types.ts` over to a checked-in
+>   `database.types.gen.ts` to remove a class of drift bugs.~~ **Done:** schema
+>   snapshot is `src/lib/database.types.gen.ts`; `database.types.ts` re-exports
+>   it (refresh with `npm run db:types` and diff before commit).
 
 ## 0. v2 deploy checklist (run this once after pulling the UX redesign)
 

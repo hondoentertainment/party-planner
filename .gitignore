@@ -7,9 +7,6 @@ supabase/sql/*.generated.sql
 .env.local
 .env.*.local
 
-# Supabase type snapshot (optional local diff)
-src/lib/database.types.gen.ts
-
 # Vercel
 .vercel
 

@@ -112,9 +112,9 @@ dropdown, and forward-to-a-friend share. Optionally integrates with
 
 - Set `SUPABASE_PROJECT_ID` in `.env.local` to your project **Reference ID**
   ( **Project Settings → General** ) and run `npx supabase login` once.
-- Run `npm run db:types` to write `src/lib/database.types.gen.ts` (gitignored);
-  diff it against [`src/lib/database.types.ts`](src/lib/database.types.ts) and
-  merge column changes as needed.
+- Run `npm run db:types` to refresh `src/lib/database.types.gen.ts`; diff and
+  commit updates after schema changes (app code imports
+  [`src/lib/database.types.ts`](src/lib/database.types.ts), which re-exports the gen module).
 - After running SQL migrations, use the **verify** query in [OPERATIONS.md](./OPERATIONS.md)
   to confirm required policies, feature tables, public-share functions, and notification triggers are active.
 
