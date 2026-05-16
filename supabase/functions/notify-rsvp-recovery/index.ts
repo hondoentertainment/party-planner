@@ -4,9 +4,9 @@
 //
 // Trust model:
 //   * Caller provides a `share_token` (which they already obtained from the
-//     public share URL) plus the `recovery_token` returned by
-//     `request_rsvp_recovery`. We verify the share is still active and that
-//     the recovery token row exists for that share before sending.
+//     public share URL) plus the guest `email`. We always return { ok: true }
+//     for user-facing responses and never expose whether the email matched an
+//     RSVP. The recovery token is created and sent entirely server-side.
 //   * The recipient is read off the `public_rsvp_tokens.email` column, NOT
 //     supplied by the caller — so a malicious caller cannot use this endpoint
 //     to spam arbitrary addresses with someone else's recovery link.
@@ -24,6 +24,7 @@ const FN = "notify-rsvp-recovery";
 interface RecoveryPayload {
   share_token?: string;
   recovery_token?: string;
+  email?: string;
 }
 
 declare const Deno: { env: { get(name: string): string | undefined } };
@@ -123,9 +124,10 @@ serve(async (req: Request) => {
     }
 
     const shareToken = payload?.share_token?.trim();
-    const recoveryToken = payload?.recovery_token?.trim();
-    if (!shareToken || !recoveryToken) {
-      return jsonResponse({ error: "share_token and recovery_token are required." }, 400);
+    const legacyRecoveryToken = payload?.recovery_token?.trim();
+    const email = payload?.email?.trim().toLowerCase();
+    if (!shareToken || (!email && !legacyRecoveryToken)) {
+      return jsonResponse({ error: "share_token and email are required." }, 400);
     }
 
     try {
@@ -154,28 +156,134 @@ serve(async (req: Request) => {
         return jsonResponse({ error: "Public share link is not active." }, 404);
       }
 
-      const { data: tokenRow, error: tokenErr } = await adminClient
-        .from("public_rsvp_tokens")
-        .select("token, share_token, item_id, email, expires_at, last_sent_at")
-        .eq("token", recoveryToken)
-        .maybeSingle();
+      let tokenRow: {
+        token: string;
+        share_token: string;
+        item_id: string;
+        email: string;
+        expires_at: string | null;
+        last_sent_at: string | null;
+      } | null = null;
 
-      if (tokenErr) {
-        console.error("[notify-rsvp-recovery] token fetch error:", tokenErr);
-        log({
-          level: "error",
-          fn: FN,
-          event: "rpc.public_rsvp_tokens_select_failed",
-          error: tokenErr.message,
-          context: { event_id: linkRow.event_id },
-        });
-        return jsonResponse({ error: "Failed to verify recovery token." }, 500);
+      if (legacyRecoveryToken) {
+        const { data, error: tokenErr } = await adminClient
+          .from("public_rsvp_tokens")
+          .select("token, share_token, item_id, email, expires_at, last_sent_at")
+          .eq("token", legacyRecoveryToken)
+          .maybeSingle();
+
+        if (tokenErr) {
+          console.error("[notify-rsvp-recovery] token fetch error:", tokenErr);
+          log({
+            level: "error",
+            fn: FN,
+            event: "rpc.public_rsvp_tokens_select_failed",
+            error: tokenErr.message,
+            context: { event_id: linkRow.event_id },
+          });
+          return jsonResponse({ error: "Failed to verify recovery token." }, 500);
+        }
+        if (!data || data.share_token !== shareToken) {
+          return jsonResponse({ error: "Recovery token not found for this share." }, 404);
+        }
+        if (data.expires_at && new Date(data.expires_at) < new Date()) {
+          return jsonResponse({ error: "Recovery token has expired." }, 410);
+        }
+        tokenRow = data;
+      } else if (email) {
+        const { data: guestRow, error: guestErr } = await adminClient
+          .from("event_items")
+          .select("id, meta")
+          .eq("event_id", linkRow.event_id)
+          .eq("kind", "guest")
+          .eq("meta->>email", email)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (guestErr) {
+          log({
+            level: "error",
+            fn: FN,
+            event: "rpc.event_items_select_failed",
+            error: guestErr.message,
+            context: { event_id: linkRow.event_id },
+          });
+          return jsonResponse({ ok: true });
+        }
+        if (!guestRow) {
+          return jsonResponse({ ok: true });
+        }
+
+        const { data: existingToken, error: existingErr } = await adminClient
+          .from("public_rsvp_tokens")
+          .select("token, share_token, item_id, email, expires_at, last_sent_at")
+          .eq("share_token", shareToken)
+          .eq("item_id", guestRow.id)
+          .eq("email", email)
+          .gt("expires_at", new Date().toISOString())
+          .order("last_sent_at", { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingErr) {
+          log({
+            level: "error",
+            fn: FN,
+            event: "rpc.public_rsvp_tokens_select_failed",
+            error: existingErr.message,
+            context: { event_id: linkRow.event_id, item_id: guestRow.id },
+          });
+          return jsonResponse({ ok: true });
+        }
+
+        if (existingToken) {
+          const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+          const { data: refreshedToken, error: refreshErr } = await adminClient
+            .from("public_rsvp_tokens")
+            .update({ expires_at: expiresAt })
+            .eq("token", existingToken.token)
+            .select("token, share_token, item_id, email, expires_at, last_sent_at")
+            .maybeSingle();
+          if (refreshErr) {
+            log({
+              level: "warn",
+              fn: FN,
+              event: "rpc.public_rsvp_tokens_refresh_failed",
+              error: refreshErr.message,
+              context: { event_id: linkRow.event_id, item_id: guestRow.id },
+            });
+          }
+          tokenRow = refreshedToken ?? existingToken;
+        } else {
+          const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+          const { data: insertedToken, error: insertErr } = await adminClient
+            .from("public_rsvp_tokens")
+            .insert({
+              share_token: shareToken,
+              item_id: guestRow.id,
+              email,
+              expires_at: expiresAt,
+            })
+            .select("token, share_token, item_id, email, expires_at, last_sent_at")
+            .maybeSingle();
+
+          if (insertErr) {
+            log({
+              level: "error",
+              fn: FN,
+              event: "rpc.public_rsvp_tokens_insert_failed",
+              error: insertErr.message,
+              context: { event_id: linkRow.event_id, item_id: guestRow.id },
+            });
+            return jsonResponse({ ok: true });
+          }
+          tokenRow = insertedToken;
+        }
       }
-      if (!tokenRow || tokenRow.share_token !== shareToken) {
-        return jsonResponse({ error: "Recovery token not found for this share." }, 404);
-      }
-      if (tokenRow.expires_at && new Date(tokenRow.expires_at) < new Date()) {
-        return jsonResponse({ error: "Recovery token has expired." }, 410);
+
+      if (!tokenRow) {
+        return jsonResponse({ ok: true });
       }
 
       // Cool-down: refuse to resend within 60s of the last successful send.
@@ -241,7 +349,7 @@ serve(async (req: Request) => {
       };
       const eventName = event.name || "your event";
       const recoveryUrl = `${APP_URL}/s/${encodeURIComponent(shareToken)}?rsvp_token=${encodeURIComponent(
-        recoveryToken
+        tokenRow.token
       )}`;
       const subject = `Update your RSVP for ${eventName}`;
 
@@ -265,7 +373,7 @@ serve(async (req: Request) => {
       const { error: updateErr } = await adminClient
         .from("public_rsvp_tokens")
         .update({ last_sent_at: new Date().toISOString() })
-        .eq("token", recoveryToken);
+        .eq("token", tokenRow.token);
       if (updateErr) {
         log({
           level: "warn",
@@ -291,7 +399,7 @@ serve(async (req: Request) => {
         },
       });
 
-      return jsonResponse({ ok: true, email: emailResult });
+      return jsonResponse(legacyRecoveryToken ? { ok: true, email: emailResult } : { ok: true });
     } catch (err) {
       console.error("[notify-rsvp-recovery]", err);
       return jsonResponse({ error: (err as Error).message }, 500);

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Check, Mail, Send } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import type { RequestRsvpRecoveryResult } from "../../lib/types.rsvpRecovery";
 
 export interface RecoveryLinkBannerProps {
   shareToken: string;
@@ -19,7 +18,7 @@ export default function RecoveryLinkBanner({
     setStatus("sending");
     setErrorMsg(null);
     try {
-      const { data, error } = await supabase.rpc("request_rsvp_recovery", {
+      const { error } = await supabase.rpc("request_rsvp_recovery", {
         _share_token: shareToken,
         _email: email,
       });
@@ -28,20 +27,16 @@ export default function RecoveryLinkBanner({
         // for casually-snooping observers, but log for debugging.
         console.warn("[rsvp recovery] request error:", error);
       }
-      const result = (data ?? null) as RequestRsvpRecoveryResult | null;
-      const recoveryToken = result?.token ?? null;
 
-      if (recoveryToken) {
-        const { error: fnError } = await supabase.functions.invoke(
-          "notify-rsvp-recovery",
-          {
-            body: { share_token: shareToken, recovery_token: recoveryToken },
-          },
-        );
-        if (fnError) {
-          // Even on a function failure, don't reveal whether the email matched.
-          console.warn("[rsvp recovery] notify error:", fnError);
-        }
+      const { error: fnError } = await supabase.functions.invoke(
+        "notify-rsvp-recovery",
+        {
+          body: { share_token: shareToken, email },
+        },
+      );
+      if (fnError) {
+        // Even on a function failure, don't reveal whether the email matched.
+        console.warn("[rsvp recovery] notify error:", fnError);
       }
       setStatus("sent");
     } catch (err) {

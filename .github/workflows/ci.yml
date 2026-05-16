@@ -46,8 +46,8 @@ jobs:
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
           E2E_DISPLAY_NAME: ${{ secrets.E2E_DISPLAY_NAME }}
-      - name: Deploy env parity (non-blocking hints)
-        run: node scripts/check-deploy-env.mjs
+      - name: Deploy env parity
+        run: node scripts/check-deploy-env.mjs --strict
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}

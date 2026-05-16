@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 function securityTxtBuild(): PluginOption {
   return {
     name: "security-txt-build",
-      closeBundle() {
+    closeBundle() {
       const contact =
         process.env.VITE_SECURITY_CONTACT?.trim() ||
         process.env.SECURITY_CONTACT?.trim() ||

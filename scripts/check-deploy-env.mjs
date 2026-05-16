@@ -45,6 +45,25 @@ function want(name, hint, predicate = (v) => !!v?.trim()) {
   if (!predicate(v)) issues.push({ level: "warn", msg: `Optional ${name} unset or weak — ${hint}` });
 }
 
+function validateUrl(name, hint, { requireHttps = false, noTrailingSlash = false } = {}) {
+  const v = process.env[name]?.trim();
+  if (!v) return;
+  try {
+    const parsed = new URL(v);
+    if (!/^https?:$/.test(parsed.protocol)) {
+      issues.push({ level: "fail", msg: `${name} must be http(s) — ${hint}` });
+    }
+    if (requireHttps && parsed.protocol !== "https:") {
+      issues.push({ level: "warn", msg: `${name} should use https in production — ${hint}` });
+    }
+    if (noTrailingSlash && v.endsWith("/")) {
+      issues.push({ level: "warn", msg: `${name} should not have a trailing slash — ${hint}` });
+    }
+  } catch {
+    issues.push({ level: "fail", msg: `${name} is not a valid URL — ${hint}` });
+  }
+}
+
 // Required for anything beyond SetupNotice in the built app
 need("VITE_SUPABASE_URL", "Supabase project URL (Vercel + CI for real builds).");
 need("VITE_SUPABASE_ANON_KEY", "Supabase anon key.");
@@ -53,6 +72,11 @@ want(
   "VITE_PUBLIC_SITE_URL",
   "canonical URLs for OG/public share (no trailing slash).",
 );
+validateUrl("VITE_SUPABASE_URL", "Supabase project URL.");
+validateUrl("VITE_PUBLIC_SITE_URL", "canonical URLs for OG/public share.", {
+  requireHttps: true,
+  noTrailingSlash: true,
+});
 want(
   "VITE_SECURITY_CONTACT",
   "RFC 9116 Contact for security.txt (avoid @example.com / @invalid placeholders in production).",
@@ -75,6 +99,11 @@ if (!process.env.APP_URL?.trim()) {
   issues.push({
     level: "warn",
     msg: "APP_URL not set in this shell — must be set on Supabase Edge secrets to match production.",
+  });
+} else {
+  validateUrl("APP_URL", "Supabase Edge functions use this origin for emails.", {
+    requireHttps: true,
+    noTrailingSlash: true,
   });
 }
 

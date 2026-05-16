@@ -56,6 +56,10 @@ export default function RsvpForm({
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorId = `${baseId}-error`;
+  const nameHelpId = `${baseId}-name-help`;
+  const emailHelpId = `${baseId}-email-help`;
+  const plusOnesHelpId = `${baseId}-plus-ones-help`;
   const detailsRef = useRef<HTMLDivElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const wasCollapsedRef = useRef<boolean>(rsvp === null);
@@ -249,7 +253,12 @@ export default function RsvpForm({
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Alex Rivera"
                 aria-required="true"
+                aria-describedby={error ? `${nameHelpId} ${errorId}` : nameHelpId}
+                aria-invalid={Boolean(error && !name.trim())}
               />
+              <p id={nameHelpId} className="sr-only">
+                Required. Enter the name the host should see on your RSVP.
+              </p>
             </div>
             <div>
               <label className="label" htmlFor={`${baseId}-email`}>Email (optional)</label>
@@ -261,8 +270,9 @@ export default function RsvpForm({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="alex@example.com"
+                aria-describedby={emailHelpId}
               />
-              <p className="text-xs text-slate-400 mt-1">
+              <p id={emailHelpId} className="text-xs text-slate-400 mt-1">
                 Adding email lets you edit this RSVP from any device later.
               </p>
             </div>
@@ -282,7 +292,11 @@ export default function RsvpForm({
                 onChange={(e) =>
                   setPlusOnes(Math.max(0, Math.min(50, Number(e.target.value) || 0)))
                 }
+                aria-describedby={plusOnesHelpId}
               />
+              <p id={plusOnesHelpId} className="sr-only">
+                Enter a number from 0 to 50.
+              </p>
             </div>
             <div>
               <label className="label" htmlFor={`${baseId}-dietary`}>Dietary needs</label>
@@ -312,6 +326,7 @@ export default function RsvpForm({
 
         {error && (
           <div
+            id={errorId}
             className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2"
             role="alert"
           >

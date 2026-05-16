@@ -122,9 +122,20 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
 
       // Pick "I'm in" — this expands the details form and focuses the name.
       await publicPage.getByRole("radio", { name: /i'm in/i }).check();
+      const nameInput = publicPage.getByLabel(/your name/i);
+
+      // Required-name errors are exposed through both alert text and input
+      // invalid state so screen-reader users get the same recovery path.
+      await publicPage
+        .getByRole("button", { name: /send rsvp|update rsvp|save changes/i })
+        .click();
+      await expect(
+        publicPage.getByRole("alert").filter({ hasText: /please tell us your name/i }),
+      ).toBeVisible();
+      await expect(nameInput).toHaveAttribute("aria-invalid", "true");
 
       // Name input is required; everything else is optional.
-      await publicPage.getByLabel(/your name/i).fill(guestName);
+      await nameInput.fill(guestName);
 
       // Submit (label varies between Send/Update RSVP/Save changes).
       await publicPage

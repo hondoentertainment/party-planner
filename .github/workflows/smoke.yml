@@ -41,7 +41,11 @@ jobs:
           paths="${SMOKE_PATHS:-/ /healthz /privacy /terms}"
           failed=0
           for p in $paths; do
-            url="${base}${p}"
+            case "$p" in
+              /*) path="$p" ;;
+              *) path="/$p" ;;
+            esac
+            url="${base}${path}"
             code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 -L "$url")
             echo "HTTP $code — $url"
             if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then

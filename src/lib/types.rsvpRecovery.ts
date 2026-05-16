@@ -23,11 +23,6 @@ export interface PublicRsvpRecoveryArgs {
  *  matched a saved RSVP. The server side is intentionally anti-enumeration. */
 export interface RequestRsvpRecoveryResult {
   ok: true;
-  /** Surfaced ONLY when the row was created or refreshed — used by the client
-   *  to immediately invoke the `notify-rsvp-recovery` Edge Function with the
-   *  freshly-issued token. May be omitted for unknown emails to avoid leaking
-   *  membership. */
-  token?: string | null;
 }
 
 /** Shape returned by `lookup_rsvp_by_token(_token uuid)` for a valid,
@@ -50,12 +45,11 @@ export interface LookupRsvpByTokenResult {
   };
 }
 
-/** Payload for the `notify-rsvp-recovery` Edge Function. Anon-callable; only
- *  the share token is required (the function looks up the active recovery
- *  token row server-side). */
+/** Payload for the `notify-rsvp-recovery` Edge Function. Anon-callable and
+ * anti-enumeration: the function looks up and sends the token server-side. */
 export interface NotifyRsvpRecoveryPayload {
   share_token: string;
-  recovery_token: string;
+  email: string;
 }
 
 export interface NotifyRsvpRecoveryResult {

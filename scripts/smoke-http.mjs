@@ -50,13 +50,31 @@ if (!rawBase) {
   process.exit(2);
 }
 
-const base = rawBase.replace(/\/+$/, "");
+let base;
+try {
+  const parsed = new URL(rawBase);
+  if (!/^https?:$/.test(parsed.protocol)) throw new Error(`Unsupported protocol: ${parsed.protocol}`);
+  parsed.hash = "";
+  parsed.search = "";
+  parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+  base = parsed.toString().replace(/\/+$/, "");
+} catch (e) {
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error(`[ops:smoke] Invalid SMOKE_URL / origin: ${rawBase} (${msg})`);
+  process.exit(2);
+}
 
 const paths = (process.env.SMOKE_PATHS ?? "/ /healthz /privacy /terms").trim().split(/\s+/);
 let failed = 0;
 
 async function probe(pathname) {
-  const url = new URL(pathname, base.endsWith("/") ? base : `${base}/`);
+  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const url = new URL(normalizedPath, `${base}/`);
+  if (url.origin !== new URL(base).origin) {
+    console.log(`FAIL — ${normalizedPath} escapes configured origin`);
+    failed++;
+    return;
+  }
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
