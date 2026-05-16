@@ -119,6 +119,12 @@ import type {
   UserEventTemplate,
   UserNotification,
 } from "./database.types";
+import type { Database } from "./database.types.gen";
+
+type EventScopedTable = Extract<
+  keyof Database["public"]["Tables"],
+  "event_budget_items" | "event_vendors" | "event_share_links"
+>;
 
 /* ---------- Events list ---------- */
 export function useMyEvents() {
@@ -520,8 +526,8 @@ export function useNotifications(userId: string | undefined) {
 
 function useEventScopedRows<T extends { event_id: string }>(
   eventId: string | undefined,
-  table: string,
-  orderColumn = "created_at"
+  table: EventScopedTable,
+  orderColumn = "created_at",
 ) {
   const [rows, setRows] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -537,7 +543,7 @@ function useEventScopedRows<T extends { event_id: string }>(
       reportSupabaseReadFailure(`useEventScopedRows.${table}.select`, error, { eventId });
       setRows([]);
     } else {
-      setRows((data ?? []) as T[]);
+      setRows((data ?? []) as unknown as T[]);
     }
     setLoading(false);
   }, [eventId, orderColumn, table]);

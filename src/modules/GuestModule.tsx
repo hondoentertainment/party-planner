@@ -22,7 +22,7 @@ import { useDebouncedSave } from "../lib/useDebouncedSave";
 
 type Rsvp = "yes" | "no" | "maybe" | "pending";
 
-interface GuestMeta {
+interface GuestMeta extends Record<string, unknown> {
   email?: string;
   rsvp?: Rsvp;
   plus_one?: boolean;

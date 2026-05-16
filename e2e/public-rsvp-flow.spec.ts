@@ -16,9 +16,10 @@ test.describe("public share — empty-state hero structure", () => {
   // null) and the "could not load share link" error variant (RPC errored or
   // Supabase env is missing in the build) — both render the same hero card.
   // See `share-revoked.spec.ts` for prior art.
-  const HERO_HEADING = /share link unavailable|could not load share link/i;
+  const HERO_HEADING =
+    /invitation link inactive|share link unavailable|could not load share link|could not load invite/i;
   const HERO_BODY =
-    /disabled, expired, or mistyped|missing share token|we couldn't load this share link/i;
+    /disabled, expired|turned off by the host|could not be found|ask the host|missing share token|internet connection|timed out|went wrong while loading|mistyped/i;
 
   test("renders the unavailable card with the canonical home CTA", async ({ page }) => {
     await page.goto("/s/-");

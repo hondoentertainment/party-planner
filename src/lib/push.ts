@@ -1,3 +1,4 @@
+import type { Json } from "./database.types.gen";
 import { supabase } from "./supabase";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -44,7 +45,7 @@ export async function subscribeToPush(): Promise<{ ok: boolean; error?: string }
   const { error } = await supabase.from("web_push_subscriptions").insert({
     user_id: user.id,
     endpoint: json.endpoint,
-    subscription: json as unknown as Record<string, unknown>,
+    subscription: json as unknown as Json,
     user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
   });
   if (error) return { ok: false, error: error.message };

@@ -9,7 +9,7 @@ import { logActivity } from "../lib/activity";
 import { AssigneePicker } from "./ChecklistModule";
 import { SortableList, SortableRow } from "../components/Sortable";
 
-interface MusicMeta {
+interface MusicMeta extends Record<string, unknown> {
   artist?: string;
   url?: string;
   set?: string; // 'arrival' | 'main' | 'late'

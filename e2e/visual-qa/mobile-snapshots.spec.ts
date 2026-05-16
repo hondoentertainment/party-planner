@@ -89,7 +89,9 @@ test.describe("Mobile visual QA — iPhone 14 Pro", () => {
     // "Could not load share link" (rpc errored). Both are acceptable
     // empty states for the redesigned hero.
     const heading = page
-      .getByRole("heading", { name: /share link unavailable|could not load share link/i })
+      .getByRole("heading", {
+        name: /invitation link inactive|share link unavailable|could not load share link|could not load invite/i,
+      })
       .first();
     await expect(heading).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("link", { name: /go to party planner/i })).toBeVisible();

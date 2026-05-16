@@ -7,7 +7,7 @@ name: CI
 #   VITE_SENTRY_DSN, VITE_PLAUSIBLE_DOMAIN — optional analytics / errors.
 #   E2E_EMAIL, E2E_PASSWORD, E2E_DISPLAY_NAME — dedicated Auth user; without email/password, signed-in Playwright tests are skipped.
 #   SMOKE_URL — for manual Smoke workflow (OPERATIONS.md §7).
-# Optional repo **Variables**: SMOKE_PATHS (space-separated paths; default / /privacy /terms).
+# Optional repo **Variables**: SMOKE_PATHS (space-separated paths; Smoke default `/ /healthz /privacy /terms`).
 # See README "E2E and CI" and OPERATIONS.md §7.
 
 on:

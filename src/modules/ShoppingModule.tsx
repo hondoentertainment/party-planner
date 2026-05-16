@@ -11,7 +11,7 @@ import { AssigneePicker } from "./ChecklistModule";
 import { formatMoney } from "../lib/format";
 import { SortableList, SortableRow } from "../components/Sortable";
 
-interface ShopMeta {
+interface ShopMeta extends Record<string, unknown> {
   store?: string;
   qty?: number;
   unit?: string;

@@ -2,6 +2,7 @@
  * Sanity-check variables for production parity (Vercel vs CI vs Supabase Edge).
  * Does not fail by default — prints PASS/WARN/FAIL lines. Exit 1 only with --strict
  * when a required Vite var is missing (use in release pipelines if desired).
+ * On GitHub Actions, warns when E2E_EMAIL / E2E_PASSWORD are unset (Playwright skips).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -58,6 +59,16 @@ want(
   (v) => !!v?.trim() && !/@example\.com|security@example|@invalid|not-configured/i.test(v),
 );
 want("VITE_SENTRY_DSN", "browser error reporting (optional but recommended for prod).");
+
+if (process.env.GITHUB_ACTIONS === "true") {
+  if (!process.env.E2E_EMAIL?.trim() || !process.env.E2E_PASSWORD?.trim()) {
+    issues.push({
+      level: "warn",
+      msg:
+        "GitHub Actions: E2E_EMAIL / E2E_PASSWORD unset — signed-in Playwright tests skip (set repo Secrets → Actions).",
+    });
+  }
+}
 
 // Edge / email parity (not Vite — remind operator)
 if (!process.env.APP_URL?.trim()) {

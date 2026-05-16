@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         Skip to main content
       </a>
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 pt-[env(safe-area-inset-top,0px)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg">
             <span className="w-8 h-8 rounded-lg bg-brand-600 text-white grid place-items-center shadow-pop" aria-hidden>
@@ -144,7 +144,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 aria-haspopup="menu"
                 aria-expanded={desktopMenuOpen}
                 aria-label={`Account menu for ${displayName}`}
-                className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 min-h-[40px]"
+                className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 min-h-[44px]"
               >
                 <span
                   className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-xs font-semibold"
@@ -177,7 +177,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     to="/settings"
                     role="menuitem"
                     onClick={() => setDesktopMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 min-h-[40px]"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 min-h-[44px]"
                   >
                     <Settings size={16} className="text-slate-500" aria-hidden />
                     Settings
@@ -189,7 +189,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       setDesktopMenuOpen(false);
                       setBugReportOpen(true);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 min-h-[40px]"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 min-h-[44px]"
                   >
                     <Bug size={16} className="text-slate-500" aria-hidden />
                     Report a bug
@@ -201,7 +201,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       await signOut();
                       setDesktopMenuOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 min-h-[40px]"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 min-h-[44px]"
                   >
                     <LogOut size={16} aria-hidden />
                     Sign out
@@ -234,7 +234,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <PushPrompt />
 
-      <main id="main-content" className="flex-1" tabIndex={-1}>
+      <main id="main-content" className="flex-1 pb-[env(safe-area-inset-bottom,0px)]" tabIndex={-1}>
         {children}
       </main>
 

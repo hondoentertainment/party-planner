@@ -26,6 +26,8 @@ npm run dev                 # default http://localhost:5173
 npm run build
 npm run lint
 npm run verify      # lint + build + playwright (optional E2E_* in .env or env)
+npm run preflight   # lint + build + check-deploy-env (no Playwright; good before push)
+npm run ops:smoke -- https://<deployed-origin>   # HTTP smoke (default paths mirror GitHub Smoke; also SMOKE_URL in .env.local)
 npm run db:types   # optional; writes src/lib/database.types.gen.ts
 ```
 

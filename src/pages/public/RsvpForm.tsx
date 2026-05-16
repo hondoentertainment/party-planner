@@ -121,10 +121,7 @@ export default function RsvpForm({
     };
     if (recoveryToken) args._recovery_token = recoveryToken;
 
-    const { data, error: rpcError } = await supabase.rpc(
-      "submit_public_rsvp",
-      args as unknown as Record<string, unknown>,
-    );
+    const { data, error: rpcError } = await supabase.rpc("submit_public_rsvp", args);
     setSubmitting(false);
     if (rpcError) {
       setError(friendlyRsvpError(rpcError.message));

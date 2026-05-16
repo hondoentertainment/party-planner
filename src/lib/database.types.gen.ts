@@ -3,6 +3,7 @@
  * Regenerate with `npm run db:types` when the remote schema changes; diff the
  * result against this file before committing. Aligns with
  * `supabase/migrations/*.sql` and @supabase/postgrest-js GenericSchema.
+ * Rows extend `Record<string, unknown>` so the schema works with `createClient<Database>()`.
  *
  * Application code should import from `database.types.ts` (re-exports all
  * symbols) so import paths stay stable when this file is refreshed.
@@ -36,7 +37,7 @@ export type CollabRole = "owner" | "editor" | "viewer";
 export type BugReportSeverity = "low" | "medium" | "high" | "critical";
 export type BugReportStatus = "open" | "triaging" | "resolved" | "wontfix";
 
-export interface Profile {
+export interface Profile extends Record<string, unknown> {
   id: string;
   email: string | null;
   display_name: string | null;
@@ -44,7 +45,7 @@ export interface Profile {
   created_at: string;
 }
 
-export interface EventRow {
+export interface EventRow extends Record<string, unknown> {
   id: string;
   owner_id: string;
   name: string;
@@ -65,7 +66,7 @@ export interface EventRow {
   updated_at: string;
 }
 
-export interface EventCollaborator {
+export interface EventCollaborator extends Record<string, unknown> {
   event_id: string;
   user_id: string;
   role: CollabRole;
@@ -73,7 +74,7 @@ export interface EventCollaborator {
   created_at: string;
 }
 
-export interface EventItem {
+export interface EventItem extends Record<string, unknown> {
   id: string;
   event_id: string;
   kind: ItemKind;
@@ -90,7 +91,7 @@ export interface EventItem {
   created_by: string | null;
 }
 
-export interface EventActivity {
+export interface EventActivity extends Record<string, unknown> {
   id: string;
   event_id: string;
   actor_id: string | null;
@@ -98,7 +99,7 @@ export interface EventActivity {
   created_at: string;
 }
 
-export interface UserNotification {
+export interface UserNotification extends Record<string, unknown> {
   id: string;
   user_id: string;
   event_id: string | null;
@@ -110,7 +111,7 @@ export interface UserNotification {
   created_at: string;
 }
 
-export interface BugReport {
+export interface BugReport extends Record<string, unknown> {
   id: string;
   reporter_id: string | null;
   event_id: string | null;
@@ -123,14 +124,14 @@ export interface BugReport {
   updated_at: string;
 }
 
-export interface EventBudgetItemMeta {
+export interface EventBudgetItemMeta extends Record<string, unknown> {
   paid_by_name?: string | null;
   split_with?: string[] | null;
   payment_app?: "venmo" | "cashapp" | "zelle" | null;
   payment_handle?: string | null;
 }
 
-export interface EventBudgetItem {
+export interface EventBudgetItem extends Record<string, unknown> {
   id: string;
   event_id: string;
   label: string;
@@ -145,7 +146,7 @@ export interface EventBudgetItem {
   updated_at: string;
 }
 
-export interface EventVendor {
+export interface EventVendor extends Record<string, unknown> {
   id: string;
   event_id: string;
   name: string;
@@ -163,7 +164,7 @@ export interface EventVendor {
   updated_at: string;
 }
 
-export interface UserEventTemplate {
+export interface UserEventTemplate extends Record<string, unknown> {
   id: string;
   owner_id: string;
   source_event_id: string | null;
@@ -176,7 +177,7 @@ export interface UserEventTemplate {
   updated_at: string;
 }
 
-export interface TemplateSnapshotItem {
+export interface TemplateSnapshotItem extends Record<string, unknown> {
   kind: ItemKind;
   phase?: Phase | null;
   title: string;
@@ -185,7 +186,7 @@ export interface TemplateSnapshotItem {
   position?: number;
 }
 
-export interface EventShareLink {
+export interface EventShareLink extends Record<string, unknown> {
   id: string;
   event_id: string;
   token: string;
@@ -199,7 +200,7 @@ export interface EventShareLink {
   last_emailed_at: string | null;
 }
 
-export interface EventWrapUp {
+export interface EventWrapUp extends Record<string, unknown> {
   event_id: string;
   summary: string | null;
   lessons: string | null;
@@ -224,7 +225,7 @@ export type NotificationOptOutKind =
   | "wrap_up_1d"
   | "all";
 
-export interface NotificationOptOut {
+export interface NotificationOptOut extends Record<string, unknown> {
   user_id: string;
   kind: NotificationOptOutKind;
   created_at: string;
@@ -234,14 +235,14 @@ export interface NotificationOptOut {
  * Per-user, per-event scheduled-reminder mutes (migration 0016). Rows suppress
  * that reminder kind for this event only; `kind = 'all'` mutes every cadence.
  */
-export interface EventNotificationMute {
+export interface EventNotificationMute extends Record<string, unknown> {
   user_id: string;
   event_id: string;
   kind: NotificationOptOutKind;
   created_at: string;
 }
 
-export interface PendingEventInvitation {
+export interface PendingEventInvitation extends Record<string, unknown> {
   id: string;
   event_id: string;
   email: string;
@@ -254,7 +255,7 @@ export interface PendingEventInvitation {
 }
 
 /** Migration 0003 — web push subscriptions for assignment notifications. */
-export interface WebPushSubscriptionRow {
+export interface WebPushSubscriptionRow extends Record<string, unknown> {
   id: string;
   user_id: string;
   endpoint: string;
@@ -263,18 +264,18 @@ export interface WebPushSubscriptionRow {
   created_at: string;
 }
 
-export interface ClaimPendingInvitationsResult {
+export interface ClaimPendingInvitationsResult extends Record<string, unknown> {
   claimed: number;
   event_ids: string[];
 }
 
-export interface RevokePendingInvitationResult {
+export interface RevokePendingInvitationResult extends Record<string, unknown> {
   ok: boolean;
   deleted: number;
   event_id?: string;
 }
 
-export interface PublicRsvpPayload {
+export interface PublicRsvpPayload extends Record<string, unknown> {
   name: string;
   email?: string;
   rsvp: "yes" | "maybe" | "no";
@@ -283,17 +284,17 @@ export interface PublicRsvpPayload {
   notes?: string;
 }
 
-export interface PublicRsvpResult {
+export interface PublicRsvpResult extends Record<string, unknown> {
   ok: boolean;
   item_id: string;
 }
 
-export interface PublicEventShareHost {
+export interface PublicEventShareHost extends Record<string, unknown> {
   display_name: string | null;
   initial: string;
 }
 
-export interface PublicEventShare {
+export interface PublicEventShare extends Record<string, unknown> {
   event: Pick<
     EventRow,
     | "id"
@@ -439,7 +440,9 @@ export interface Database {
         Relationships: [];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      [_ in never]: never;
+    };
     Functions: {
       invite_collaborator: {
         Args: { _event_id: string; _email: string; _role?: CollabRole };

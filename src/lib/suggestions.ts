@@ -95,7 +95,7 @@ export interface SuggestionContext {
 // We always guard each access with a default and never trust the values.
 // ---------------------------------------------------------------------------
 
-interface GuestMeta {
+interface GuestMeta extends Record<string, unknown> {
   rsvp?: string;
   /** Newer numeric shape, if present. */
   plus_ones?: number;
@@ -104,11 +104,11 @@ interface GuestMeta {
   plus_one_count?: number;
 }
 
-interface FoodMeta {
+interface FoodMeta extends Record<string, unknown> {
   servings?: number;
 }
 
-interface ShoppingMeta {
+interface ShoppingMeta extends Record<string, unknown> {
   cost_cents?: number;
 }
 

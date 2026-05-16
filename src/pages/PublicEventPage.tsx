@@ -39,7 +39,12 @@ import {
   publicShareCanonicalUrl,
   resetPublicPageMeta,
 } from "../lib/documentMeta";
+import {
+  messageForShareRpcError,
+  shareUnavailableExplanation,
+} from "../lib/publicShareLoadMessage";
 import { BugReportDialog } from "../components/BugReportDialog";
+import { InvalidRecoveryTokenBanner } from "../components/InvalidRecoveryTokenBanner";
 import { LegalFooter } from "../components/LegalFooter";
 import { EventCoverBackdrop } from "../components/EventCoverBackdrop";
 import {
@@ -75,6 +80,7 @@ export function PublicEventPage() {
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<LookupRsvpByTokenResult | null>(null);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryHint, setRecoveryHint] = useState<"none" | "not_found" | "rpc_error">("none");
   const [publicBugOpen, setPublicBugOpen] = useState(false);
 
   const refreshShare = useCallback(async () => {
@@ -92,19 +98,24 @@ export function PublicEventPage() {
       setLoading(false);
       return;
     }
+    const shareToken = token;
     let cancelled = false;
     async function run() {
       setError(null);
       const { data, error: loadError } = await supabase.rpc(
         "get_public_event_share",
-        { _token: token },
+        { _token: shareToken },
       );
       if (cancelled) return;
       if (loadError) {
-        setError("We couldn't load this share link. Please try again.");
+        setError(messageForShareRpcError(loadError));
         setShare(null);
+      } else if (data === null || data === undefined) {
+        setShare(null);
+        setError(null);
       } else {
         setShare((data ?? null) as PublicEventShare | null);
+        setError(null);
       }
       setLoading(false);
     }
@@ -120,18 +131,33 @@ export function PublicEventPage() {
   useEffect(() => {
     if (!recoveryParam) {
       setRecovery(null);
+      setRecoveryHint("none");
       return;
     }
     let cancelled = false;
     setRecoveryLoading(true);
+    setRecoveryHint("none");
     preloadRsvpForm();
     void (async () => {
-      const { data } = await supabase.rpc("lookup_rsvp_by_token", {
+      const { data, error: lookupError } = await supabase.rpc("lookup_rsvp_by_token", {
         _token: recoveryParam,
       });
       if (cancelled) return;
+      if (lookupError) {
+        console.warn("[rsvp lookup]", lookupError);
+        setRecovery(null);
+        setRecoveryHint("rpc_error");
+        setRecoveryLoading(false);
+        return;
+      }
       const parsed = (data ?? null) as LookupRsvpByTokenResult | null;
-      setRecovery(parsed);
+      if (!parsed) {
+        setRecovery(null);
+        setRecoveryHint("not_found");
+      } else {
+        setRecovery(parsed);
+        setRecoveryHint("none");
+      }
       setRecoveryLoading(false);
     })();
     return () => {
@@ -141,7 +167,7 @@ export function PublicEventPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (error || !share || !token) {
+    if (!share || !token) {
       resetPublicPageMeta();
       return;
     }
@@ -155,7 +181,7 @@ export function PublicEventPage() {
       description,
       canonicalUrl,
     });
-  }, [loading, error, share, token]);
+  }, [loading, share, token]);
 
   const tasks = useMemo(
     () => (share?.items ?? []).filter((item: EventItem) => item.kind === "task"),
@@ -177,7 +203,7 @@ export function PublicEventPage() {
   if (loading) {
     return (
       <div
-        className="min-h-screen grid place-items-center bg-slate-50 p-6"
+        className="min-h-screen grid place-items-center bg-slate-50 p-6 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]"
         role="status"
         aria-live="polite"
       >
@@ -189,16 +215,15 @@ export function PublicEventPage() {
     );
   }
   if (error || !share) {
+    const inactive = !error && !share;
     return (
-      <main className="min-h-screen grid place-items-center bg-slate-50 p-6">
+      <main className="min-h-screen grid place-items-center bg-slate-50 p-6 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))]">
         <div className="card p-8 text-center max-w-md">
           <PartyPopper className="mx-auto text-slate-300 mb-3" size={36} />
           <h1 className="font-display text-xl font-bold">
-            {error ? "Could not load share link" : "Share link unavailable"}
+            {inactive ? "Invitation link inactive" : "Could not load invite"}
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {error ?? "This event link was disabled, expired, or mistyped."}
-          </p>
+          <p className="text-sm text-slate-500 mt-1">{error ?? shareUnavailableExplanation()}</p>
           <Link to="/" className="btn-primary mt-4">
             Go to Party Planner
           </Link>
@@ -221,7 +246,7 @@ export function PublicEventPage() {
   const maybeChip = summary.maybe > 0 ? `${summary.maybe} maybe` : null;
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 pb-[env(safe-area-inset-bottom,0px)]">
       {/* Item 2.1 — Hero */}
       <EventCoverBackdrop coverColor={event.cover_color} coverImageUrl={event.cover_image_url}>
         <section className="p-6 sm:p-10">
@@ -298,8 +323,10 @@ export function PublicEventPage() {
           recovery={recovery}
           recoveryToken={recoveryParam}
           recoveryLoading={recoveryLoading}
+          recoveryHint={recoveryHint}
           onClearRecovery={() => {
             setRecovery(null);
+            setRecoveryHint("none");
             const next = new URLSearchParams(searchParams);
             next.delete("rsvp_token");
             setSearchParams(next, { replace: true });
@@ -527,6 +554,7 @@ function RsvpCard({
   recovery,
   recoveryToken,
   recoveryLoading,
+  recoveryHint,
   onClearRecovery,
   onSubmitted,
 }: {
@@ -536,6 +564,7 @@ function RsvpCard({
   recovery: LookupRsvpByTokenResult | null;
   recoveryToken: string | null;
   recoveryLoading: boolean;
+  recoveryHint: "none" | "not_found" | "rpc_error";
   onClearRecovery: () => void;
   onSubmitted: () => void;
 }) {
@@ -623,6 +652,14 @@ function RsvpCard({
   const shouldLoadForm =
     pickedChoice !== null || stored !== null || Boolean(recoveryToken);
 
+  const recoveryBannerTop =
+    recoveryHint !== "none" && shouldLoadForm ? (
+      <InvalidRecoveryTokenBanner
+        kind={recoveryHint === "rpc_error" ? "rpc_error" : "not_found"}
+        onDismiss={onClearRecovery}
+      />
+    ) : null;
+
   if (!shouldLoadForm) {
     return (
       <RsvpChoicePlaceholder
@@ -634,21 +671,24 @@ function RsvpCard({
   }
 
   return (
-    <Suspense fallback={<RsvpFormSkeleton initialChoice={pickedChoice} />}>
-      <LazyRsvpForm
-        token={token}
-        eventName={eventName}
-        initial={stored}
-        initialChoice={pickedChoice ?? stored?.rsvp ?? null}
-        partifulUrl={partifulUrl}
-        isUpdate={Boolean(recovery)}
-        recoveryToken={recovery ? recoveryToken : null}
-        recoveryLoading={recoveryLoading}
-        onCancel={stored ? () => setEditing(false) : undefined}
-        onClearRecovery={onClearRecovery}
-        onSubmitted={handleSubmitted}
-      />
-    </Suspense>
+    <div className="space-y-3">
+      {recoveryBannerTop}
+      <Suspense fallback={<RsvpFormSkeleton initialChoice={pickedChoice} />}>
+        <LazyRsvpForm
+          token={token}
+          eventName={eventName}
+          initial={stored}
+          initialChoice={pickedChoice ?? stored?.rsvp ?? null}
+          partifulUrl={partifulUrl}
+          isUpdate={Boolean(recovery)}
+          recoveryToken={recovery ? recoveryToken : null}
+          recoveryLoading={recoveryLoading}
+          onCancel={stored ? () => setEditing(false) : undefined}
+          onClearRecovery={onClearRecovery}
+          onSubmitted={handleSubmitted}
+        />
+      </Suspense>
+    </div>
   );
 }
 

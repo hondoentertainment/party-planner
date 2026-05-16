@@ -30,11 +30,9 @@ export interface SortableItem {
  */
 export function SortableList<T extends SortableItem>({
   items,
-  table = "event_items",
   children,
 }: {
   items: T[];
-  table?: string;
   children: (item: T) => React.ReactNode;
 }) {
   const reduceMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
@@ -58,7 +56,7 @@ export function SortableList<T extends SortableItem>({
     // Run updates in parallel; UI will re-sort on the realtime echo.
     await Promise.all(
       updates.map((u) =>
-        supabase.from(table).update({ position: u.position }).eq("id", u.id)
+        supabase.from("event_items").update({ position: u.position }).eq("id", u.id),
       )
     );
   };

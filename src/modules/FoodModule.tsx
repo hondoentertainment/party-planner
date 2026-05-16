@@ -19,7 +19,7 @@ const COURSES = [
 
 const DIETARY_TAGS = ["VG", "GF", "DF", "Nut-free", "Spicy"];
 
-interface FoodMeta {
+interface FoodMeta extends Record<string, unknown> {
   course?: string;
   dietary?: string[];
   servings?: number;

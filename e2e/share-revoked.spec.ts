@@ -8,9 +8,10 @@ import { expect, test } from "@playwright/test";
 // branch in `src/pages/PublicEventPage.tsx` is reached when the RPC returns no
 // row (revoked, expired, mistyped) or the loader hits an error.
 
-const EMPTY_STATE_PATTERN = /share link unavailable|could not load share link/i;
+const EMPTY_STATE_PATTERN =
+  /invitation link inactive|share link unavailable|could not load share link|could not load invite/i;
 const EMPTY_STATE_BODY_PATTERN =
-  /this event link was disabled, expired, or mistyped|missing share token|we couldn't load this share link/i;
+  /disabled, expired|turned off by the host|could not be found|ask the host|missing share token|internet connection|timed out|went wrong while loading|mistyped/i;
 
 // If the bundle was built without `VITE_SUPABASE_*`, App.tsx renders
 // <SetupNotice /> on EVERY route — including /s/ — and we can't QA the

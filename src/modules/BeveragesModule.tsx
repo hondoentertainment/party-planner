@@ -16,7 +16,7 @@ const TYPES = [
   { key: "other", label: "Other", icon: GlassWater },
 ] as const;
 
-interface BevMeta {
+interface BevMeta extends Record<string, unknown> {
   type?: string;
   qty?: number;
   unit?: string;
