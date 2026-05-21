@@ -1,4 +1,4 @@
-import { expect, test } from "./test-fixture";
+import { expect, test, newPreparedBrowserContext } from "./test-fixture";
 import { AuthAgent } from "./agents/auth-agent";
 import { EventAgent } from "./agents/event-agent";
 import { getE2ECredentials } from "./agents/test-env";
@@ -24,7 +24,7 @@ test.describe("public share — bug report dialog", () => {
     await events.createBlankEvent(stamp);
     const publicUrl = await events.createPublicShareLink();
 
-    const publicContext = await browser.newContext();
+    const publicContext = await newPreparedBrowserContext(browser);
     const publicPage = await publicContext.newPage();
     try {
       await publicPage.goto(publicUrl);

@@ -1,4 +1,4 @@
-import { expect, test } from "./test-fixture";
+import { expect, test, newPreparedBrowserContext } from "./test-fixture";
 import { AuthAgent } from "./agents/auth-agent";
 import { EventAgent } from "./agents/event-agent";
 import { PublicEventAgent } from "./agents/public-event-agent";
@@ -69,7 +69,7 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
     });
     const publicUrl = await events.createPublicShareLink();
 
-    const publicContext = await browser.newContext();
+    const publicContext = await newPreparedBrowserContext(browser);
     const publicPage = await publicContext.newPage();
     const publicEvent = new PublicEventAgent(publicPage);
 
@@ -111,7 +111,7 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
     await events.createBlankEvent(stamp);
     const publicUrl = await events.createPublicShareLink();
 
-    const publicContext = await browser.newContext();
+    const publicContext = await newPreparedBrowserContext(browser);
     const publicPage = await publicContext.newPage();
 
     try {
@@ -170,7 +170,7 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
     await events.createBlankEvent(stamp);
     const publicUrl = await events.createPublicShareLink();
 
-    const publicContext = await browser.newContext();
+    const publicContext = await newPreparedBrowserContext(browser);
     const publicPage = await publicContext.newPage();
 
     try {
@@ -223,7 +223,7 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
     await events.createBlankEvent(stamp);
     const publicUrl = await events.createPublicShareLink();
 
-    const publicContext = await browser.newContext();
+    const publicContext = await newPreparedBrowserContext(browser);
     const publicPage = await publicContext.newPage();
 
     try {

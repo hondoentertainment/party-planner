@@ -1,13 +1,10 @@
-import { expect, test } from "./test-fixture";
+import { expect, test } from "./onboarding-fixture";
 import { AuthAgent } from "./agents/auth-agent";
+import { E2E_STORAGE_KEYS } from "./test-fixture";
 import { getE2ECredentials } from "./agents/test-env";
 
 const credentials = getE2ECredentials();
-
-// Item 24 — single, centered, dismissible onboarding tour gated by the
-// `onboarding-completed-v1` localStorage flag. The Dashboard mounts it ~400ms
-// after first paint when the flag is missing.
-const ONBOARDING_KEY = "onboarding-completed-v1";
+const ONBOARDING_KEY = E2E_STORAGE_KEYS.onboarding;
 
 test.describe("with E2E credentials — onboarding tour", () => {
   test.skip(
@@ -17,18 +14,15 @@ test.describe("with E2E credentials — onboarding tour", () => {
 
   test.beforeEach(async ({ page }) => {
     await new AuthAgent(page).signIn(credentials!);
-    // Reset the flag so each test sees a "first visit". We do this AFTER
-    // signing in so we're on the same origin Playwright can write to.
     await page.evaluate((key) => window.localStorage.removeItem(key), ONBOARDING_KEY);
-  });
-
-  test("auto-opens a centered modal with progress dots and welcome copy", async ({ page }) => {
-    // Reload so the Dashboard re-runs its first-paint check with no flag.
-    await page.goto("/");
+    // Force Dashboard to remount so the tour timer runs after the flag is cleared.
+    await page.reload();
     await expect(page.getByRole("heading", { name: /your events/i })).toBeVisible({
       timeout: 25_000,
     });
+  });
 
+  test("auto-opens a centered modal with progress dots and welcome copy", async ({ page }) => {
     const tour = page.getByRole("dialog").filter({ hasText: /welcome to party planner/i });
     await expect(tour).toBeVisible({ timeout: 5_000 });
 
@@ -55,11 +49,6 @@ test.describe("with E2E credentials — onboarding tour", () => {
   });
 
   test("clicking Skip persists the completed flag (no re-open on next visit)", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: /your events/i })).toBeVisible({
-      timeout: 25_000,
-    });
-
     const tour = page.getByRole("dialog").filter({ hasText: /welcome to party planner/i });
     await expect(tour).toBeVisible({ timeout: 5_000 });
 
@@ -81,11 +70,6 @@ test.describe("with E2E credentials — onboarding tour", () => {
   });
 
   test("Esc closes the tour without persisting (re-opens next visit)", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: /your events/i })).toBeVisible({
-      timeout: 25_000,
-    });
-
     const tour = page.getByRole("dialog").filter({ hasText: /welcome to party planner/i });
     await expect(tour).toBeVisible({ timeout: 5_000 });
 
