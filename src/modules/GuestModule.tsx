@@ -1,6 +1,7 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   Check,
+  Download,
   HelpCircle,
   Plus,
   Trash2,
@@ -12,7 +13,21 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import type { EventItem, EventRow } from "../lib/database.types";
-import { useEventItems, useEventPermissions } from "../lib/hooks";
+import {
+  dietaryTags,
+  exportGuestsCsv,
+  MAX_GUESTS,
+  plusOnesFromMeta,
+  type GuestMeta,
+  type GuestRsvpAnswer,
+  type GuestRsvpFilter,
+} from "../lib/guestStats";
+import {
+  fetchAllGuestsMatching,
+  useGuestMetaCounts,
+  useEventPermissions,
+  usePaginatedGuestItems,
+} from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
@@ -20,16 +35,7 @@ import { logActivity } from "../lib/activity";
 import { Modal } from "../components/Modal";
 import { useDebouncedSave } from "../lib/useDebouncedSave";
 
-type Rsvp = "yes" | "no" | "maybe" | "pending";
-
-interface GuestMeta extends Record<string, unknown> {
-  email?: string;
-  rsvp?: Rsvp;
-  plus_one?: boolean;
-  plus_one_count?: number;
-  dietary?: string[];
-  notes?: string;
-}
+type Rsvp = GuestRsvpAnswer;
 
 const DIETARY_OPTIONS = [
   "Vegetarian",
@@ -62,41 +68,41 @@ const RSVP_META: Record<Rsvp, { label: string; cls: string; dot: string }> = {
 };
 
 export function GuestModule({ event }: { event: EventRow }) {
-  const { items, loading, error, refresh } = useEventItems(event.id, "guest");
   const { user } = useAuth();
   const perms = useEventPermissions(event);
   const toast = useToast();
   const [newName, setNewName] = useState("");
-  const [filter, setFilter] = useState<Rsvp | "all">("all");
+  const [filter, setFilter] = useState<GuestRsvpFilter>("all");
+  const [search, setSearch] = useState("");
   const [showImport, setShowImport] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
   const newGuestId = useId();
+  const searchId = useId();
 
-  const counts = useMemo(() => {
-    const by: Record<Rsvp, number> = { yes: 0, no: 0, maybe: 0, pending: 0 };
-    let totalAttendees = 0;
-    for (const it of items) {
-      const m = (it.meta ?? {}) as GuestMeta;
-      const rsvp = (m.rsvp ?? "pending") as Rsvp;
-      by[rsvp]++;
-      if (rsvp === "yes") {
-        const plus = m.plus_one ? Math.max(0, m.plus_one_count ?? 1) : 0;
-        totalAttendees += 1 + plus;
-      }
-    }
-    return { ...by, totalAttendees, total: items.length };
-  }, [items]);
+  const {
+    items,
+    totalCount,
+    loading: guestsLoading,
+    loadingMore,
+    error,
+    refresh,
+    loadMore,
+  } = usePaginatedGuestItems(event.id, filter, search, { realtimeDebounceMs: 400 });
+  const { stats, loading: statsLoading } = useGuestMetaCounts(event.id);
 
-  const filtered = useMemo(() => {
-    if (filter === "all") return items;
-    return items.filter((it) => {
-      const m = (it.meta ?? {}) as GuestMeta;
-      return (m.rsvp ?? "pending") === filter;
-    });
-  }, [items, filter]);
+  const atGuestCap = stats.total >= MAX_GUESTS;
+
+  const counts = stats;
+
+  const hasMoreGuests = totalCount != null && items.length < totalCount;
 
   const addGuest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !user || !perms.canEdit) return;
+    if (atGuestCap) {
+      toast.error(`Guest list is full (${MAX_GUESTS} max). Remove someone or export and archive.`);
+      return;
+    }
     const name = newName.trim();
     setNewName("");
     const { error } = await supabase.from("event_items").insert({
@@ -104,7 +110,7 @@ export function GuestModule({ event }: { event: EventRow }) {
       kind: "guest" as const,
       title: name,
       created_by: user.id,
-      position: items.length,
+      position: stats.total,
       meta: { rsvp: "pending" } as GuestMeta,
     });
     if (error) {
@@ -127,29 +133,61 @@ export function GuestModule({ event }: { event: EventRow }) {
             bulk.
           </p>
         </div>
-        <button onClick={() => setShowImport(true)} className="btn-secondary text-sm" disabled={!perms.canEdit}>
-          <Clipboard size={14} /> Paste from Partiful
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              void (async () => {
+                setExportBusy(true);
+                try {
+                  const rows = await fetchAllGuestsMatching(event.id, filter, search);
+                  exportGuestsCsv(
+                    `guests-${String(event.title ?? "event").replace(/[^\w-]+/g, "_").slice(0, 40) || "event"}.csv`,
+                    rows,
+                  );
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Couldn't export guests.");
+                } finally {
+                  setExportBusy(false);
+                }
+              })();
+            }}
+            className="btn-secondary text-sm"
+            disabled={exportBusy || counts.total === 0}
+          >
+            <Download size={14} /> {exportBusy ? "Exporting…" : `Export CSV (${counts.total})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowImport(true)}
+            className="btn-secondary text-sm"
+            disabled={!perms.canEdit || atGuestCap}
+          >
+            <Clipboard size={14} /> Paste from Partiful
+          </button>
+        </div>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <SummaryCard label="Total" value={counts.total} icon={Users} />
-        <SummaryCard label="Going" value={counts.yes} accent="emerald" />
-        <SummaryCard label="Maybe" value={counts.maybe} accent="amber" />
-        <SummaryCard label="Not going" value={counts.no} accent="rose" />
+        <SummaryCard label="Total" value={counts.total} icon={Users} loading={statsLoading} />
+        <SummaryCard label="Going" value={counts.byRsvp.yes} accent="emerald" loading={statsLoading} />
+        <SummaryCard label="Maybe" value={counts.byRsvp.maybe} accent="amber" loading={statsLoading} />
+        <SummaryCard label="Not going" value={counts.byRsvp.no} accent="rose" loading={statsLoading} />
         <SummaryCard
           label="Heads to feed"
           value={counts.totalAttendees}
           accent="brand"
           icon={Utensils}
           hint="Confirmed + plus-ones"
+          loading={statsLoading}
         />
       </div>
 
-      {/* Filters + add */}
-      <div className="flex flex-wrap gap-2 items-center">
-        {(["all", "yes", "maybe", "pending", "no"] as const).map((f) => (
+      {/* Filters + search */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2 items-center">
+          {(["all", "yes", "maybe", "pending", "no"] as const).map((f) => (
           <button
             key={f}
             type="button"
@@ -164,10 +202,31 @@ export function GuestModule({ event }: { event: EventRow }) {
           >
             {f === "all"
               ? `All (${counts.total})`
-              : `${RSVP_META[f].label} (${(counts as Record<string, number>)[f]})`}
+              : `${RSVP_META[f].label} (${counts.byRsvp[f]})`}
           </button>
         ))}
+        </div>
+        <div className="w-full sm:max-w-xs">
+          <label htmlFor={searchId} className="sr-only">
+            Search guests by name or email
+          </label>
+          <input
+            id={searchId}
+            type="search"
+            className="input py-1.5 text-sm w-full"
+            placeholder="Search name or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
       </div>
+
+      {atGuestCap && (
+        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2" role="status">
+          Guest list has reached the maximum of {MAX_GUESTS}. Remove guests or export your list before adding more.
+        </p>
+      )}
 
       {perms.canEdit ? (
         <form onSubmit={addGuest} className="card p-2 flex items-center gap-2">
@@ -181,8 +240,9 @@ export function GuestModule({ event }: { event: EventRow }) {
             placeholder="Add guest name…"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
+            disabled={atGuestCap}
           />
-          <button className="btn-primary py-1.5 px-3 text-xs" disabled={!newName.trim()}>
+          <button className="btn-primary py-1.5 px-3 text-xs" disabled={!newName.trim() || atGuestCap}>
             Add
           </button>
         </form>
@@ -190,7 +250,7 @@ export function GuestModule({ event }: { event: EventRow }) {
         <div className="card p-3 text-sm text-slate-500">Viewer access: guest details are read-only.</div>
       )}
 
-      {loading ? (
+      {guestsLoading ? (
         <div className="card p-4 text-sm text-slate-500" role="status" aria-live="polite">
           Loading guests…
         </div>
@@ -201,28 +261,46 @@ export function GuestModule({ event }: { event: EventRow }) {
             Try again
           </button>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : items.length === 0 && !guestsLoading ? (
         <div className="card p-8 text-center text-slate-500 text-sm">
-          {items.length === 0
+          {!statsLoading && counts.total === 0
             ? "No guests yet. Add one above or paste a list from Partiful."
-            : `No guests match "${filter}".`}
+            : search.trim()
+              ? "No guests match your search."
+              : filter !== "all"
+                ? `No guests match "${filter}".`
+                : "No guests match the current filters."}
         </div>
       ) : (
-        <ul className="space-y-2">
-          {filtered.map((g) => (
-            <GuestRow key={g.id} item={g} eventId={event.id} canEdit={perms.canEdit} />
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-2">
+            {items.map((g) => (
+              <GuestRow key={g.id} item={g} eventId={event.id} canEdit={perms.canEdit} />
+            ))}
+          </ul>
+          {hasMoreGuests && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                className="btn-secondary text-sm"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+              >
+                {loadingMore
+                  ? "Loading…"
+                  : `Load more (${(totalCount ?? 0) - items.length} remaining)`}
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-slate-500 text-center">
+            Showing {items.length}
+            {totalCount != null ? ` of ${totalCount}` : ""}
+            {search.trim() || filter !== "all" ? " matching" : ""} guests (loaded)
+          </p>
+        </>
       )}
 
-      {showImport && (
-        <ImportDialog
-          eventId={event.id}
-          existingCount={items.length}
-          existingGuests={items}
-          onClose={() => setShowImport(false)}
-        />
-      )}
+      {showImport && <ImportDialog eventId={event.id} onClose={() => setShowImport(false)} />}
     </div>
   );
 }
@@ -233,12 +311,14 @@ function SummaryCard({
   accent,
   icon: Icon,
   hint,
+  loading: summaryLoading,
 }: {
   label: string;
   value: number;
   accent?: "emerald" | "amber" | "rose" | "brand";
   icon?: typeof Users;
   hint?: string;
+  loading?: boolean;
 }) {
   const accentCls =
     accent === "emerald"
@@ -256,7 +336,9 @@ function SummaryCard({
         {Icon && <Icon size={12} />}
         {label}
       </div>
-      <div className={`font-display text-2xl font-bold mt-1 ${accentCls}`}>{value}</div>
+      <div className={`font-display text-2xl font-bold mt-1 ${accentCls}`}>
+        {summaryLoading ? "…" : value}
+      </div>
       {hint && <div className="text-[11px] text-slate-400 mt-0.5">{hint}</div>}
     </div>
   );
@@ -265,6 +347,8 @@ function SummaryCard({
 function GuestRow({ item, eventId, canEdit }: { item: EventItem; eventId: string; canEdit: boolean }) {
   const meta = (item.meta ?? {}) as GuestMeta;
   const rsvp: Rsvp = meta.rsvp ?? "pending";
+  const plusN = plusOnesFromMeta(meta);
+  const dietTags = dietaryTags(meta);
   const [expanded, setExpanded] = useState(false);
   const { user } = useAuth();
   const toast = useToast();
@@ -295,7 +379,7 @@ function GuestRow({ item, eventId, canEdit }: { item: EventItem; eventId: string
   };
 
   const toggleDietary = async (tag: string) => {
-    const current = new Set(meta.dietary ?? []);
+    const current = new Set(dietTags);
     if (current.has(tag)) current.delete(tag);
     else current.add(tag);
     await updateMeta({ dietary: Array.from(current) });
@@ -314,19 +398,17 @@ function GuestRow({ item, eventId, canEdit }: { item: EventItem; eventId: string
           onChange={(e) => setTitleVal(e.target.value)}
           disabled={!canEdit}
         />
-        {meta.plus_one && (
-          <span className="chip bg-brand-50 text-brand-700">
-            +{meta.plus_one_count ?? 1}
-          </span>
+        {plusN > 0 && (
+          <span className="chip bg-brand-50 text-brand-700">+{plusN}</span>
         )}
-        {(meta.dietary ?? []).slice(0, 2).map((d) => (
+        {dietTags.slice(0, 2).map((d) => (
           <span key={d} className="chip bg-slate-100 text-slate-600">
             {d}
           </span>
         ))}
-        {(meta.dietary ?? []).length > 2 && (
+        {dietTags.length > 2 && (
           <span className="chip bg-slate-100 text-slate-600">
-            +{(meta.dietary ?? []).length - 2}
+            +{dietTags.length - 2}
           </span>
         )}
         <div className="flex items-center gap-1">
@@ -407,7 +489,7 @@ function GuestRow({ item, eventId, canEdit }: { item: EventItem; eventId: string
             <div className="label">Dietary restrictions</div>
             <div className="flex flex-wrap gap-1.5">
               {DIETARY_OPTIONS.map((d) => {
-                const active = (meta.dietary ?? []).includes(d);
+                const active = dietTags.includes(d);
                 return (
                   <button
                     key={d}
@@ -479,28 +561,57 @@ function RsvpButton({
 
 function ImportDialog({
   eventId,
-  existingCount,
-  existingGuests,
   onClose,
 }: {
   eventId: string;
-  existingCount: number;
-  existingGuests: EventItem[];
   onClose: () => void;
 }) {
   const [text, setText] = useState("");
   const [defaultRsvp, setDefaultRsvp] = useState<Rsvp>("pending");
   const [busy, setBusy] = useState(false);
+  const [dedupeGuests, setDedupeGuests] = useState<EventItem[]>([]);
+  const [dedupeLoading, setDedupeLoading] = useState(true);
   const { user } = useAuth();
   const toast = useToast();
   const importId = useId();
 
-  const parsedGuests = parseGuestImport(text, defaultRsvp, existingGuests);
+  useEffect(() => {
+    let cancelled = false;
+    setDedupeLoading(true);
+    void fetchAllGuestsMatching(eventId, "all", "")
+      .then((rows) => {
+        if (!cancelled) setDedupeGuests(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setDedupeGuests([]);
+      })
+      .finally(() => {
+        if (!cancelled) setDedupeLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
+  const parsedGuests = parseGuestImport(text, defaultRsvp, dedupeGuests);
+  const existingCount = dedupeGuests.length;
+  const remainingSlots = Math.max(0, MAX_GUESTS - existingCount);
+  const willImportCount = Math.min(parsedGuests.length, remainingSlots);
 
   const submit = async () => {
     if (!user || parsedGuests.length === 0) return;
+    const rowsToInsert = parsedGuests.slice(0, remainingSlots);
+    if (rowsToInsert.length === 0) {
+      toast.error(`Guest list is full (${MAX_GUESTS} max).`);
+      return;
+    }
+    if (parsedGuests.length > remainingSlots) {
+      toast.info(
+        `Importing ${rowsToInsert.length} of ${parsedGuests.length} — guest list is capped at ${MAX_GUESTS}.`,
+      );
+    }
     setBusy(true);
-    const rows = parsedGuests.map((guest, i) => ({
+    const rows = rowsToInsert.map((guest, i) => ({
       event_id: eventId,
       kind: "guest" as const,
       title: guest.name,
@@ -523,8 +634,8 @@ function ImportDialog({
       toast.error(`Import failed: ${error.message}`);
       return;
     }
-    toast.success(`Imported ${parsedGuests.length} guests`);
-    logActivity(eventId, user.id, `imported ${parsedGuests.length} guests`);
+    toast.success(`Imported ${rowsToInsert.length} guests`);
+    logActivity(eventId, user.id, `imported ${rowsToInsert.length} guests`);
     onClose();
   };
 
@@ -557,9 +668,11 @@ function ImportDialog({
             <option value="no">Not going</option>
           </select>
         </div>
-        <div className="flex justify-between items-center pt-2">
+        <div className="flex justify-between items-center pt-2 gap-2 flex-wrap">
           <span className="text-xs text-slate-500">
-            {parsedGuests.length} new {parsedGuests.length === 1 ? "guest" : "guests"} detected
+            {dedupeLoading
+              ? "Loading guest list for duplicate check…"
+              : `${parsedGuests.length} new ${parsedGuests.length === 1 ? "guest" : "guests"} detected · will import ${willImportCount} (${remainingSlots} slots left, max ${MAX_GUESTS})`}
           </span>
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-secondary">
@@ -567,10 +680,10 @@ function ImportDialog({
             </button>
             <button
               onClick={submit}
-              disabled={parsedGuests.length === 0 || busy}
+              disabled={parsedGuests.length === 0 || busy || dedupeLoading}
               className="btn-primary"
             >
-              <Plus size={14} /> Import {parsedGuests.length || ""}
+              <Plus size={14} /> Import {willImportCount || ""}
             </button>
           </div>
         </div>

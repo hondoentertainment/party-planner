@@ -355,6 +355,50 @@ with checks as (
         and pg_get_functiondef(p.oid) like '%cover_image_url%'
     ),
     'run 0023_event_cover_photos.sql'
+
+  union all
+  select
+    21,
+    '0025 large-event RSVP limits',
+    exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = 'public_rsvp_submit_log'
+    ) and exists (
+      select 1 from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname = 'event_items'
+        and t.tgname = 'event_items_max_guests_ins'
+        and not t.tgisinternal
+    ) and exists (
+      select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'submit_public_rsvp'
+        and pg_get_function_identity_arguments(p.oid) like '_token text, _payload jsonb%'
+        and (
+          pg_get_functiondef(p.oid) like '%public_rsvp_submit_log%'
+          or pg_get_functiondef(p.oid) like '%1000%'
+        )
+    ),
+    'run 0025_large_event_rsvp_limits.sql'
+
+  union all
+  select
+    22,
+    '0026 event guest stats RPC',
+    exists (
+      select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'get_event_guest_stats'
+        and pg_get_function_identity_arguments(p.oid) = '_event_id uuid'
+        and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    ),
+    'run 0026_event_guest_stats_rpc.sql'
 )
 select
   check_name,

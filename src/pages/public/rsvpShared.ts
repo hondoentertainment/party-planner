@@ -52,5 +52,50 @@ export function friendlyRsvpError(message: string): string {
   if (/RSVP must be/i.test(message)) return message;
   if (/your name/i.test(message)) return message;
   if (/recovery link is no longer/i.test(message)) return message;
+  if (/maximum number of guest RSVPs/i.test(message)) return message;
+  if (/guest list limit/i.test(message)) return message;
+  if (/Too many RSVP attempts/i.test(message)) return message;
   return "We couldn't save your RSVP. Please try again.";
+}
+
+/** Buckets for telemetry — matches friendly copy + `submit_public_rsvp` errors. */
+export function classifyPublicRsvpError(message: string): string {
+  const m = message.trim().toLowerCase();
+  if (!m) return "unknown";
+
+  if (
+    m.includes("recovery link is no longer") ||
+    m.includes("this recovery link is no longer valid") ||
+    m.includes("could not find your previous rsvp")
+  ) {
+    return "recovery";
+  }
+  if (
+    m.includes("share link is no longer") ||
+    m.includes("this share link is no longer accepting")
+  ) {
+    return "share_inactive";
+  }
+  if (m.includes("too many rsvp attempts")) {
+    return "rate_limit";
+  }
+  if (
+    m.includes("maximum number of guest rsvps") ||
+    m.includes("guest list limit")
+  ) {
+    return "capacity";
+  }
+  if (
+    m.includes("rsvp payload is required") ||
+    m.includes("tell us your name") ||
+    m.includes("your name") ||
+    m.includes("email address is too long") ||
+    m.includes("rsvp must be") ||
+    m.includes("plus-ones must") ||
+    m.includes("plus-ones cannot be negative")
+  ) {
+    return "validation";
+  }
+
+  return "unknown";
 }

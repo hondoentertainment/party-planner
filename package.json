@@ -21,6 +21,8 @@
     "ops:check-resend": "node scripts/check-resend-secret.mjs",
     "ops:check-env": "node scripts/check-deploy-env.mjs",
     "ops:smoke": "node scripts/smoke-http.mjs",
+    "ops:rsvp-load": "node scripts/rsvp-submit-load.mjs",
+    "ops:post-0025": "node scripts/ops-post-0025.mjs",
     "ops:secrets-audit": "node scripts/secrets-audit.mjs",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs",
     "og:image": "node scripts/generate-og-image.mjs",

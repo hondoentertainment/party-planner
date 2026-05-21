@@ -204,6 +204,69 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
       await publicContext.close();
     }
   });
+
+  /**
+   * Same anonymous session + same email on second submit should upsert (migration
+   * `0025`) rather than failing on a duplicate. Strict: confirmation heading and
+   * no `role="alert"` RSVP error banner after the second RPC completes.
+   */
+  test("repeat RSVP submit with same email upserts without error", async ({
+    browser,
+    page,
+  }) => {
+    const events = new EventAgent(page);
+    const stamp = `E2E email upsert ${Date.now()}`;
+    const guestEmail = `e2e-upsert-${Date.now()}@example.com`;
+    const guestNameFirst = `Upsert Guest A ${Date.now()}`;
+    const guestNameSecond = `Upsert Guest B ${Date.now()}`;
+
+    await events.createBlankEvent(stamp);
+    const publicUrl = await events.createPublicShareLink();
+
+    const publicContext = await browser.newContext();
+    const publicPage = await publicContext.newPage();
+
+    try {
+      await publicPage.goto(publicUrl);
+      await expect(
+        publicPage.getByRole("heading", { name: stamp, level: 1 })
+      ).toBeVisible({ timeout: 15_000 });
+
+      const submit = () =>
+        publicPage.getByRole("button", {
+          name: /send rsvp|update rsvp|save changes/i,
+        });
+
+      // First submit — seed guest row keyed by normalized email (when upsert is active).
+      await publicPage.getByRole("radio", { name: /i'm in/i }).check();
+      await publicPage.getByLabel(/your name/i).fill(guestNameFirst);
+      await publicPage.getByLabel(/email \(optional\)/i).fill(guestEmail);
+      await submit().click();
+
+      await expect(
+        publicPage.getByRole("heading", {
+          name: new RegExp(`thanks,\\s*${escapeRegExp(guestNameFirst)}`, "i"),
+        })
+      ).toBeVisible({ timeout: 15_000 });
+
+      // Second submit — same email, different display name + RSVP (still one logical guest).
+      await publicPage.getByRole("button", { name: /update rsvp/i }).click();
+      await publicPage.getByLabel(/your name/i).fill(guestNameSecond);
+      await publicPage.getByRole("radio", { name: /maybe/i }).check();
+      await expect(publicPage.getByLabel(/email \(optional\)/i)).toHaveValue(guestEmail);
+      await submit().click();
+
+      await expect(
+        publicPage.getByRole("heading", {
+          name: new RegExp(`thanks,\\s*${escapeRegExp(guestNameSecond)}`, "i"),
+        })
+      ).toBeVisible({ timeout: 15_000 });
+
+      await expect(publicPage.getByRole("alert")).toHaveCount(0);
+    } finally {
+      await publicContext.close();
+    }
+  });
 });
 
 function escapeRegExp(value: string) {

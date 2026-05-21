@@ -46,3 +46,4 @@ playwright/.cache
 Icon?
 desktop.ini
 Thumbs.db
+.env*.local

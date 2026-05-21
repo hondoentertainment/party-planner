@@ -19,6 +19,8 @@ Re-check them on every release that touches migrations, edge functions, or brand
 | `SMOKE_URL` / `SMOKE_PATHS` repo variables current | After re-deploying or changing routes | `gh variable list` — `SMOKE_URL` should match the current public origin; the **Smoke** workflow runs automatically on Vercel `deployment_status` (production) and surfaces 4xx/5xx within minutes. |
 | Regenerate the social card after a brand refresh | After tweaking gradients / wordmark | `npm run og:image` writes `public/og-image.png` (1200×630). Used by `/s/<token>` link previews via `middleware.ts`. |
 | Migration order matches the directory listing | On every release that adds SQL | `supabase/migrations/` are applied lexically; never rename or re-number a shipped file. |
+| `0025` large-event RSVP limits + smoke | After `0025_large_event_rsvp_limits.sql` | `supabase/verify_remote.sql` row 21 = RSVP limits OK. Exercise a **disposable** public share token: spam a few submits and confirm rate-limit messaging; optionally `npm run ops:rsvp-load` against staging only — never hammer production guests. Near 1000 guest rows on a test event, confirm hard-cap / UI copy behaves. |
+| `0026` guest stats RPC + post-deploy checklist | After `0026_event_guest_stats_rpc.sql` | `verify_remote.sql` row 22 OK. Run `npm run ops:post-0025` locally or in CI-adjacent preflight; Guest module summary cards should load without fetching all guest `meta` rows. |
 | Rate-limit + cover photo checks post-deploy | After `0020`–`0023` + first cover upload | `supabase/verify_remote.sql` rows 18–19 = rate limits OK; row 20 = `0023` OK. Upload a JPEG in **Edit event** and confirm URL is `…/storage/v1/object/public/event-covers/<event_id>/…`. |
 | `/healthz` reachable on every deploy | Per deploy (auto via Smoke) | `curl -fsS https://<host>/healthz` should return `200 ok` with `Content-Type: text/plain`. Wired into `Smoke` workflow's default path list and into `vercel.json` (`Cache-Control: no-store`). External uptime monitors should target this path, not `/`. |
 | CodeQL alerts triaged | On every push to `main` and weekly cron | GitHub → **Security → Code scanning**. Treat new `error`-severity alerts as merge blockers; `warning`-severity alerts get fixed during the next refactor of that file. Workflow file: [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml). |
@@ -86,6 +88,16 @@ If you'd rather hold off on the cron, skip step 7 — manual share and RSVP reco
    - `supabase/migrations/0020_rate_limit_email_and_reports.sql` (signed-in `bug_reports` 30/hour/user cap + 60s cool-down inside `request_rsvp_recovery` so `notify-rsvp-recovery` cannot burn Resend quota),
    - `supabase/migrations/0021_event_share_email_cooldown.sql` (60s cool-down on `event_share_links.last_emailed_at` so a JWT-gated caller cannot hammer `notify-share`; ships a tightly-scoped UPDATE policy + row trigger that lets editors touch only the cool-down column).
    - `supabase/migrations/0023_event_cover_photos.sql` (`events.cover_image_url`, public **`event-covers`** Storage bucket, editor-only writes, optional guest-page / OG hero photo).
+   - `supabase/migrations/0025_large_event_rsvp_limits.sql` (**large guest lists** — see below).
+   - `supabase/migrations/0026_event_guest_stats_rpc.sql` (**guest summary RPC** — see below).
+
+##### `0025_large_event_rsvp_limits.sql` (large-event RSVP)
+
+Adds a **1000 guest** ceiling per event (`submit_public_rsvp` guard + `event_items_max_guests_ins` before-insert trigger). Public RSVP picks up a **per share-token rolling rate limit** enforced via `public_rsvp_submit_log` inserts and an in-function cleanup (`delete … where created_at < now() - interval '2 hours'`). Returning guests **upsert by normalized email** (same share link); the migration also adds an `event_items` partial index on `(event_id, lower(trim(email)))` for guest rows. The log table is locked down with RLS and no `anon` grants — only the SECURITY DEFINER RPC touches it.
+
+##### `0026_event_guest_stats_rpc.sql` (guest summary RPC)
+
+Adds **`get_event_guest_stats(_event_id)`** — authenticated, member-gated aggregate counts (RSVP breakdown + heads-to-feed) so the Guest module summary cards avoid downloading every guest `meta` row. Client falls back to the legacy meta scan if the RPC is missing. Operator checklist: **`npm run ops:post-0025`**; load probe: **`npm run ops:rsvp-load`** (disposable token only).
 
 After either approach, run **`supabase/verify_remote.sql`** in the SQL Editor for a quick read-only checklist (policies, `pg_net`, GUCs, feature tables, public share RPCs, and notification triggers).
 

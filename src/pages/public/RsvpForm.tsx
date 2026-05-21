@@ -1,9 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ExternalLink, PartyPopper } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { Sentry } from "../../lib/sentry";
 import type { PublicRsvpPayload } from "../../lib/database.types";
 import type { PublicRsvpRecoveryArgs } from "../../lib/types.rsvpRecovery";
 import {
+  classifyPublicRsvpError,
   friendlyRsvpError,
   RSVP_ACCENT,
   RSVP_ICON,
@@ -128,11 +130,28 @@ export default function RsvpForm({
     const { data, error: rpcError } = await supabase.rpc("submit_public_rsvp", args);
     setSubmitting(false);
     if (rpcError) {
+      if (import.meta.env.VITE_SENTRY_DSN) {
+        const errorKind = classifyPublicRsvpError(rpcError.message);
+        Sentry.captureMessage("Public RSVP RPC returned error", {
+          level: "warning",
+          tags: { area: "public_rsvp", error_kind: errorKind },
+          fingerprint: ["public_rsvp", errorKind],
+          extra: { code: rpcError.code, message: rpcError.message },
+        });
+      }
       setError(friendlyRsvpError(rpcError.message));
       return;
     }
     const result = (data ?? null) as { ok?: boolean } | null;
     if (!result?.ok) {
+      if (import.meta.env.VITE_SENTRY_DSN) {
+        Sentry.captureMessage("Public RSVP RPC missing ok", {
+          level: "warning",
+          tags: { area: "public_rsvp", error_kind: "unknown" },
+          fingerprint: ["public_rsvp", "unexpected_ok"],
+          extra: { data_present: data != null },
+        });
+      }
       setError("We couldn't save your RSVP. Please try again.");
       return;
     }

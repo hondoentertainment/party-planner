@@ -289,6 +289,16 @@ export interface PublicRsvpResult extends Record<string, unknown> {
   item_id: string;
 }
 
+/** `get_event_guest_stats` RPC (migration 0026). */
+export interface EventGuestStatsRpc extends Record<string, unknown> {
+  total: number;
+  yes: number;
+  no: number;
+  maybe: number;
+  pending: number;
+  total_attendees: number;
+}
+
 export interface PublicEventShareHost extends Record<string, unknown> {
   display_name: string | null;
   initial: string;
@@ -475,6 +485,10 @@ export interface Database {
       create_event_share_link: {
         Args: { _event_id: string; _label?: string };
         Returns: EventShareLink;
+      };
+      get_event_guest_stats: {
+        Args: { _event_id: string };
+        Returns: EventGuestStatsRpc;
       };
       submit_public_rsvp: {
         Args: {

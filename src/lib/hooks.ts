@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "./supabase";
 import { useAuth } from "./auth";
 import {
@@ -120,6 +120,14 @@ import type {
   UserNotification,
 } from "./database.types";
 import type { Database } from "./database.types.gen";
+import {
+  aggregateGuestStatsFromMetaRows,
+  emptyGuestStats,
+  guestStatsFromRpc,
+  MAX_GUESTS,
+  type GuestListStats,
+  type GuestRsvpFilter,
+} from "./guestStats";
 
 type EventScopedTable = Extract<
   keyof Database["public"]["Tables"],
@@ -194,8 +202,20 @@ export function useEvent(eventId: string | undefined) {
   return { event, loading, error, refresh };
 }
 
+export type UseEventItemsOptions = {
+  /** Coalesce rapid `event_items` realtime events before refetching (large guest lists). */
+  realtimeDebounceMs?: number;
+};
+
 /* ---------- Items by kind ---------- */
-export function useEventItems(eventId: string | undefined, kind: ItemKind) {
+export function useEventItems(
+  eventId: string | undefined,
+  kind: ItemKind,
+  options?: UseEventItemsOptions,
+) {
+  const debounceMs = options?.realtimeDebounceMs ?? 0;
+  const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [items, setItems] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -228,7 +248,7 @@ export function useEventItems(eventId: string | undefined, kind: ItemKind) {
     if (!eventId) return;
     // Topic is per-event (not per-kind) so all `useEventItems` callers on the
     // same event share one channel; each subscriber filters by kind.
-    return subscribePostgresChanges(
+    const unsubscribe = subscribePostgresChanges(
       `items-${eventId}`,
       {
         event: "*",
@@ -238,10 +258,24 @@ export function useEventItems(eventId: string | undefined, kind: ItemKind) {
       },
       (payload) => {
         const row = (payload.new ?? payload.old) as unknown as EventItem | undefined;
-        if (row?.kind === kind) void refresh();
+        if (row?.kind !== kind) return;
+        if (debounceMs <= 0) {
+          void refresh();
+          return;
+        }
+        if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+        realtimeTimerRef.current = setTimeout(() => {
+          realtimeTimerRef.current = null;
+          void refresh();
+        }, debounceMs);
       },
     );
-  }, [eventId, kind, refresh]);
+    return () => {
+      if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+      realtimeTimerRef.current = null;
+      unsubscribe();
+    };
+  }, [eventId, kind, refresh, debounceMs]);
 
   /** Optimistic local mutators. Each mutates the local items array immediately,
    * so UI updates are instant. The realtime channel will re-fetch and reconcile. */
@@ -258,10 +292,13 @@ export function useEventItems(eventId: string | undefined, kind: ItemKind) {
   return { items, loading, error, refresh, optimisticUpdate, optimisticDelete, optimisticReorder };
 }
 
+const ALL_ITEMS_REALTIME_DEBOUNCE_MS = 400;
+
 /* ---------- All items (for overview) ---------- */
 export function useAllItems(eventId: string | undefined) {
   const [items, setItems] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
@@ -281,14 +318,311 @@ export function useAllItems(eventId: string | undefined) {
   useEffect(() => {
     refresh();
     if (!eventId) return;
-    return subscribePostgresChanges(
+    const unsubscribe = subscribePostgresChanges(
       `all-items-${eventId}`,
       { event: "*", schema: "public", table: "event_items", filter: `event_id=eq.${eventId}` },
-      () => void refresh(),
+      () => {
+        if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+        realtimeTimerRef.current = setTimeout(() => {
+          realtimeTimerRef.current = null;
+          void refresh();
+        }, ALL_ITEMS_REALTIME_DEBOUNCE_MS);
+      },
     );
+    return () => {
+      if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+      realtimeTimerRef.current = null;
+      unsubscribe();
+    };
   }, [eventId, refresh]);
 
   return { items, loading, refresh };
+}
+
+const GUEST_PAGE_SIZE = 75;
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase query builder chain */
+function applyGuestListFilters(q: any, filter: GuestRsvpFilter, searchRaw: string): any {
+  let query = q;
+  if (filter !== "all") {
+    if (filter === "pending") {
+      query = query.or("meta->>rsvp.is.null,meta->>rsvp.eq.pending");
+    } else {
+      query = query.eq("meta->>rsvp", filter);
+    }
+  }
+  const search = searchRaw.trim().replace(/,/g, " ").slice(0, 120);
+  if (search) {
+    const esc = search.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    query = query.or(`title.ilike.%${esc}%,meta->>email.ilike.%${esc}%`);
+  }
+  return query;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Fetch every matching guest row (up to `MAX_GUESTS`) for CSV export. */
+export async function fetchAllGuestsMatching(
+  eventId: string,
+  filter: GuestRsvpFilter,
+  search: string,
+): Promise<EventItem[]> {
+  const batch = 200;
+  const out: EventItem[] = [];
+  for (let start = 0; start < MAX_GUESTS + batch; start += batch) {
+    const q = applyGuestListFilters(
+      supabase
+        .from("event_items")
+        .select("*")
+        .eq("event_id", eventId)
+        .eq("kind", "guest")
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true }),
+      filter,
+      search,
+    );
+    const { data, error } = await q.range(start, start + batch - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as EventItem[];
+    out.push(...rows);
+    if (rows.length < batch) break;
+  }
+  return out;
+}
+
+export function useGuestMetaCounts(eventId: string | undefined, realtimeDebounceMs = 400) {
+  const [stats, setStats] = useState<GuestListStats>(() => emptyGuestStats());
+  const [loading, setLoading] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!eventId) {
+      setStats(emptyGuestStats());
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data: rpcData, error: rpcError } = await supabase.rpc("get_event_guest_stats", {
+      _event_id: eventId,
+    });
+    if (!rpcError && rpcData != null) {
+      setStats(guestStatsFromRpc(rpcData));
+      setLoading(false);
+      return;
+    }
+    if (rpcError && !/function.*does not exist|could not find/i.test(rpcError.message)) {
+      reportSupabaseReadFailure("useGuestMetaCounts.get_event_guest_stats", rpcError, {
+        eventId,
+      });
+    }
+    const { data, error } = await supabase
+      .from("event_items")
+      .select("meta")
+      .eq("event_id", eventId)
+      .eq("kind", "guest")
+      .limit(MAX_GUESTS + 50);
+    if (error) {
+      reportSupabaseReadFailure("useGuestMetaCounts.event_items.select", error, { eventId });
+      setStats(emptyGuestStats());
+      setLoading(false);
+      return;
+    }
+    setStats(aggregateGuestStatsFromMetaRows(data ?? []));
+    setLoading(false);
+  }, [eventId]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!eventId) return;
+    const unsubscribe = subscribePostgresChanges(
+      `items-${eventId}`,
+      {
+        event: "*",
+        schema: "public",
+        table: "event_items",
+        filter: `event_id=eq.${eventId}`,
+      },
+      () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null;
+          void refresh();
+        }, realtimeDebounceMs);
+      },
+    );
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      unsubscribe();
+    };
+  }, [eventId, refresh, realtimeDebounceMs]);
+
+  return { stats, loading, refresh };
+}
+
+export function usePaginatedGuestItems(
+  eventId: string | undefined,
+  filter: GuestRsvpFilter,
+  search: string,
+  options?: { realtimeDebounceMs?: number },
+) {
+  const debounceMs = options?.realtimeDebounceMs ?? 400;
+  const [items, setItems] = useState<EventItem[]>([]);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const itemsLenRef = useRef(0);
+  itemsLenRef.current = items.length;
+
+  const fetchFirstPage = useCallback(async () => {
+    if (!eventId) {
+      setItems([]);
+      setTotalCount(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const q = applyGuestListFilters(
+      supabase
+        .from("event_items")
+        .select("*", { count: "exact" })
+        .eq("event_id", eventId)
+        .eq("kind", "guest")
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true }),
+      filter,
+      search,
+    );
+    const { data, error: reqErr, count } = await q.range(0, GUEST_PAGE_SIZE - 1);
+    if (reqErr) {
+      reportSupabaseReadFailure("usePaginatedGuestItems.event_items.select", reqErr, {
+        eventId,
+        filter,
+      });
+      setError(reqErr.message);
+      setItems([]);
+      setTotalCount(null);
+    } else {
+      setItems((data ?? []) as EventItem[]);
+      setTotalCount(count ?? (data ?? []).length);
+    }
+    setLoading(false);
+  }, [eventId, filter, search]);
+
+  const resyncLoadedWindow = useCallback(async () => {
+    if (!eventId) return;
+    const len = itemsLenRef.current;
+    if (len === 0) {
+      await fetchFirstPage();
+      return;
+    }
+    setError(null);
+    const q = applyGuestListFilters(
+      supabase
+        .from("event_items")
+        .select("*", { count: "exact" })
+        .eq("event_id", eventId)
+        .eq("kind", "guest")
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true }),
+      filter,
+      search,
+    );
+    const { data, error: reqErr, count } = await q.range(0, len - 1);
+    if (reqErr) {
+      reportSupabaseReadFailure("usePaginatedGuestItems.event_items.resync", reqErr, {
+        eventId,
+        filter,
+      });
+      setError(reqErr.message);
+      return;
+    }
+    setItems((data ?? []) as EventItem[]);
+    if (count != null) setTotalCount(count);
+  }, [eventId, filter, search, fetchFirstPage]);
+
+  useEffect(() => {
+    void fetchFirstPage();
+  }, [fetchFirstPage]);
+
+  const loadMore = useCallback(async () => {
+    if (!eventId || loadingMore) return;
+    const total = totalCount ?? 0;
+    if (items.length >= total) return;
+    setLoadingMore(true);
+    setError(null);
+    const start = items.length;
+    const end = Math.min(start + GUEST_PAGE_SIZE - 1, Math.max(start, total - 1));
+    const q = applyGuestListFilters(
+      supabase
+        .from("event_items")
+        .select("*")
+        .eq("event_id", eventId)
+        .eq("kind", "guest")
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true }),
+      filter,
+      search,
+    );
+    const { data, error: reqErr } = await q.range(start, end);
+    if (reqErr) {
+      reportSupabaseReadFailure("usePaginatedGuestItems.event_items.loadMore", reqErr, {
+        eventId,
+        filter,
+      });
+      setError(reqErr.message);
+      setLoadingMore(false);
+      return;
+    }
+    setItems((prev) => [...prev, ...((data ?? []) as EventItem[])]);
+    setLoadingMore(false);
+  }, [eventId, filter, search, items.length, totalCount, loadingMore]);
+
+  useEffect(() => {
+    if (!eventId) return;
+    const unsubscribe = subscribePostgresChanges(
+      `items-${eventId}`,
+      {
+        event: "*",
+        schema: "public",
+        table: "event_items",
+        filter: `event_id=eq.${eventId}`,
+      },
+      (payload) => {
+        const row = (payload.new ?? payload.old) as unknown as EventItem | undefined;
+        if (row?.kind !== "guest") return;
+        if (debounceMs <= 0) {
+          void resyncLoadedWindow();
+          return;
+        }
+        if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+        realtimeTimerRef.current = setTimeout(() => {
+          realtimeTimerRef.current = null;
+          void resyncLoadedWindow();
+        }, debounceMs);
+      },
+    );
+    return () => {
+      if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+      realtimeTimerRef.current = null;
+      unsubscribe();
+    };
+  }, [eventId, debounceMs, resyncLoadedWindow]);
+
+  return {
+    items,
+    totalCount,
+    loading,
+    loadingMore,
+    error,
+    refresh: fetchFirstPage,
+    loadMore,
+  };
 }
 
 /* ---------- Collaborators ---------- */

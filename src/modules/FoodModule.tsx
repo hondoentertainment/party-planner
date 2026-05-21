@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Trash2, Cookie, Salad, IceCreamCone, ChefHat, Pizza, Users } from "lucide-react";
 import type { EventItem, EventRow } from "../lib/database.types";
-import { useEventItems, useEventMembers, useEventPermissions } from "../lib/hooks";
+import { useEventItems, useEventMembers, useEventPermissions, useGuestMetaCounts } from "../lib/hooks";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { useToast } from "../lib/toast";
@@ -28,7 +28,7 @@ interface FoodMeta extends Record<string, unknown> {
 
 export function FoodModule({ event }: { event: EventRow }) {
   const { items } = useEventItems(event.id, "food");
-  const { items: guestItems } = useEventItems(event.id, "guest");
+  const { stats: guestStats } = useGuestMetaCounts(event.id);
   const members = useEventMembers(event.id, event.owner_id);
   const { user } = useAuth();
   const toast = useToast();
@@ -61,15 +61,7 @@ export function FoodModule({ event }: { event: EventRow }) {
     0
   );
 
-  const confirmedGuests = useMemo(
-    () =>
-      guestItems.reduce((acc, g) => {
-        const m = (g.meta ?? {}) as { rsvp?: string; plus_one?: boolean; plus_one_count?: number };
-        if (m.rsvp !== "yes") return acc;
-        return acc + 1 + (m.plus_one ? Math.max(0, m.plus_one_count ?? 1) : 0);
-      }, 0),
-    [guestItems]
-  );
+  const confirmedGuests = guestStats.totalAttendees;
   const needServings = confirmedGuests - totalServings;
 
   return (
