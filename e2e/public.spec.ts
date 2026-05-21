@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "./test-fixture";
 import { AppAgent } from "./agents/app-agent";
 
 test("loads app shell and shows sign-in, events, or setup notice", async ({ page }) => {

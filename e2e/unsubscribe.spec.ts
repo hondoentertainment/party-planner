@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-fixture";
 
 // Anonymous smoke: `notify-unsubscribe` must redirect to the SPA landing page
 // (invalid / expired tokens → outcome=invalid). Minting a valid token requires

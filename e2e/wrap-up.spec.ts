@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "./test-fixture";
 import { AuthAgent } from "./agents/auth-agent";
 import { EventAgent } from "./agents/event-agent";
 import { WrapUpAgent } from "./agents/wrap-up-agent";

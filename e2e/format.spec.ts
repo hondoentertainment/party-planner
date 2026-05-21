@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test-fixture";
 
 test("parseMoneyToCents and centsToMoney are inverse", async () => {
   const { parseMoneyToCents, formatMoney } = await import("../src/lib/format.ts");

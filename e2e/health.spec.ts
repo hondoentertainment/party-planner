@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-fixture";
 
 /**
  * `/healthz` is a static file (`public/healthz`) consumed by external uptime

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-fixture";
 
 // Public-share routes do not require auth, so these specs run in CI even when
 // E2E_EMAIL / E2E_PASSWORD are not configured.

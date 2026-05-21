@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-fixture";
 import { AuthAgent } from "./agents/auth-agent";
 import { EventAgent } from "./agents/event-agent";
 import { getE2ECredentials } from "./agents/test-env";
