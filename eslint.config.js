@@ -53,5 +53,9 @@ export default defineConfig([
     languageOptions: {
       globals: globals.node,
     },
+    rules: {
+      // Playwright fixtures use `await use(context)` — not React hooks.
+      'react-hooks/rules-of-hooks': 'off',
+    },
   },
 ])
