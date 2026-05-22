@@ -16,8 +16,16 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+  VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+  VITE_PUBLIC_SITE_URL: ${{ secrets.VITE_PUBLIC_SITE_URL }}
+  VITE_SECURITY_CONTACT: ${{ secrets.VITE_SECURITY_CONTACT }}
+  VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+  VITE_PLAUSIBLE_DOMAIN: ${{ secrets.VITE_PLAUSIBLE_DOMAIN }}
+
 jobs:
-  verify:
+  lint-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -27,36 +35,35 @@ jobs:
           cache: "npm"
       - run: npm ci
       - name: npm audit (high+ only, non-blocking)
-        # Surfaces known advisories on every PR. Non-blocking because a
-        # transient advisory in a transitive dep should not stop merges
-        # (Dependabot picks up the actual fix on the weekly cadence).
         run: npm audit --omit=dev --audit-level=high || true
         continue-on-error: true
+      - run: npm run lint
+      - run: npm run build
+      - name: Deploy env parity
+        run: node scripts/check-deploy-env.mjs --strict
+
+  e2e:
+    needs: lint-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
-      - name: Lint, build, and E2E
-        run: npm run verify
+      - name: Playwright E2E
+        run: npm run test:e2e
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_PUBLIC_SITE_URL: ${{ secrets.VITE_PUBLIC_SITE_URL }}
-          VITE_SECURITY_CONTACT: ${{ secrets.VITE_SECURITY_CONTACT }}
-          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-          VITE_PLAUSIBLE_DOMAIN: ${{ secrets.VITE_PLAUSIBLE_DOMAIN }}
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
           E2E_DISPLAY_NAME: ${{ secrets.E2E_DISPLAY_NAME }}
-      - name: Deploy env parity
-        run: node scripts/check-deploy-env.mjs --strict
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_PUBLIC_SITE_URL: ${{ secrets.VITE_PUBLIC_SITE_URL }}
-          VITE_SECURITY_CONTACT: ${{ secrets.VITE_SECURITY_CONTACT }}
-          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
       - name: Upload Playwright artifacts
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-artifacts
           path: |

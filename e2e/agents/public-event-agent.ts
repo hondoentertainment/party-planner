@@ -68,4 +68,27 @@ export class PublicEventAgent {
   async expectPublicSection(name: string) {
     await expect(this.page.getByRole("heading", { name: new RegExp(name, "i") })).toBeVisible();
   }
+
+  async pickRsvpChoice(choice: "in" | "maybe" | "no" = "in") {
+    const labels = {
+      in: /i'm in/i,
+      maybe: /maybe/i,
+      no: /can't make it/i,
+    } as const;
+    await this.page.getByRole("radio", { name: labels[choice] }).first().click();
+    await expect(this.page.getByLabel(/your name/i)).toBeVisible({ timeout: 20_000 });
+  }
+
+  async submitRsvp() {
+    await this.page
+      .getByRole("button", { name: /send rsvp|update rsvp|save changes/i })
+      .click();
+  }
+
+  async expectRsvpThanks(name: string) {
+    const confirmed = this.page.getByRole("region", { name: /your rsvp/i });
+    await expect(confirmed).toBeVisible({ timeout: 20_000 });
+    await expect(confirmed).toContainText(name);
+    await expect(confirmed).toContainText(/your rsvp is in/i);
+  }
 }

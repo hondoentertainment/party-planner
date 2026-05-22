@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 interface BlankEventOptions {
   location?: string;
@@ -10,6 +10,27 @@ interface BlankEventOptions {
   startsAt?: string;
   theme?: string;
 }
+
+/** Event tab labels → URL segments (matches `src/pages/eventPageTabs.ts`). */
+const SECTION_PATHS: Record<string, string> = {
+  Overview: "",
+  Timeline: "timeline",
+  Guests: "guests",
+  Menu: "food",
+  Beverages: "beverages",
+  Shopping: "shopping",
+  Budget: "budget",
+  Vendors: "vendors",
+  Logistics: "logistics",
+  Signs: "signs",
+  Games: "games",
+  Music: "music",
+  Restrooms: "restrooms",
+  Decorations: "decorations",
+  "Day-of setup": "setup",
+  "Post-party": "wrap-up",
+  Settings: "settings",
+};
 
 export class EventAgent {
   constructor(private readonly page: Page) {}
@@ -28,7 +49,6 @@ export class EventAgent {
       if (time) await this.page.getByLabel(/start time/i).fill(time);
     }
     if (options.theme) {
-      // Theme moved into "More options" disclosure (Item 16). Reveal it first.
       const more = this.page.getByRole("button", { name: /more options/i });
       if (await more.isVisible().catch(() => false)) {
         await more.click();
@@ -43,8 +63,15 @@ export class EventAgent {
     return this.currentEventId();
   }
 
+  /** Navigate by URL — reliable across desktop group nav and mobile bottom bar. */
   async openSection(label: string) {
-    await this.page.getByRole("link", { name: new RegExp(`^${escapeRegExp(label)}$`, "i") }).first().click();
+    const eventId = this.currentEventId();
+    if (!eventId) throw new Error("openSection requires an active event page URL");
+    const segment = SECTION_PATHS[label];
+    if (segment === undefined) throw new Error(`Unknown event section label: ${label}`);
+    const path = segment ? `/events/${eventId}/${segment}` : `/events/${eventId}`;
+    await this.page.goto(path);
+    await expect(this.page).toHaveURL(new RegExp(`${escapeRegExp(path)}(?:\\?|$)`, "i"));
   }
 
   async openMobileMoreSection(label: string) {
@@ -71,14 +98,11 @@ export class EventAgent {
   }
 
   async openFood() {
-    // Item 9 — IA refactor renamed the tab "Food" → "Menu" while the page
-    // heading remains "Food & Menu".
     await this.openSection("Menu");
     await expect(this.page.getByRole("heading", { name: /food & menu/i })).toBeVisible();
   }
 
   async openShopping() {
-    // Item 11 — tab renamed "Food Purchasing" → "Shopping"; heading kept.
     await this.openSection("Shopping");
     await expect(this.page.getByRole("heading", { name: /food purchasing/i })).toBeVisible();
   }
@@ -104,7 +128,6 @@ export class EventAgent {
   }
 
   async openWrapUp() {
-    // Item 9 — tab renamed "Wrap-up" → "Post-party"; module heading kept.
     await this.openSection("Post-party");
     await expect(this.page.getByRole("heading", { name: /post-event wrap-up/i })).toBeVisible();
   }
@@ -121,7 +144,7 @@ export class EventAgent {
 
   async addStarterTasks() {
     await this.page.getByRole("button", { name: /add starter tasks/i }).first().click();
-    await expect(this.page.locator('input[value="Confirm guest list"]')).toBeVisible({
+    await expect(fieldWithValue(this.page, "Confirm guest list")).toBeVisible({
       timeout: 15_000,
     });
   }
@@ -139,7 +162,7 @@ export class EventAgent {
 
     await form.getByPlaceholder(/add guest name/i).fill(name);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(this.page.getByDisplayValue(name)).toBeVisible({ timeout: 15_000 });
+    await expect(fieldWithValue(this.page, name)).toBeVisible({ timeout: 15_000 });
   }
 
   async importGuests(csvRows: string, expectedNewGuests: number) {
@@ -180,7 +203,7 @@ export class EventAgent {
     await form.locator("select").selectOption({ label: courseLabel });
     await form.getByPlaceholder(/pulled pork sliders/i).fill(title);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(this.page.getByDisplayValue(title)).toBeVisible({ timeout: 15_000 });
+    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
   }
 
   async setFoodServings(title: string, servings: number) {
@@ -210,7 +233,7 @@ export class EventAgent {
     await form.locator("select").selectOption({ label: storeLabel });
     await form.getByPlaceholder(/burger buns/i).fill(title);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(this.page.getByDisplayValue(title)).toBeVisible({ timeout: 15_000 });
+    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
   }
 
   async setShoppingEstimate(title: string, amount: string) {
@@ -237,7 +260,7 @@ export class EventAgent {
     await form.locator("select").selectOption({ label: typeLabel });
     await form.getByPlaceholder(/margaritas/i).fill(title);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(this.page.getByDisplayValue(title)).toBeVisible({ timeout: 15_000 });
+    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
   }
 
   async updateBeverageQuantity(title: string, quantity: string, unit: string) {
@@ -256,8 +279,8 @@ export class EventAgent {
     await form.getByPlaceholder(/artist/i).fill(artist);
     await form.locator("select").selectOption({ label: setLabel });
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(this.page.getByDisplayValue(title)).toBeVisible({ timeout: 15_000 });
-    await expect(this.page.getByDisplayValue(artist)).toBeVisible({ timeout: 15_000 });
+    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
+    await expect(fieldWithValue(this.page, artist)).toBeVisible({ timeout: 15_000 });
   }
 
   async addPlaylist(name: string, url: string) {
@@ -282,7 +305,7 @@ export class EventAgent {
 
     await form.locator("input").first().fill(title);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(this.page.getByDisplayValue(title)).toBeVisible({ timeout: 15_000 });
+    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
   }
 
   async expandChecklistItem(title: string) {
@@ -374,20 +397,22 @@ export class EventAgent {
   }
 
   private rowContainingValue(value: string) {
-    return this.page.locator(".card", { has: this.page.getByDisplayValue(value) }).first();
+    return this.page.locator(".card", { has: fieldWithValue(this.page, value) }).first();
   }
+}
+
+/** Playwright 1.59 lacks `page.getByDisplayValue`; `hasText` matches input values. */
+function fieldWithValue(page: Page, value: string): Locator {
+  return page.locator('input:not([type="hidden"]), textarea').filter({ hasText: value }).first();
 }
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Split a `YYYY-MM-DDTHH:mm` value into the parts NewEventDialog expects on
-// its split <input type="date"> and <input type="time"> fields. Tolerant of
-// missing time and trailing seconds.
 function splitLocalDateTime(value: string): { date: string; time: string } {
   if (!value) return { date: "", time: "" };
   const [date, timePart = ""] = value.split("T");
-  const time = timePart.slice(0, 5); // HH:mm
+  const time = timePart.slice(0, 5);
   return { date, time };
 }

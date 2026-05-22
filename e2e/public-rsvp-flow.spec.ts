@@ -113,6 +113,7 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
 
     const publicContext = await newPreparedBrowserContext(browser);
     const publicPage = await publicContext.newPage();
+    const publicEvent = new PublicEventAgent(publicPage);
 
     try {
       await publicPage.goto(publicUrl);
@@ -120,15 +121,12 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
         publicPage.getByRole("heading", { name: stamp, level: 1 })
       ).toBeVisible({ timeout: 15_000 });
 
-      // Pick "I'm in" — this expands the details form and focuses the name.
-      await publicPage.getByRole("radio", { name: /i'm in/i }).check();
+      await publicEvent.pickRsvpChoice("in");
       const nameInput = publicPage.getByLabel(/your name/i);
 
       // Required-name errors are exposed through both alert text and input
       // invalid state so screen-reader users get the same recovery path.
-      await publicPage
-        .getByRole("button", { name: /send rsvp|update rsvp|save changes/i })
-        .click();
+      await publicEvent.submitRsvp();
       await expect(
         publicPage.getByRole("alert").filter({ hasText: /please tell us your name/i }),
       ).toBeVisible();
@@ -136,19 +134,11 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
 
       // Name input is required; everything else is optional.
       await nameInput.fill(guestName);
-
-      // Submit (label varies between Send/Update RSVP/Save changes).
-      await publicPage
-        .getByRole("button", { name: /send rsvp|update rsvp|save changes/i })
-        .click();
+      await publicEvent.submitRsvp();
 
       // Confirmed-state card surfaces our name and the Forward-to-a-friend
       // affordance (Item 19).
-      await expect(
-        publicPage.getByRole("heading", {
-          name: new RegExp(`thanks,\\s*${escapeRegExp(guestName)}`, "i"),
-        })
-      ).toBeVisible({ timeout: 15_000 });
+      await publicEvent.expectRsvpThanks(guestName);
 
       await expect(
         publicPage.getByRole("button", { name: /forward to a friend/i })
@@ -172,6 +162,7 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
 
     const publicContext = await newPreparedBrowserContext(browser);
     const publicPage = await publicContext.newPage();
+    const publicEvent = new PublicEventAgent(publicPage);
 
     try {
       await publicPage.goto(publicUrl);
@@ -179,19 +170,11 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
         publicPage.getByRole("heading", { name: stamp, level: 1 })
       ).toBeVisible({ timeout: 15_000 });
 
-      await publicPage.getByRole("radio", { name: /i'm in/i }).check();
+      await publicEvent.pickRsvpChoice("in");
       await publicPage.getByLabel(/your name/i).fill(guestName);
       await publicPage.getByLabel(/email \(optional\)/i).fill(guestEmail);
-
-      await publicPage
-        .getByRole("button", { name: /send rsvp|update rsvp|save changes/i })
-        .click();
-
-      await expect(
-        publicPage.getByRole("heading", {
-          name: new RegExp(`thanks,\\s*${escapeRegExp(guestName)}`, "i"),
-        })
-      ).toBeVisible({ timeout: 15_000 });
+      await publicEvent.submitRsvp();
+      await publicEvent.expectRsvpThanks(guestName);
 
       await publicPage
         .getByRole("button", { name: /email me a recovery link/i })
@@ -225,6 +208,7 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
 
     const publicContext = await newPreparedBrowserContext(browser);
     const publicPage = await publicContext.newPage();
+    const publicEvent = new PublicEventAgent(publicPage);
 
     try {
       await publicPage.goto(publicUrl);
@@ -232,35 +216,20 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
         publicPage.getByRole("heading", { name: stamp, level: 1 })
       ).toBeVisible({ timeout: 15_000 });
 
-      const submit = () =>
-        publicPage.getByRole("button", {
-          name: /send rsvp|update rsvp|save changes/i,
-        });
-
       // First submit — seed guest row keyed by normalized email (when upsert is active).
-      await publicPage.getByRole("radio", { name: /i'm in/i }).check();
+      await publicEvent.pickRsvpChoice("in");
       await publicPage.getByLabel(/your name/i).fill(guestNameFirst);
       await publicPage.getByLabel(/email \(optional\)/i).fill(guestEmail);
-      await submit().click();
-
-      await expect(
-        publicPage.getByRole("heading", {
-          name: new RegExp(`thanks,\\s*${escapeRegExp(guestNameFirst)}`, "i"),
-        })
-      ).toBeVisible({ timeout: 15_000 });
+      await publicEvent.submitRsvp();
+      await publicEvent.expectRsvpThanks(guestNameFirst);
 
       // Second submit — same email, different display name + RSVP (still one logical guest).
       await publicPage.getByRole("button", { name: /update rsvp/i }).click();
       await publicPage.getByLabel(/your name/i).fill(guestNameSecond);
-      await publicPage.getByRole("radio", { name: /maybe/i }).check();
+      await publicPage.getByRole("radio", { name: /maybe/i }).first().click();
       await expect(publicPage.getByLabel(/email \(optional\)/i)).toHaveValue(guestEmail);
-      await submit().click();
-
-      await expect(
-        publicPage.getByRole("heading", {
-          name: new RegExp(`thanks,\\s*${escapeRegExp(guestNameSecond)}`, "i"),
-        })
-      ).toBeVisible({ timeout: 15_000 });
+      await publicEvent.submitRsvp();
+      await publicEvent.expectRsvpThanks(guestNameSecond);
 
       await expect(publicPage.getByRole("alert")).toHaveCount(0);
     } finally {
@@ -268,7 +237,3 @@ test.describe("with E2E credentials — public RSVP happy path", () => {
     }
   });
 });
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}

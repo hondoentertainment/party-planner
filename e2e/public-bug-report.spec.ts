@@ -28,10 +28,9 @@ test.describe("public share — bug report dialog", () => {
     const publicPage = await publicContext.newPage();
     try {
       await publicPage.goto(publicUrl);
-      const heading = publicPage.getByRole("heading", {
-        name: new RegExp(stamp.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
-      });
-      await expect(heading).toBeVisible({ timeout: 25_000 });
+      await expect(
+        publicPage.getByRole("heading", { name: stamp, level: 1 })
+      ).toBeVisible({ timeout: 25_000 });
 
       await publicPage.getByRole("button", { name: /problem with this page/i }).click();
       await expect(

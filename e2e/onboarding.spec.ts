@@ -73,8 +73,9 @@ test.describe("with E2E credentials — onboarding tour", () => {
     const tour = page.getByRole("dialog").filter({ hasText: /welcome to party planner/i });
     await expect(tour).toBeVisible({ timeout: 5_000 });
 
+    await tour.focus();
     await page.keyboard.press("Escape");
-    await expect(tour).toBeHidden();
+    await expect(tour).toHaveCount(0);
 
     // Esc closes WITHOUT marking complete (per OnboardingTour.tsx skip vs Esc
     // distinction). Storage should still be empty.
