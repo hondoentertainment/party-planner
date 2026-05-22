@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 interface BlankEventOptions {
   location?: string;
@@ -144,9 +144,9 @@ export class EventAgent {
 
   async addStarterTasks() {
     await this.page.getByRole("button", { name: /add starter tasks/i }).first().click();
-    await expect(fieldWithValue(this.page, "Confirm guest list")).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(
+      this.page.getByRole("textbox", { name: /title for confirm guest list/i })
+    ).toBeVisible({ timeout: 15_000 });
   }
 
   async assignFirstTaskTo(displayName: string) {
@@ -162,7 +162,9 @@ export class EventAgent {
 
     await form.getByPlaceholder(/add guest name/i).fill(name);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(fieldWithValue(this.page, name)).toBeVisible({ timeout: 15_000 });
+    await expect(
+      this.page.getByRole("textbox", { name: new RegExp(`Guest name for ${escapeRegExp(name)}`, "i") })
+    ).toBeVisible({ timeout: 15_000 });
   }
 
   async importGuests(csvRows: string, expectedNewGuests: number) {
@@ -175,7 +177,7 @@ export class EventAgent {
   }
 
   async markGuestGoing(name: string) {
-    const row = this.rowContainingValue(name);
+    const row = await this.findRowContainingValue(name);
 
     await row.getByRole("button", { name: /mark as going/i }).click();
     await expect(row.getByRole("button", { name: /mark as going/i })).toHaveAttribute(
@@ -185,7 +187,7 @@ export class EventAgent {
   }
 
   async setGuestPlusOnes(name: string, count: number) {
-    const row = this.rowContainingValue(name);
+    const row = await this.findRowContainingValue(name);
 
     await row.getByRole("button", { name: /more/i }).click();
     await row.getByLabel(/bringing guests/i).check();
@@ -203,11 +205,11 @@ export class EventAgent {
     await form.locator("select").selectOption({ label: courseLabel });
     await form.getByPlaceholder(/pulled pork sliders/i).fill(title);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
+    await expectVisibleInputValue(this.page, title);
   }
 
   async setFoodServings(title: string, servings: number) {
-    const row = this.rowContainingValue(title);
+    const row = await this.findRowContainingValue(title);
 
     await row.locator('input[type="number"]').fill(String(servings));
     await expect(this.page.getByText(new RegExp(`${servings} total servings`, "i"))).toBeVisible({
@@ -233,11 +235,11 @@ export class EventAgent {
     await form.locator("select").selectOption({ label: storeLabel });
     await form.getByPlaceholder(/burger buns/i).fill(title);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
+    await expectVisibleInputValue(this.page, title);
   }
 
   async setShoppingEstimate(title: string, amount: string) {
-    const row = this.rowContainingValue(title);
+    const row = await this.findRowContainingValue(title);
 
     await row.getByPlaceholder(/est\. \$/i).fill(amount);
     await expect(this.page.getByText(new RegExp(`Est\\.\\s*\\$${escapeRegExp(amount)}`, "i"))).toBeVisible({
@@ -246,7 +248,7 @@ export class EventAgent {
   }
 
   async markShoppingItemPurchased(title: string, actualAmount: string) {
-    const row = this.rowContainingValue(title);
+    const row = await this.findRowContainingValue(title);
 
     await row.getByPlaceholder(/actual \$/i).fill(actualAmount);
     await row.getByRole("button", { name: /mark as purchased/i }).click();
@@ -260,11 +262,11 @@ export class EventAgent {
     await form.locator("select").selectOption({ label: typeLabel });
     await form.getByPlaceholder(/margaritas/i).fill(title);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
+    await expectVisibleInputValue(this.page, title);
   }
 
   async updateBeverageQuantity(title: string, quantity: string, unit: string) {
-    const row = this.rowContainingValue(title);
+    const row = await this.findRowContainingValue(title);
 
     await row.locator('input[type="number"]').fill(quantity);
     await row.getByPlaceholder(/unit/i).fill(unit);
@@ -279,8 +281,8 @@ export class EventAgent {
     await form.getByPlaceholder(/artist/i).fill(artist);
     await form.locator("select").selectOption({ label: setLabel });
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
-    await expect(fieldWithValue(this.page, artist)).toBeVisible({ timeout: 15_000 });
+    await expectVisibleInputValue(this.page, title);
+    await expectVisibleInputValue(this.page, artist);
   }
 
   async addPlaylist(name: string, url: string) {
@@ -305,18 +307,20 @@ export class EventAgent {
 
     await form.locator("input").first().fill(title);
     await form.getByRole("button", { name: /^Add$/i }).click();
-    await expect(fieldWithValue(this.page, title)).toBeVisible({ timeout: 15_000 });
+    await expect(
+      this.page.getByRole("textbox", { name: new RegExp(`Title for ${escapeRegExp(title)}`, "i") })
+    ).toBeVisible({ timeout: 15_000 });
   }
 
   async expandChecklistItem(title: string) {
-    const row = this.rowContainingValue(title);
+    const row = await this.findRowContainingValue(title);
 
     await row.getByRole("button", { name: /more/i }).click();
     await expect(row.getByRole("button", { name: /hide/i })).toBeVisible();
   }
 
   async fillChecklistDetail(title: string, label: string, value: string) {
-    const row = this.rowContainingValue(title);
+    const row = await this.findRowContainingValue(title);
     const field = row.getByLabel(new RegExp(escapeRegExp(label), "i"));
 
     await field.fill(value);
@@ -324,9 +328,9 @@ export class EventAgent {
   }
 
   async addBudgetItem(label: string, estimated: string, actual: string) {
-    await this.page.getByLabel("Item").fill(label);
-    await this.page.getByLabel("Estimated").fill(estimated);
-    await this.page.getByLabel("Actual").fill(actual);
+    await this.page.getByRole("textbox", { name: "Item" }).fill(label);
+    await this.page.getByRole("textbox", { name: "Estimated" }).fill(estimated);
+    await this.page.getByRole("textbox", { name: "Actual" }).fill(actual);
     await this.page.getByRole("button", { name: /add budget item/i }).click();
     await expect(this.page.getByText(label)).toBeVisible({ timeout: 15_000 });
   }
@@ -396,14 +400,72 @@ export class EventAgent {
     return match?.[1] ?? null;
   }
 
-  private rowContainingValue(value: string) {
-    return this.page.locator(".card", { has: fieldWithValue(this.page, value) }).first();
+  private async findRowContainingValue(value: string) {
+    const byNamedField = this.page.locator(".card, li.card").filter({
+      has: this.page.getByRole("textbox", {
+        name: new RegExp(`(?:Guest name|Title) for ${escapeRegExp(value)}`, "i"),
+      }),
+    });
+    if (await byNamedField.count()) return byNamedField.first();
+
+    const cards = this.page.locator(".card, li.card");
+    let index = -1;
+    await expect
+      .poll(
+        async () => {
+          const n = await cards.count();
+          for (let i = 0; i < n; i++) {
+            const inputs = cards.nth(i).locator('input:not([type="hidden"]), textarea');
+            const m = await inputs.count();
+            for (let j = 0; j < m; j++) {
+              if ((await inputs.nth(j).inputValue()) === value) return i;
+            }
+          }
+          return -1;
+        },
+        { timeout: 15_000 }
+      )
+      .toBeGreaterThan(-1);
+
+    const n = await cards.count();
+    for (let i = 0; i < n; i++) {
+      const inputs = cards.nth(i).locator('input:not([type="hidden"]), textarea');
+      const m = await inputs.count();
+      for (let j = 0; j < m; j++) {
+        if ((await inputs.nth(j).inputValue()) === value) {
+          index = i;
+          break;
+        }
+      }
+      if (index >= 0) break;
+    }
+
+    return cards.nth(Math.max(index, 0));
   }
 }
 
-/** Playwright 1.59 lacks `page.getByDisplayValue`; `hasText` matches input values. */
-function fieldWithValue(page: Page, value: string): Locator {
-  return page.locator('input:not([type="hidden"]), textarea').filter({ hasText: value }).first();
+/** React-controlled inputs expose values via `inputValue()`, not CSS/value attrs. */
+async function expectVisibleInputValue(page: Page, value: string, timeout = 15_000) {
+  await expect
+    .poll(
+      async () => {
+        const named = page.getByRole("textbox", {
+          name: new RegExp(`(?:Guest name|Title) for ${escapeRegExp(value)}`, "i"),
+        });
+        if (await named.count()) return true;
+
+        const inputs = page.locator('input:not([type="hidden"]), textarea');
+        const n = await inputs.count();
+        for (let i = 0; i < n; i++) {
+          const input = inputs.nth(i);
+          if (!(await input.isVisible())) continue;
+          if ((await input.inputValue()) === value) return true;
+        }
+        return false;
+      },
+      { timeout }
+    )
+    .toBe(true);
 }
 
 function escapeRegExp(value: string) {

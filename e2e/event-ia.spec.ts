@@ -79,7 +79,8 @@ test.describe("with E2E credentials — event IA structure", () => {
 
     const groupNav = page.getByRole("navigation", { name: /event sections/i });
     await groupNav.getByRole("link", { name: /^Food & Drink$/i }).click();
-    await groupNav.getByRole("link", { name: /^Menu$/i }).click();
+    const foodSub = page.getByRole("navigation", { name: /food & drink sub-sections/i });
+    await foodSub.getByRole("link", { name: /^Menu$/i }).click();
 
     await expect(page.getByRole("heading", { name: /Food & Menu/i })).toBeVisible();
 

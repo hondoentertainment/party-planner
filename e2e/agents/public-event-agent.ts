@@ -80,9 +80,16 @@ export class PublicEventAgent {
   }
 
   async submitRsvp() {
+    const rpc = this.page.waitForResponse(
+      (res) =>
+        res.url().includes("/rpc/submit_public_rsvp") && res.request().method() === "POST",
+      { timeout: 30_000 }
+    );
     await this.page
       .getByRole("button", { name: /send rsvp|update rsvp|save changes/i })
       .click();
+    const response = await rpc;
+    expect(response.ok()).toBeTruthy();
   }
 
   async expectRsvpThanks(name: string) {

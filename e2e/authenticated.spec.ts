@@ -89,9 +89,9 @@ test.describe("with E2E credentials", () => {
     await page.getByLabel(/collaborator email/i).fill(`missing-${Date.now()}@example.com`);
     await page.getByLabel(/default role/i).selectOption("viewer");
     await page.getByRole("button", { name: /^Invite$/i }).click();
-    await expect(page.getByText(/no user with that email|ask them to sign up/i)).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(
+      page.getByText(/invitation sent to|they'll get access when they sign up/i)
+    ).toBeVisible({ timeout: 15_000 });
 
     await page.getByRole("button", { name: /notifications/i }).click();
     await expect(page.getByRole("dialog", { name: /notifications/i })).toBeVisible();

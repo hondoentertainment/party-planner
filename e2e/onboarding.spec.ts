@@ -74,7 +74,7 @@ test.describe("with E2E credentials — onboarding tour", () => {
     await expect(tour).toBeVisible({ timeout: 5_000 });
 
     await tour.focus();
-    await page.keyboard.press("Escape");
+    await tour.press("Escape");
     await expect(tour).toHaveCount(0);
 
     // Esc closes WITHOUT marking complete (per OnboardingTour.tsx skip vs Esc
