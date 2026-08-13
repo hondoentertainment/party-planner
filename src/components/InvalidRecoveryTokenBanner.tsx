@@ -24,14 +24,14 @@ export function InvalidRecoveryTokenBanner({ kind, onDismiss }: InvalidRecoveryT
       role="alert"
       aria-live="polite"
     >
-      <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" aria-hidden />
+      <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" aria-hidden />
       <div className="flex-1 min-w-0">
         <p className="font-medium">{summary}</p>
         <p className="text-amber-900/85 mt-0.5">{detail}</p>
       </div>
       <button
         type="button"
-        className="self-start inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+        className="self-start inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg hover:bg-amber-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500"
         onClick={onDismiss}
         aria-label="Dismiss recovery link notice"
       >

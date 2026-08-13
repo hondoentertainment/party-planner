@@ -230,12 +230,12 @@ export function Overview({ event }: { event: EventRow }) {
                   className="flex items-start gap-3 rounded-lg border border-slate-100 px-3 py-2 hover:bg-slate-50/80 transition-colors"
                 >
                   {row.done ? (
-                    <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center flex-shrink-0 mt-0.5">
+                    <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center shrink-0 mt-0.5">
                       <Check size={14} aria-hidden />
                     </span>
                   ) : (
                     <span
-                      className="w-6 h-6 rounded-full border-2 border-slate-200 grid place-items-center flex-shrink-0 mt-0.5"
+                      className="w-6 h-6 rounded-full border-2 border-slate-200 grid place-items-center shrink-0 mt-0.5"
                       aria-hidden
                     >
                       <Circle size={8} className="text-slate-300 fill-current" />
@@ -365,7 +365,7 @@ export function Overview({ event }: { event: EventRow }) {
             </div>
             <div className="flex -space-x-2">
               <div
-                className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-xs font-semibold ring-2 ring-white"
+                className="w-8 h-8 rounded-full bg-linear-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-xs font-semibold ring-2 ring-white"
                 title={ownerProfile.name ? `Owner — ${ownerProfile.name}` : "Owner"}
                 aria-label={ownerProfile.name ? `Owner: ${ownerProfile.name}` : "Owner"}
               >
@@ -449,7 +449,7 @@ function Detail({
 }) {
   return (
     <div className="flex items-start gap-2">
-      <Icon size={16} className="text-slate-400 mt-0.5 flex-shrink-0" />
+      <Icon size={16} className="text-slate-400 mt-0.5 shrink-0" />
       <div className="min-w-0">
         <div className="text-xs text-slate-500">{label}</div>
         <div className="font-medium truncate">{children}</div>
@@ -463,9 +463,9 @@ function TMinusPin({ label }: { label: string }) {
     <div
       role="status"
       aria-live="polite"
-      className="rounded-xl border border-brand-200 bg-gradient-to-r from-brand-50 via-brand-100/70 to-amber-50 text-brand-900 px-4 py-2.5 flex items-center gap-2 text-sm font-semibold shadow-soft"
+      className="rounded-xl border border-brand-200 bg-linear-to-r from-brand-50 via-brand-100/70 to-amber-50 text-brand-900 px-4 py-2.5 flex items-center gap-2 text-sm font-semibold shadow-soft"
     >
-      <CalendarClock size={16} className="text-brand-600 flex-shrink-0" aria-hidden />
+      <CalendarClock size={16} className="text-brand-600 shrink-0" aria-hidden />
       <span className="truncate">{label}</span>
     </div>
   );
@@ -494,7 +494,7 @@ function FirstRunBanner({
       <button
         type="button"
         onClick={onDismiss}
-        className="absolute top-2 right-2 p-1 rounded text-brand-700/70 hover:text-brand-900 hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+        className="absolute top-2 right-2 p-1 rounded-sm text-brand-700/70 hover:text-brand-900 hover:bg-brand-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400"
         aria-label="Dismiss getting started checklist"
       >
         <X size={14} />
@@ -508,12 +508,12 @@ function FirstRunBanner({
           const inner = (
             <span className="flex items-center gap-2">
               {s.done ? (
-                <span className="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center flex-shrink-0">
+                <span className="w-5 h-5 rounded-full bg-brand-600 text-white grid place-items-center shrink-0">
                   <Check size={12} aria-hidden />
                 </span>
               ) : (
                 <span
-                  className="w-5 h-5 rounded-full border-2 border-brand-400 grid place-items-center flex-shrink-0 animate-pulse"
+                  className="w-5 h-5 rounded-full border-2 border-brand-400 grid place-items-center shrink-0 animate-pulse"
                   aria-hidden
                 >
                   <Circle size={6} className="text-brand-400 fill-current" />
@@ -535,7 +535,7 @@ function FirstRunBanner({
             <li key={s.id} aria-checked={s.done} role="checkbox">
               <Link
                 to={s.to}
-                className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 rounded inline-flex"
+                className="hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400 rounded-sm inline-flex"
               >
                 {inner}
               </Link>

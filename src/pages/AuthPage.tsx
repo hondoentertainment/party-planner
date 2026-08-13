@@ -190,7 +190,7 @@ export function AuthPage({ startMode = "signup" }: { startMode?: StartMode }) {
           : "Email me a sign-in link";
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-brand-50 via-white to-amber-50 flex items-center justify-center p-4 sm:p-8">
+    <div className="min-h-full bg-linear-to-br from-brand-50 via-white to-amber-50 flex items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 lg:gap-12 items-center">
         <div className="card w-full max-w-md mx-auto sm:max-w-none p-6 sm:p-8">
           <div className="flex items-center gap-3 mb-5">
@@ -273,8 +273,8 @@ export function AuthPage({ startMode = "signup" }: { startMode?: StartMode }) {
                       onClick={() => switchMode(m)}
                       data-testid={`auth-tab-${m}`}
                       className={
-                        "flex-1 py-1.5 rounded-md font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 " +
-                        (mode === m ? "bg-white shadow-sm text-slate-900" : "text-slate-600")
+                        "flex-1 py-1.5 rounded-md font-medium focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400 " +
+                        (mode === m ? "bg-white shadow-xs text-slate-900" : "text-slate-600")
                       }
                     >
                       {m === "signup" ? "Sign up" : "Sign in"}
@@ -406,7 +406,7 @@ function ValueProp() {
       className="hidden sm:flex flex-col"
       aria-label="Why Party Planner"
     >
-      <div className="rounded-3xl bg-gradient-to-br from-brand-50 via-white to-amber-50 border border-white/60 shadow-soft p-6 lg:p-8">
+      <div className="rounded-3xl bg-linear-to-br from-brand-50 via-white to-amber-50 border border-white/60 shadow-soft p-6 lg:p-8">
         <h2 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 leading-tight">
           Stop juggling spreadsheets, group chats, and sticky notes.
         </h2>
@@ -417,7 +417,7 @@ function ValueProp() {
           {FEATURES.map(({ Icon, title, blurb }) => (
             <li
               key={title}
-              className="card p-4 flex items-start gap-3 bg-white/80 backdrop-blur-sm border-l-4 border-l-brand-500"
+              className="card p-4 flex items-start gap-3 bg-white/80 backdrop-blur-xs border-l-4 border-l-brand-500"
             >
               <div className="w-10 h-10 shrink-0 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">
                 <Icon size={20} aria-hidden />

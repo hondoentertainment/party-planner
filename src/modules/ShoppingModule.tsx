@@ -102,7 +102,7 @@ export function ShoppingModule({ event }: { event: EventRow }) {
           id={`${addId}-store`}
           value={store}
           onChange={(e) => setStore(e.target.value)}
-          className="text-xs bg-slate-100 border-0 rounded px-2 py-1.5"
+          className="text-xs bg-slate-100 border-0 rounded-sm px-2 py-1.5"
           disabled={!perms.canEdit}
         >
           {STORES.map((s) => (
@@ -117,7 +117,7 @@ export function ShoppingModule({ event }: { event: EventRow }) {
         </label>
         <input
           id={`${addId}-item`}
-          className="flex-1 bg-transparent border-0 focus:outline-none text-sm py-1"
+          className="flex-1 bg-transparent border-0 focus:outline-hidden text-sm py-1"
           placeholder="Burger buns, ice, charcoal…"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
@@ -282,7 +282,7 @@ function ShopRow({
       </button>
       <input
         aria-label="Shopping item name"
-        className={`flex-1 min-w-[140px] bg-transparent border-0 focus:outline-none text-sm font-medium ${
+        className={`flex-1 min-w-[140px] bg-transparent border-0 focus:outline-hidden text-sm font-medium ${
           purchased ? "line-through text-slate-400" : ""
         }`}
         value={titleVal}
@@ -295,7 +295,7 @@ function ShopRow({
         type="number"
         min={0}
         step={0.5}
-        className="w-14 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+        className="w-14 bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
         placeholder="qty"
         value={meta.qty ?? ""}
         onChange={(e) => updateMeta({ qty: Number(e.target.value) || 0 })}
@@ -304,7 +304,7 @@ function ShopRow({
       <input
         id={`${rowId}-unit`}
         aria-label={`Unit for ${item.title}`}
-        className="w-16 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+        className="w-16 bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
         placeholder="unit"
         value={meta.unit ?? ""}
         onChange={(e) => updateMeta({ unit: e.target.value })}
@@ -313,7 +313,7 @@ function ShopRow({
       <input
         id={`${rowId}-estimated-cost`}
         aria-label={`Estimated cost for ${item.title}`}
-        className="w-24 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+        className="w-24 bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
         placeholder="Est. $"
         value={meta.est_cost_cents ? (meta.est_cost_cents / 100).toFixed(2) : ""}
         onChange={(e) =>
@@ -326,7 +326,7 @@ function ShopRow({
       <input
         id={`${rowId}-actual-cost`}
         aria-label={`Actual cost for ${item.title}`}
-        className="w-24 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+        className="w-24 bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
         placeholder="Actual $"
         value={meta.cost_cents ? (meta.cost_cents / 100).toFixed(2) : ""}
         onChange={(e) =>

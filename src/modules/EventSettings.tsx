@@ -470,7 +470,7 @@ export function EventSettings({ event }: { event: EventRow }) {
                 Subscribe in your calendar
               </h4>
               <p className="text-xs text-slate-500">
-                Paste this <code className="bg-slate-100 rounded px-1">webcal://</code> URL into Apple
+                Paste this <code className="bg-slate-100 rounded-sm px-1">webcal://</code> URL into Apple
                 Calendar, Google Calendar, or Outlook to subscribe. The event auto-updates if you change
                 the date, name, or location — no need to re-share.
               </p>
@@ -532,7 +532,7 @@ export function EventSettings({ event }: { event: EventRow }) {
             <label className="flex items-start gap-3 cursor-pointer group">
               <input
                 type="checkbox"
-                className="mt-1 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                className="mt-1 rounded-sm border-slate-300 text-brand-600 focus:ring-brand-500"
                 checked={reminderMutes.has("all")}
                 disabled={reminderMutePending === "all"}
                 onChange={() => void toggleReminderMute("all")}
@@ -550,11 +550,11 @@ export function EventSettings({ event }: { event: EventRow }) {
                 return (
                   <label
                     key={meta.kind}
-                    className="flex items-start gap-3 cursor-pointer group has-[:disabled]:cursor-not-allowed"
+                    className="flex items-start gap-3 cursor-pointer group has-disabled:cursor-not-allowed"
                   >
                     <input
                       type="checkbox"
-                      className="mt-1 rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50"
+                      className="mt-1 rounded-sm border-slate-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50"
                       checked={receiving}
                       disabled={
                         reminderMutes.has("all") ||
@@ -643,7 +643,7 @@ export function EventSettings({ event }: { event: EventRow }) {
         <h3 className="font-display font-bold mb-3">Team members</h3>
         <ul className="divide-y divide-slate-100">
           <li className="py-2 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-pink-500 text-white grid place-items-center text-sm font-bold">
+            <div className="w-9 h-9 rounded-full bg-linear-to-br from-brand-500 to-pink-500 text-white grid place-items-center text-sm font-bold">
               <span aria-hidden>★</span>
             </div>
             <div className="flex-1">
@@ -669,7 +669,7 @@ export function EventSettings({ event }: { event: EventRow }) {
                 <select
                   value={c.role}
                   onChange={(e) => updateRole(c.user_id, e.target.value as CollabRole)}
-                  className="text-xs bg-slate-100 border-0 rounded px-2 py-1"
+                  className="text-xs bg-slate-100 border-0 rounded-sm px-2 py-1"
                   aria-label={`Role for ${display}`}
                 >
                   <option value="editor">Editor</option>
@@ -720,7 +720,7 @@ export function EventSettings({ event }: { event: EventRow }) {
                   key={inv.id}
                   className="py-3 flex items-center gap-3 flex-wrap sm:flex-nowrap"
                 >
-                  <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 grid place-items-center text-sm font-semibold flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 grid place-items-center text-sm font-semibold shrink-0">
                     <Mail size={16} aria-hidden />
                   </div>
                   <div className="flex-1 min-w-0">

@@ -236,7 +236,7 @@ export function GuestModule({ event }: { event: EventRow }) {
           </label>
           <input
             id={newGuestId}
-            className="flex-1 bg-transparent border-0 focus:outline-none text-sm py-1.5"
+            className="flex-1 bg-transparent border-0 focus:outline-hidden text-sm py-1.5"
             placeholder="Add guest name…"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -390,10 +390,10 @@ function GuestRow({ item, eventId, canEdit }: { item: EventItem; eventId: string
   return (
     <li className="card overflow-hidden">
       <div className="flex items-center gap-2 p-3 flex-wrap">
-        <span className={`w-2 h-2 rounded-full ${m.dot} flex-shrink-0`} aria-hidden />
+        <span className={`w-2 h-2 rounded-full ${m.dot} shrink-0`} aria-hidden />
         <input
           aria-label={`Guest name for ${item.title}`}
-          className="flex-1 min-w-[120px] bg-transparent border-0 focus:outline-none text-sm font-medium"
+          className="flex-1 min-w-[120px] bg-transparent border-0 focus:outline-hidden text-sm font-medium"
           value={titleVal}
           onChange={(e) => setTitleVal(e.target.value)}
           disabled={!canEdit}

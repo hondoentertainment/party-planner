@@ -78,7 +78,7 @@ export function SortableRow({
   id,
   children,
   className = "",
-  handleClassName = "text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing flex-shrink-0",
+  handleClassName = "text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0",
 }: {
   id: string;
   children: React.ReactNode;

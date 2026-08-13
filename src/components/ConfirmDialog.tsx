@@ -63,7 +63,7 @@ export function ConfirmDialog({
               <AlertTriangle
                 size={20}
                 aria-hidden="true"
-                className="text-rose-500 flex-shrink-0 mt-0.5"
+                className="text-rose-500 shrink-0 mt-0.5"
               />
             )}
             <div className="text-sm text-slate-600 leading-relaxed">

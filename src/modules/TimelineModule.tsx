@@ -149,7 +149,7 @@ export function TimelineModule({ event }: { event: EventRow }) {
           return (
             <div key={p.key} className="card overflow-hidden flex flex-col">
               <div
-                className={`p-4 bg-gradient-to-br ${p.color}`}
+                className={`p-4 bg-linear-to-br ${p.color}`}
               >
                 <div className="flex items-center gap-2">
                   <p.icon size={18} />
@@ -169,7 +169,7 @@ export function TimelineModule({ event }: { event: EventRow }) {
                   <button
                     onClick={() => seedStarters(p.key)}
                     disabled={!perms.canEdit}
-                    className="w-full text-left text-xs text-brand-600 hover:bg-brand-50 rounded p-2"
+                    className="w-full text-left text-xs text-brand-600 hover:bg-brand-50 rounded-sm p-2"
                   >
                     + Add starter tasks
                   </button>
@@ -204,7 +204,7 @@ export function TimelineModule({ event }: { event: EventRow }) {
               >
                 <Plus size={16} className="text-slate-400 ml-1" />
                 <input
-                  className="flex-1 bg-transparent border-0 focus:outline-none text-sm py-1"
+                  className="flex-1 bg-transparent border-0 focus:outline-hidden text-sm py-1"
                   placeholder="Add task…"
                   value={newTitle[p.key]}
                   onChange={(e) =>
@@ -283,7 +283,7 @@ function TaskRow({
       </button>
       <div className="flex-1 min-w-0">
         <input
-          className={`w-full bg-transparent border-0 focus:outline-none text-sm ${
+          className={`w-full bg-transparent border-0 focus:outline-hidden text-sm ${
             item.status === "done" ? "line-through text-slate-400" : ""
           }`}
           value={titleVal}

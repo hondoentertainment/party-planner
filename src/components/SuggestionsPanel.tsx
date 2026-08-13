@@ -129,7 +129,7 @@ export function SuggestionsPanel({
       className="card p-4 space-y-3"
     >
       <header className="flex items-center gap-2">
-        <Sparkles size={16} className="text-brand-600 flex-shrink-0" aria-hidden />
+        <Sparkles size={16} className="text-brand-600 shrink-0" aria-hidden />
         <h3 className="font-display text-base font-bold">
           Needs attention ({visible.length})
         </h3>
@@ -145,7 +145,7 @@ export function SuggestionsPanel({
             >
               <Icon
                 size={18}
-                className={`flex-shrink-0 mt-0.5 ${styles.icon}`}
+                className={`shrink-0 mt-0.5 ${styles.icon}`}
                 aria-hidden
               />
               <div className="flex-1 min-w-0">
@@ -166,7 +166,7 @@ export function SuggestionsPanel({
                 <button
                   type="button"
                   onClick={() => handleDismiss(s.id)}
-                  className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                  className="p-1 rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400"
                   aria-label={`Dismiss '${s.title}' suggestion`}
                 >
                   <X size={14} aria-hidden />

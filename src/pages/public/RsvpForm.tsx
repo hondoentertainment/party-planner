@@ -226,7 +226,7 @@ export default function RsvpForm({
                   htmlFor={id}
                   className={[
                     "cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border-2 transition-colors min-h-[48px]",
-                    "focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-1",
+                    "focus-within:outline-hidden focus-within:ring-2 focus-within:ring-offset-1",
                     accent.ring,
                     active ? accent.active : accent.idle,
                   ].join(" ")}

@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
               The app hit an unexpected error. Try reloading the page — your data is safe in
               Supabase.
             </p>
-            <pre className="text-xs text-left bg-slate-100 rounded p-2 mb-4 overflow-auto max-h-40 text-slate-600">
+            <pre className="text-xs text-left bg-slate-100 rounded-sm p-2 mb-4 overflow-auto max-h-40 text-slate-600">
               {this.state.error.message}
             </pre>
             {this.state.sentryEventId ? (

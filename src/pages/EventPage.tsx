@@ -220,13 +220,13 @@ export function EventPage() {
             <ArrowLeft size={14} /> All events
           </Link>
           <div className="flex items-center gap-3">
-            <span className="text-5xl drop-shadow-sm">{event.cover_emoji}</span>
+            <span className="text-5xl drop-shadow-xs">{event.cover_emoji}</span>
             <div>
-              <h1 className="font-display text-3xl font-bold text-slate-900 drop-shadow-sm">
+              <h1 className="font-display text-3xl font-bold text-slate-900 drop-shadow-xs">
                 {event.name}
               </h1>
               {event.theme && (
-                <p className="text-slate-800 text-sm drop-shadow-sm">{event.theme}</p>
+                <p className="text-slate-800 text-sm drop-shadow-xs">{event.theme}</p>
               )}
             </div>
           </div>
@@ -275,9 +275,9 @@ export function EventPage() {
                     end={t.to === ""}
                     className={({ isActive }) =>
                       clsx(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap min-h-[32px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
+                        "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap min-h-[32px] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400",
                         isActive
-                          ? "bg-white text-brand-700 shadow-sm border border-slate-200"
+                          ? "bg-white text-brand-700 shadow-xs border border-slate-200"
                           : "text-slate-600 hover:bg-white/60"
                       )
                     }
@@ -462,7 +462,7 @@ export function EventPage() {
       {/* "More" sheet */}
       {moreOpen && (
         <div
-          className="sm:hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-end"
+          className="sm:hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs flex items-end"
           onClick={() => setMoreOpen(false)}
           role="presentation"
         >

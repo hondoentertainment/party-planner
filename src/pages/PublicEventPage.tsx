@@ -251,14 +251,14 @@ export function PublicEventPage() {
       <EventCoverBackdrop coverColor={event.cover_color} coverImageUrl={event.cover_image_url}>
         <section className="p-6 sm:p-10">
           <div className="max-w-3xl mx-auto">
-            <div className="text-6xl mb-3 drop-shadow-sm" aria-hidden>
+            <div className="text-6xl mb-3 drop-shadow-xs" aria-hidden>
               {event.cover_emoji}
             </div>
-            <h1 className="font-display text-4xl font-bold text-slate-900 drop-shadow-sm">
+            <h1 className="font-display text-4xl font-bold text-slate-900 drop-shadow-xs">
               {event.name}
             </h1>
             {event.theme && (
-              <p className="text-slate-800 mt-1 drop-shadow-sm">{event.theme}</p>
+              <p className="text-slate-800 mt-1 drop-shadow-xs">{event.theme}</p>
             )}
           </div>
         </section>
@@ -420,7 +420,7 @@ export function PublicEventPage() {
             className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 underline decoration-slate-300"
             onClick={() => setPublicBugOpen(true)}
           >
-            <Bug size={14} className="flex-shrink-0" aria-hidden />
+            <Bug size={14} className="shrink-0" aria-hidden />
             Problem with this page?
           </button>
           <p className="text-[11px] text-slate-400 max-w-md mx-auto leading-snug px-2">
@@ -743,7 +743,7 @@ function RsvpChoicePlaceholder({
                 htmlFor={id}
                 className={[
                   "cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border-2 transition-colors min-h-[48px]",
-                  "focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-1",
+                  "focus-within:outline-hidden focus-within:ring-2 focus-within:ring-offset-1",
                   accent.ring,
                   accent.idle,
                 ].join(" ")}
@@ -782,8 +782,8 @@ function RsvpFormSkeleton({ initialChoice }: { initialChoice: RsvpChoice | null 
       aria-busy="true"
     >
       <div>
-        <div className="h-5 w-40 rounded bg-slate-100 animate-pulse" />
-        <div className="h-3 w-64 rounded bg-slate-100 animate-pulse mt-2" />
+        <div className="h-5 w-40 rounded-sm bg-slate-100 animate-pulse" />
+        <div className="h-3 w-64 rounded-sm bg-slate-100 animate-pulse mt-2" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" aria-hidden>
         {(["yes", "maybe", "no"] as const).map((choice) => {

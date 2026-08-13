@@ -331,7 +331,7 @@ function DashboardFilters({
                 type="button"
                 onClick={() => onQueryChange("")}
                 aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-sm text-slate-400 hover:text-slate-700 hover:bg-slate-100"
               >
                 <X size={14} />
               </button>
@@ -352,7 +352,7 @@ function DashboardFilters({
                 role="radio"
                 aria-checked={selected}
                 onClick={() => onFilterChange(opt.value)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
+                className={`px-3 py-1.5 rounded-md text-sm font-medium min-h-[36px] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400 ${
                   selected
                     ? "bg-white text-slate-900 shadow-soft"
                     : "text-slate-600 hover:text-slate-900"
@@ -711,7 +711,7 @@ function EventCard({ ev }: { ev: EventRow }) {
                 : `linear-gradient(135deg, ${ev.cover_color}22, ${ev.cover_color}55)`,
             }}
           />
-          <span className="relative z-[1] drop-shadow-sm">{ev.cover_emoji}</span>
+          <span className="relative z-1 drop-shadow-xs">{ev.cover_emoji}</span>
         </div>
         <div className="p-4 space-y-2">
           <div className="flex items-start justify-between gap-2">
@@ -719,7 +719,7 @@ function EventCard({ ev }: { ev: EventRow }) {
               {ev.name}
             </h3>
             {chip && (
-              <span className={`chip flex-shrink-0 ${chip.className}`}>
+              <span className={`chip shrink-0 ${chip.className}`}>
                 {chip.label}
               </span>
             )}
@@ -757,7 +757,7 @@ function EventCard({ ev }: { ev: EventRow }) {
         aria-expanded={menuOpen}
         aria-controls={menuId}
         aria-haspopup="true"
-        className="absolute top-2 right-2 p-2 rounded-lg bg-white/80 backdrop-blur hover:bg-white text-slate-700 shadow-sm"
+        className="absolute top-2 right-2 p-2 rounded-lg bg-white/80 backdrop-blur-sm hover:bg-white text-slate-700 shadow-xs"
       >
         <MoreVertical size={16} />
       </button>
@@ -783,7 +783,7 @@ function EventCard({ ev }: { ev: EventRow }) {
               disabled={sharing || duplicating || duplicatingNextYear}
               aria-busy={sharing}
               role="menuitem"
-              className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
+              className="flex items-center gap-2 px-2 py-2 rounded-sm hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
             >
               <Share2 size={14} />
               {sharing ? "Copying…" : "Copy public link"}
@@ -793,7 +793,7 @@ function EventCard({ ev }: { ev: EventRow }) {
               onClick={onShareVia}
               disabled={sharing || duplicating || duplicatingNextYear}
               role="menuitem"
-              className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
+              className="flex items-center gap-2 px-2 py-2 rounded-sm hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
             >
               <Send size={14} />
               Share via…
@@ -804,7 +804,7 @@ function EventCard({ ev }: { ev: EventRow }) {
               onClick={onDuplicate}
               disabled={sharing || duplicating || duplicatingNextYear}
               role="menuitem"
-              className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
+              className="flex items-center gap-2 px-2 py-2 rounded-sm hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
             >
               <Copy size={14} />
               {duplicating ? "Duplicating…" : "Duplicate event"}
@@ -814,7 +814,7 @@ function EventCard({ ev }: { ev: EventRow }) {
               onClick={onDuplicateNextYear}
               disabled={sharing || duplicating || duplicatingNextYear}
               role="menuitem"
-              className="flex items-center gap-2 px-2 py-2 rounded hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
+              className="flex items-center gap-2 px-2 py-2 rounded-sm hover:bg-slate-100 w-full text-left text-sm disabled:opacity-50"
             >
               <CalendarPlus size={14} />
               {duplicatingNextYear ? "Duplicating…" : "Duplicate for next year"}
@@ -834,9 +834,9 @@ function EventGridSkeleton() {
         <div key={index} className="card overflow-hidden animate-pulse">
           <div className="h-24 bg-slate-100" />
           <div className="p-4 space-y-3">
-            <div className="h-5 bg-slate-100 rounded w-3/4" />
-            <div className="h-4 bg-slate-100 rounded w-1/2" />
-            <div className="h-4 bg-slate-100 rounded w-2/3" />
+            <div className="h-5 bg-slate-100 rounded-sm w-3/4" />
+            <div className="h-4 bg-slate-100 rounded-sm w-1/2" />
+            <div className="h-4 bg-slate-100 rounded-sm w-2/3" />
           </div>
         </div>
       ))}
@@ -884,7 +884,7 @@ function EmptyState({ onCreateBlank, onPickTemplate, onCreateSample }: EmptyStat
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
         <div className="flex items-start gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 grid place-items-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 grid place-items-center shrink-0">
             <Sparkles size={22} />
           </div>
           <div>
@@ -924,7 +924,7 @@ function EmptyState({ onCreateBlank, onPickTemplate, onCreateSample }: EmptyStat
         <button
           type="button"
           onClick={onCreateBlank}
-          className="card p-4 text-left hover:shadow-pop transition-shadow border-2 border-dashed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          className="card p-4 text-left hover:shadow-pop transition-shadow border-2 border-dashed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400"
           role="listitem"
           data-tour="new-event-btn"
         >
@@ -942,7 +942,7 @@ function EmptyState({ onCreateBlank, onPickTemplate, onCreateSample }: EmptyStat
         <button
           type="button"
           onClick={onCreateBlank}
-          className="text-sm text-brand-700 hover:text-brand-800 hover:underline font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 rounded"
+          className="text-sm text-brand-700 hover:text-brand-800 hover:underline font-medium focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400 rounded-sm"
         >
           Or create a blank event →
         </button>
@@ -964,7 +964,7 @@ function TemplateTile({
       type="button"
       onClick={onClick}
       role="listitem"
-      className="card p-4 text-left hover:shadow-pop transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+      className="card p-4 text-left hover:shadow-pop transition-shadow focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400"
       aria-label={`Use ${template.name} template — ${itemCount} items`}
     >
       <div
