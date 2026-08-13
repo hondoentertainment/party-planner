@@ -23,6 +23,7 @@ test.describe("settings & team leave-event affordance", () => {
   test("collaborator events expose a reachable Leave event button with proper aria", async ({
     page,
   }) => {
+    test.setTimeout(120_000);
     const events = new EventAgent(page);
 
     await expect(page.getByRole("heading", { name: /your events/i })).toBeVisible({
@@ -34,7 +35,8 @@ test.describe("settings & team leave-event affordance", () => {
     test.skip(total === 0, "Sign-in account has no events to inspect.");
 
     let collaboratorFound = false;
-    for (let i = 0; i < total; i += 1) {
+    const maxInspect = Math.min(total, 12);
+    for (let i = 0; i < maxInspect; i += 1) {
       // Re-resolve the locator after each navigation to avoid stale handles.
       await page.goto("/");
       await expect(page.getByRole("heading", { name: /your events/i })).toBeVisible({

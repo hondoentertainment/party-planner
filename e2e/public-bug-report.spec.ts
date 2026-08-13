@@ -43,7 +43,9 @@ test.describe("public share — bug report dialog", () => {
         .fill("This is an automated E2E report with enough detail to pass validation.");
 
       await publicPage.getByRole("button", { name: /submit report/i }).click();
-      await expect(publicPage.getByText(/report submitted/i)).toBeVisible({ timeout: 20_000 });
+      await expect(publicPage.getByText(/bug report submitted/i).first()).toBeVisible({
+        timeout: 20_000,
+      });
     } finally {
       await publicContext.close();
     }

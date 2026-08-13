@@ -190,7 +190,9 @@ export function OnboardingTour({
           className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 outline-none"
           style={{ animation: "pp-onboarding-card-in 240ms ease-out both" }}
           onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") e.stopPropagation();
+          }}
         >
           <ol
             className="flex items-center justify-center gap-2 mb-6"
