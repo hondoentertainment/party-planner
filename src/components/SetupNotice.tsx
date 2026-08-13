@@ -2,7 +2,7 @@ import { PartyPopper } from "lucide-react";
 
 export function SetupNotice() {
   return (
-    <div className="min-h-full bg-gradient-to-br from-brand-50 via-white to-amber-50 flex items-center justify-center p-6">
+    <div className="min-h-full bg-linear-to-br from-brand-50 via-white to-amber-50 flex items-center justify-center p-6">
       <div className="card max-w-2xl w-full p-8">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 rounded-xl bg-brand-600 text-white grid place-items-center shadow-pop">
@@ -29,7 +29,7 @@ export function SetupNotice() {
           </li>
           <li>
             In the SQL editor, paste and run{" "}
-            <code className="bg-slate-100 rounded px-1">supabase/migrations/0001_init.sql</code>{" "}
+            <code className="bg-slate-100 rounded-sm px-1">supabase/migrations/0001_init.sql</code>{" "}
             from this repo.
           </li>
           <li>
@@ -37,7 +37,7 @@ export function SetupNotice() {
             <em>anon public key</em>.
           </li>
           <li>
-            Create a <code className="bg-slate-100 rounded px-1">.env.local</code> file in the
+            Create a <code className="bg-slate-100 rounded-sm px-1">.env.local</code> file in the
             project root:
             <pre className="bg-slate-900 text-slate-100 rounded-lg p-3 mt-2 text-xs overflow-auto">
 {`VITE_SUPABASE_URL=https://YOUR-PROJECT.supabase.co

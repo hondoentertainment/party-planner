@@ -85,7 +85,7 @@ export function MobileAccountMenu({ open, onClose, onReportBug }: MobileAccountM
 
   return (
     <div
-      className="sm:hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-end"
+      className="sm:hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-end"
       onClick={onClose}
       role="presentation"
     >
@@ -104,7 +104,7 @@ export function MobileAccountMenu({ open, onClose, onReportBug }: MobileAccountM
 
         <div className="flex items-center gap-3 px-2 pb-3 mb-2 border-b border-slate-100">
           <div
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-base font-semibold"
+            className="w-12 h-12 rounded-full bg-linear-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-base font-semibold"
             aria-hidden
           >
             {initial}

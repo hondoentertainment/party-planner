@@ -207,7 +207,7 @@ function PlaylistCard({ item, eventId, canEdit }: { item: EventItem; eventId: st
   };
   return (
     <div className="card p-3 flex items-center gap-3">
-      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-500 to-pink-500 text-white grid place-items-center">
+      <div className="w-10 h-10 rounded-lg bg-linear-to-br from-brand-500 to-pink-500 text-white grid place-items-center">
         <ListMusic size={18} />
       </div>
       <div className="flex-1 min-w-0">
@@ -263,13 +263,13 @@ function TrackRow({
     <div className="card p-2 flex items-center gap-2 flex-wrap">
       <Music size={14} className="text-slate-400 ml-1" />
       <input
-        className="flex-1 min-w-[140px] bg-transparent border-0 focus:outline-none text-sm font-medium"
+        className="flex-1 min-w-[140px] bg-transparent border-0 focus:outline-hidden text-sm font-medium"
         value={item.title}
         onChange={(e) => update({ title: e.target.value })}
         disabled={!canEdit}
       />
       <input
-        className="w-32 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+        className="w-32 bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
         placeholder="Artist"
         value={meta.artist ?? ""}
         onChange={(e) => updateMeta({ artist: e.target.value })}
@@ -278,7 +278,7 @@ function TrackRow({
       <select
         value={meta.set ?? "main"}
         onChange={(e) => updateMeta({ set: e.target.value })}
-        className="bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+        className="bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
         disabled={!canEdit}
       >
         {SETS.map((s) => (

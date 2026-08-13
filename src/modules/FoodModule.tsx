@@ -89,7 +89,7 @@ export function FoodModule({ event }: { event: EventRow }) {
               : "border-slate-200 bg-slate-50 text-slate-700"
           }`}
         >
-          <Users size={16} className="flex-shrink-0" />
+          <Users size={16} className="shrink-0" />
           <span>
             Guest list: <strong>{confirmedGuests}</strong> confirmed to attend (incl. plus-ones). Menu
             covers <strong>{totalServings}</strong> servings.
@@ -110,7 +110,7 @@ export function FoodModule({ event }: { event: EventRow }) {
         <select
           value={course}
           onChange={(e) => setCourse(e.target.value)}
-          className="text-xs bg-slate-100 border-0 rounded px-2 py-1.5"
+          className="text-xs bg-slate-100 border-0 rounded-sm px-2 py-1.5"
           disabled={!perms.canEdit}
         >
           {COURSES.map((c) => (
@@ -121,7 +121,7 @@ export function FoodModule({ event }: { event: EventRow }) {
         </select>
         <Plus size={16} className="text-slate-400" />
         <input
-          className="flex-1 bg-transparent border-0 focus:outline-none text-sm py-1"
+          className="flex-1 bg-transparent border-0 focus:outline-hidden text-sm py-1"
           placeholder="Pulled pork sliders…"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
@@ -198,14 +198,14 @@ function FoodRow({
     <li className="card p-3">
       <div className="flex items-start gap-2 flex-wrap">
         <input
-          className="flex-1 min-w-[160px] bg-transparent border-0 focus:outline-none text-sm font-medium"
+          className="flex-1 min-w-[160px] bg-transparent border-0 focus:outline-hidden text-sm font-medium"
           value={item.title}
           onChange={(e) => update({ title: e.target.value })}
           disabled={!canEdit}
         />
         <div className="flex items-center gap-1.5 text-xs">
           <select
-            className="bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+            className="bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
             value={meta.course ?? "main"}
             onChange={(e) => updateMeta({ course: e.target.value })}
             disabled={!canEdit}
@@ -219,7 +219,7 @@ function FoodRow({
           <input
             type="number"
             min={0}
-            className="w-16 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+            className="w-16 bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
             placeholder="Servings"
             value={meta.servings ?? ""}
             onChange={(e) => updateMeta({ servings: Number(e.target.value) || 0 })}
@@ -256,7 +256,7 @@ function FoodRow({
           );
         })}
         <input
-          className="text-xs bg-transparent border-b border-slate-200 focus:border-brand-500 focus:outline-none px-1 ml-auto w-40"
+          className="text-xs bg-transparent border-b border-slate-200 focus:border-brand-500 focus:outline-hidden px-1 ml-auto w-40"
           placeholder="Notes / who's bringing"
           value={item.description ?? ""}
           onChange={(e) => update({ description: e.target.value })}

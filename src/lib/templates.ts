@@ -154,7 +154,7 @@ export const TEMPLATES: EventTemplate[] = [
       { kind: "music", title: "Birthday Party Mix", meta: { is_playlist: true } },
       { kind: "music", title: "Happy Birthday (full version)", meta: { artist: "Stevie Wonder", set: "main" } },
 
-      { kind: "game", title: "Photo booth corner", meta: { area: "Living room", supplies: "Props, ring light" } },
+      { kind: "game", title: "Photo booth corner", meta: { area: "Living room", supplies: "Props, ring-3 light" } },
 
       { kind: "sign", title: "Welcome", meta: { content: "🎉 Happy Birthday!", location: "Front door" } },
 

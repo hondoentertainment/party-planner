@@ -439,7 +439,7 @@ export function NewEventDialog({ onClose, initialTemplateId }: NewEventDialogPro
               aria-expanded={coverOpen}
               aria-controls={coverPanelId}
               aria-label="Customize cover"
-              className="w-14 h-14 rounded-full grid place-items-center text-2xl shadow-soft border border-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1"
+              className="w-14 h-14 rounded-full grid place-items-center text-2xl shadow-soft border border-slate-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1"
               style={{ background: `linear-gradient(135deg, ${color}33, ${color}88)` }}
             >
               <span aria-hidden="true">{emoji}</span>

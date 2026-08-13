@@ -68,7 +68,7 @@ export function BeveragesModule({ event }: { event: EventRow }) {
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
-          className="text-xs bg-slate-100 border-0 rounded px-2 py-1.5"
+          className="text-xs bg-slate-100 border-0 rounded-sm px-2 py-1.5"
           disabled={!perms.canEdit}
         >
           {TYPES.map((t) => (
@@ -79,7 +79,7 @@ export function BeveragesModule({ event }: { event: EventRow }) {
         </select>
         <Plus size={16} className="text-slate-400" />
         <input
-          className="flex-1 bg-transparent border-0 focus:outline-none text-sm py-1"
+          className="flex-1 bg-transparent border-0 focus:outline-hidden text-sm py-1"
           placeholder="Margaritas, IPA, sparkling water…"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
@@ -148,7 +148,7 @@ function BevRow({
   return (
     <li className="card p-3 flex items-center gap-2 flex-wrap">
       <input
-        className="flex-1 min-w-[140px] bg-transparent border-0 focus:outline-none text-sm font-medium"
+        className="flex-1 min-w-[140px] bg-transparent border-0 focus:outline-hidden text-sm font-medium"
         value={item.title}
         onChange={(e) => update({ title: e.target.value })}
         disabled={!canEdit}
@@ -157,13 +157,13 @@ function BevRow({
         type="number"
         min={0}
         step={0.5}
-        className="w-16 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+        className="w-16 bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
         value={meta.qty ?? ""}
         onChange={(e) => updateMeta({ qty: Number(e.target.value) || 0 })}
         disabled={!canEdit}
       />
       <input
-        className="w-20 bg-slate-100 border-0 rounded px-2 py-1 text-xs"
+        className="w-20 bg-slate-100 border-0 rounded-sm px-2 py-1 text-xs"
         placeholder="unit"
         value={meta.unit ?? ""}
         onChange={(e) => updateMeta({ unit: e.target.value })}
@@ -179,7 +179,7 @@ function BevRow({
         Alc
       </label>
       <input
-        className="flex-1 min-w-[120px] bg-transparent border-b border-slate-200 focus:border-brand-500 focus:outline-none text-xs px-1"
+        className="flex-1 min-w-[120px] bg-transparent border-b border-slate-200 focus:border-brand-500 focus:outline-hidden text-xs px-1"
         placeholder="Notes (mixers, ice, garnish…)"
         value={item.description ?? ""}
         onChange={(e) => update({ description: e.target.value })}

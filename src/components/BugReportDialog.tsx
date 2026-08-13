@@ -88,7 +88,7 @@ export function BugReportDialog({
             role="status"
             className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 flex gap-3"
           >
-            <CheckCircle2 size={18} className="mt-0.5 flex-shrink-0" aria-hidden />
+            <CheckCircle2 size={18} className="mt-0.5 shrink-0" aria-hidden />
             <div>
               <p className="font-medium">Report submitted</p>
               <p className="mt-1 text-emerald-700">
@@ -105,7 +105,7 @@ export function BugReportDialog({
       ) : (
         <form className="space-y-4" onSubmit={(e) => void submit(e)}>
           <div className="rounded-xl border border-brand-100 bg-brand-50/70 p-3 text-sm text-slate-700 flex gap-2">
-            <Bug size={16} className="mt-0.5 flex-shrink-0 text-brand-600" aria-hidden />
+            <Bug size={16} className="mt-0.5 shrink-0 text-brand-600" aria-hidden />
             <p>
               Tell us what broke. Your description is saved with lightweight diagnostics
               (page URL, browser, screen size, time zone — no passwords).
@@ -132,7 +132,7 @@ export function BugReportDialog({
               aria-live="assertive"
               className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 flex gap-2"
             >
-              <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" aria-hidden />
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
               <span>{error}</span>
             </div>
           )}

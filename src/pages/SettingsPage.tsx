@@ -300,7 +300,7 @@ export function SettingsPage() {
           aria-live="assertive"
           className="card p-3 border border-rose-200 bg-rose-50 text-rose-700 text-sm flex items-start gap-2"
         >
-          <ShieldAlert size={16} className="mt-0.5 flex-shrink-0" />
+          <ShieldAlert size={16} className="mt-0.5 shrink-0" />
           <span>Could not save preferences: {saveError}</span>
         </div>
       )}
@@ -393,7 +393,7 @@ export function SettingsPage() {
             aria-live="polite"
             className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
           >
-            <BellOff size={16} className="mt-0.5 flex-shrink-0" />
+            <BellOff size={16} className="mt-0.5 shrink-0" />
             <div className="flex-1">
               <p className="font-medium">All reminder emails are muted.</p>
               <p className="text-amber-700/90 mt-0.5">
@@ -418,7 +418,7 @@ export function SettingsPage() {
             aria-live="assertive"
             className="mb-3 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-sm text-rose-700"
           >
-            <ShieldAlert size={14} className="mt-0.5 flex-shrink-0" />
+            <ShieldAlert size={14} className="mt-0.5 shrink-0" />
             <span>Could not update preferences: {optOutsError}</span>
           </div>
         )}
@@ -604,14 +604,14 @@ function Switch({
       disabled={disabled}
       onClick={onChange}
       className={clsx(
-        "relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed",
+        "relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed",
         checked ? "bg-brand-600" : "bg-slate-300"
       )}
     >
       <span
         aria-hidden
         className={clsx(
-          "absolute top-0.5 left-0.5 inline-block h-5 w-5 rounded-full bg-white shadow transition-transform",
+          "absolute top-0.5 left-0.5 inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
           checked ? "translate-x-5" : "translate-x-0"
         )}
       />
@@ -662,7 +662,7 @@ function PushControls({
     return (
       <p className="text-sm text-slate-500">
         Push notifications aren't configured for this app yet. Set the
-        <code className="mx-1 px-1 rounded bg-slate-100 text-slate-700">
+        <code className="mx-1 px-1 rounded-sm bg-slate-100 text-slate-700">
           VITE_VAPID_PUBLIC_KEY
         </code>
         env var to enable them.

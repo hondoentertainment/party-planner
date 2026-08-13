@@ -173,7 +173,7 @@ export function OnboardingTour({
       `}</style>
       <div
         className={[
-          "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]",
+          "fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-60",
           "flex items-center justify-center p-4",
           "transition-opacity duration-200 ease-out",
           visible ? "opacity-100" : "opacity-0",
@@ -187,7 +187,7 @@ export function OnboardingTour({
           aria-modal="true"
           aria-labelledby={titleId}
           tabIndex={-1}
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 outline-none"
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 outline-hidden"
           style={{ animation: "pp-onboarding-card-in 240ms ease-out both" }}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
@@ -211,7 +211,7 @@ export function OnboardingTour({
                     aria-current={isActive ? "step" : undefined}
                     className={[
                       "block rounded-full transition-all duration-200",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2",
+                      "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2",
                       isActive
                         ? "w-6 h-2 bg-brand-600"
                         : reachable
@@ -267,7 +267,7 @@ export function OnboardingTour({
             <button
               type="button"
               onClick={skip}
-              className="text-xs text-slate-500 hover:text-slate-700 underline-offset-2 hover:underline rounded px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              className="text-xs text-slate-500 hover:text-slate-700 underline-offset-2 hover:underline rounded-sm px-2 py-1 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400"
             >
               Skip tour
             </button>

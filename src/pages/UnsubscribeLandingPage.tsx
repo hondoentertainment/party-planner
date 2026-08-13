@@ -53,10 +53,10 @@ export function UnsubscribeLandingPage() {
   }
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-brand-50 via-white to-amber-50 flex items-center justify-center p-6">
+    <div className="min-h-full bg-linear-to-br from-brand-50 via-white to-amber-50 flex items-center justify-center p-6">
       <div className="card max-w-lg w-full p-8 shadow-soft">
         <div className="flex items-start gap-3 mb-4">
-          <div className="w-12 h-12 rounded-xl bg-white border border-brand-100 grid place-items-center shrink-0 shadow-sm">
+          <div className="w-12 h-12 rounded-xl bg-white border border-brand-100 grid place-items-center shrink-0 shadow-xs">
             {emoji}
           </div>
           <div>

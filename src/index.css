@@ -1,8 +1,101 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap')
+layer(base);
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  --shadow-soft:
+    0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 10px 30px -10px rgba(79, 70, 229, 0.35);
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+           min-h-[44px] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1;
+}
+
+@utility btn-primary {
+  @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-pop;
+}
+
+@utility btn-secondary {
+  @apply btn bg-white text-slate-800 border border-slate-200 hover:bg-slate-50;
+}
+
+@utility btn-ghost {
+  @apply btn text-slate-600 hover:bg-slate-100;
+}
+
+@utility btn-danger {
+  @apply btn bg-rose-600 text-white hover:bg-rose-700;
+}
+
+@utility input {
+  @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-hidden focus:ring-2 focus:ring-brand-200
+           min-h-[44px];
+}
+
+@utility label {
+  @apply block text-xs font-medium text-slate-600 mb-1;
+}
+
+@utility card {
+  @apply bg-white rounded-xl shadow-soft border border-slate-100;
+}
+
+@utility chip {
+  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+}
+
+@utility tab {
+  @apply flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 cursor-pointer min-h-[44px] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400;
+}
+
+@utility tab-active {
+  @apply bg-brand-50 text-brand-700;
+}
+
+@utility scrollbar-thin {
+  /* Hide scrollbars on horizontal tab strips while keeping scroll behavior */
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full;
+  }
+}
 
 :root {
   color-scheme: light;
@@ -25,53 +118,6 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-}
-
-/* Reusable component classes */
-@layer components {
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-           min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1;
-  }
-  .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-pop;
-  }
-  .btn-secondary {
-    @apply btn bg-white text-slate-800 border border-slate-200 hover:bg-slate-50;
-  }
-  .btn-ghost {
-    @apply btn text-slate-600 hover:bg-slate-100;
-  }
-  .btn-danger {
-    @apply btn bg-rose-600 text-white hover:bg-rose-700;
-  }
-  .input {
-    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200
-           min-h-[44px];
-  }
-  .label {
-    @apply block text-xs font-medium text-slate-600 mb-1;
-  }
-  .card {
-    @apply bg-white rounded-xl shadow-soft border border-slate-100;
-  }
-  .chip {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
-  }
-  .tab {
-    @apply flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 cursor-pointer min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400;
-  }
-  .tab-active {
-    @apply bg-brand-50 text-brand-700;
-  }
-
-  /* Hide scrollbars on horizontal tab strips while keeping scroll behavior */
-  .scrollbar-thin::-webkit-scrollbar {
-    height: 4px;
-  }
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    @apply bg-slate-200 rounded-full;
   }
 }
 

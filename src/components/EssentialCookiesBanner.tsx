@@ -34,7 +34,7 @@ export function EssentialCookiesBanner() {
     <div
       role="dialog"
       aria-label="Privacy notice"
-      className="fixed bottom-0 inset-x-0 z-[90] p-3 sm:p-4 pointer-events-none"
+      className="fixed bottom-0 inset-x-0 z-90 p-3 sm:p-4 pointer-events-none"
     >
       <div className="max-w-3xl mx-auto pointer-events-auto rounded-xl border border-slate-200 bg-white shadow-pop px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
         <p className="text-sm text-slate-700 flex-1 leading-snug">

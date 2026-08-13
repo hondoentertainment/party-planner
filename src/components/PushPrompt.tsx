@@ -30,7 +30,7 @@ export function PushPrompt() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 border-b border-brand-100/80 bg-brand-50/90 text-sm flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-2 text-slate-800">
-        <Bell size={16} className="text-brand-600 flex-shrink-0" />
+        <Bell size={16} className="text-brand-600 shrink-0" />
         <span>Enable browser notifications when you are assigned a task (works with your existing assignment emails).</span>
       </div>
       <div className="flex items-center gap-2">

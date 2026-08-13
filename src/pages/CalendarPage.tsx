@@ -122,7 +122,7 @@ export function CalendarPage() {
                     <Link
                       key={ev.id}
                       to={`/events/${ev.id}`}
-                      className="block text-xs px-1.5 py-0.5 rounded truncate font-medium"
+                      className="block text-xs px-1.5 py-0.5 rounded-sm truncate font-medium"
                       style={{
                         background: `${ev.cover_color}22`,
                         color: ev.cover_color,
@@ -179,7 +179,7 @@ export function CalendarPage() {
                 to={`/events/${ev.id}`}
                 className="card p-3 flex items-center gap-3 hover:shadow-pop"
               >
-                <span className="relative h-11 w-11 flex-shrink-0 overflow-hidden rounded-lg grid place-items-center text-xl bg-slate-100">
+                <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg grid place-items-center text-xl bg-slate-100">
                   {ev.cover_image_url ? (
                     <img
                       src={ev.cover_image_url}
@@ -190,7 +190,7 @@ export function CalendarPage() {
                       aria-hidden
                     />
                   ) : null}
-                  <span className="relative z-[1] drop-shadow-sm">{ev.cover_emoji}</span>
+                  <span className="relative z-1 drop-shadow-xs">{ev.cover_emoji}</span>
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold truncate">{ev.name}</div>

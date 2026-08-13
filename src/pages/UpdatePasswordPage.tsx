@@ -41,7 +41,7 @@ export function UpdatePasswordPage() {
   };
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-brand-50 via-white to-amber-50 flex items-center justify-center p-6">
+    <div className="min-h-full bg-linear-to-br from-brand-50 via-white to-amber-50 flex items-center justify-center p-6">
       <div className="card max-w-md w-full p-8">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-12 h-12 rounded-xl bg-brand-600 text-white grid place-items-center shadow-pop">

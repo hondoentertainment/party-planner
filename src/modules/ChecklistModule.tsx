@@ -96,7 +96,7 @@ export function ChecklistModule({
           </label>
           <input
             id={addId}
-            className="flex-1 bg-transparent border-0 focus:outline-none text-sm py-1.5"
+            className="flex-1 bg-transparent border-0 focus:outline-hidden text-sm py-1.5"
             placeholder={placeholder}
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
@@ -234,7 +234,7 @@ function ChecklistRow({
         <button
           type="button"
           onClick={cycleStatus}
-          className="mt-0.5 flex-shrink-0 min-h-[44px] min-w-[44px] grid place-items-center rounded-lg hover:bg-slate-50"
+          className="mt-0.5 shrink-0 min-h-[44px] min-w-[44px] grid place-items-center rounded-lg hover:bg-slate-50"
           title={item.status}
           disabled={!canEdit}
           aria-label={`Cycle status for ${item.title} (currently ${formatStatus(item.status)})`}
@@ -249,7 +249,7 @@ function ChecklistRow({
         </button>
         <input
           aria-label={`Title for ${item.title}`}
-          className={`flex-1 bg-transparent border-0 focus:outline-none text-sm ${
+          className={`flex-1 bg-transparent border-0 focus:outline-hidden text-sm ${
             item.status === "done" ? "line-through text-slate-400" : ""
           }`}
           value={titleVal}
@@ -269,7 +269,7 @@ function ChecklistRow({
             <input
               aria-label={`Due date for ${item.title}`}
               type="date"
-              className="text-xs px-2 py-1 rounded border border-slate-200 bg-white"
+              className="text-xs px-2 py-1 rounded-sm border border-slate-200 bg-white"
               value={item.due_at ? item.due_at.slice(0, 10) : ""}
               onChange={(e) =>
                 update({ due_at: e.target.value ? new Date(e.target.value).toISOString() : null })
@@ -405,7 +405,7 @@ export function AssigneePicker({
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-        className="flex items-center gap-1 px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-xs"
+        className="flex items-center gap-1 px-2 py-1 rounded-sm border border-slate-200 hover:bg-slate-50 text-xs"
         title={current ? `Assigned to ${current.display_name ?? current.email}` : "Assign"}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -414,7 +414,7 @@ export function AssigneePicker({
       >
         {current ? (
           <>
-            <span className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-[10px] font-semibold">
+            <span className="w-5 h-5 rounded-full bg-linear-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-[10px] font-semibold">
               {(current.display_name ?? current.email ?? "?").slice(0, 1).toUpperCase()}
             </span>
             <span className="hidden sm:inline max-w-[80px] truncate">
@@ -445,7 +445,7 @@ export function AssigneePicker({
                   onChange(null);
                   setOpen(false);
                 }}
-                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 w-full text-left text-xs text-rose-600"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-slate-100 w-full text-left text-xs text-rose-600"
               >
                 <X size={14} /> Unassign
               </button>
@@ -458,9 +458,9 @@ export function AssigneePicker({
                   onChange(m.id);
                   setOpen(false);
                 }}
-                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-100 w-full text-left text-xs"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-slate-100 w-full text-left text-xs"
               >
-                <span className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-[10px] font-semibold">
+                <span className="w-5 h-5 rounded-full bg-linear-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-[10px] font-semibold">
                   {(m.display_name ?? m.email ?? "?").slice(0, 1).toUpperCase()}
                 </span>
                 <span className="truncate">{m.display_name ?? m.email}</span>

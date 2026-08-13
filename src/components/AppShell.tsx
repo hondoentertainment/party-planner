@@ -84,7 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-full flex flex-col">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:shadow"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-100 focus:px-4 focus:py-2 focus:rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:shadow-sm"
       >
         Skip to main content
       </a>
@@ -123,13 +123,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ref={mobileTriggerRef}
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="sm:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              className="sm:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full hover:bg-slate-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400"
               aria-label={`Open account menu for ${displayName}`}
               aria-haspopup="dialog"
               aria-expanded={mobileMenuOpen}
             >
               <span
-                className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-sm font-semibold"
+                className="w-9 h-9 rounded-full bg-linear-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-sm font-semibold"
                 aria-hidden
               >
                 {initial}
@@ -144,10 +144,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 aria-haspopup="menu"
                 aria-expanded={desktopMenuOpen}
                 aria-label={`Account menu for ${displayName}`}
-                className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 min-h-[44px]"
+                className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400 min-h-[44px]"
               >
                 <span
-                  className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-xs font-semibold"
+                  className="w-8 h-8 rounded-full bg-linear-to-br from-brand-400 to-brand-700 text-white grid place-items-center text-xs font-semibold"
                   aria-hidden
                 >
                   {initial}

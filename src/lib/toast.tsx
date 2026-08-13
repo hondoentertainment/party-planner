@@ -89,9 +89,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               t.kind === "info" && "border-slate-200 bg-white"
             )}
           >
-            {t.kind === "success" && <CheckCircle2 size={18} className="text-emerald-600 mt-0.5 flex-shrink-0" />}
-            {t.kind === "error" && <AlertCircle size={18} className="text-rose-600 mt-0.5 flex-shrink-0" />}
-            {t.kind === "info" && <Info size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />}
+            {t.kind === "success" && <CheckCircle2 size={18} className="text-emerald-600 mt-0.5 shrink-0" />}
+            {t.kind === "error" && <AlertCircle size={18} className="text-rose-600 mt-0.5 shrink-0" />}
+            {t.kind === "info" && <Info size={18} className="text-slate-500 mt-0.5 shrink-0" />}
             <div className="text-sm flex-1 leading-snug">{t.message}</div>
             <button
               onClick={() => dismiss(t.id)}
