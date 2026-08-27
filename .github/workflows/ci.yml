@@ -39,8 +39,16 @@ jobs:
         continue-on-error: true
       - run: npm run lint
       - run: npm run build
+      # --strict needs VITE_SUPABASE_* from Actions secrets. Dependabot PRs do
+      # not receive those secrets, so keep the check advisory when they are empty.
       - name: Deploy env parity
-        run: node scripts/check-deploy-env.mjs --strict
+        run: |
+          if [ -n "$VITE_SUPABASE_URL" ] && [ -n "$VITE_SUPABASE_ANON_KEY" ]; then
+            node scripts/check-deploy-env.mjs --strict
+          else
+            echo "VITE_SUPABASE_* secrets unavailable (typical for Dependabot PRs); running advisory check."
+            node scripts/check-deploy-env.mjs
+          fi
 
   e2e:
     needs: lint-build
