@@ -9,8 +9,13 @@ export const E2E_STORAGE_KEYS = {
 /** Pre-ack overlays that block clicks on fresh browser contexts. */
 export async function applyE2eStorageKeys(context: BrowserContext) {
   await context.addInitScript((keys) => {
-    window.localStorage.setItem(keys.privacy, "1");
-    window.localStorage.setItem(keys.onboarding, "1");
+    try {
+      window.localStorage.setItem(keys.privacy, "1");
+      window.localStorage.setItem(keys.onboarding, "1");
+    } catch {
+      // about:blank / opaque origins throw SecurityError; the script still
+      // runs again on the real origin after navigation.
+    }
   }, E2E_STORAGE_KEYS);
 }
 

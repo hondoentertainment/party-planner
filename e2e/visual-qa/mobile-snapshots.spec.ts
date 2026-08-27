@@ -2,18 +2,14 @@ import { devices } from "@playwright/test";
 import { test, expect } from "../test-fixture";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { authenticatedE2ESkipReason, getE2ECredentials } from "../agents/test-env";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS_DIR = path.join(__dirname, "screenshots");
 
 const screenshotPath = (name: string) => path.join(SHOTS_DIR, `${name}.png`);
 
-const E2E_EMAIL = process.env.E2E_EMAIL;
-const E2E_PASSWORD = process.env.E2E_PASSWORD;
-const HAS_CREDENTIALS = Boolean(E2E_EMAIL && E2E_PASSWORD);
-const SUPABASE_CONFIGURED = Boolean(
-  process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY
-);
+const credentials = getE2ECredentials();
 
 // All captures use the iPhone 14 Pro viewport for consistency.
 // Strip `defaultBrowserType` so we run on the configured chromium project
@@ -30,7 +26,7 @@ async function isSetupNoticeVisible(page: import("@playwright/test").Page) {
 }
 
 async function signIn(page: import("@playwright/test").Page) {
-  if (!HAS_CREDENTIALS) return false;
+  if (!credentials) return false;
   await page.goto("/");
   await page.waitForLoadState("domcontentloaded");
   // If already signed in, the dashboard shows.
@@ -47,8 +43,8 @@ async function signIn(page: import("@playwright/test").Page) {
       await signinTab.click();
     }
   }
-  await page.getByLabel(/email/i).fill(E2E_EMAIL!);
-  await page.getByLabel(/password/i).fill(E2E_PASSWORD!);
+  await page.getByLabel(/email/i).fill(credentials!.email);
+  await page.getByLabel(/password/i).fill(credentials!.password);
   await submit.click();
   await page.waitForLoadState("networkidle").catch(() => {});
   return await dashboardMarker.first().isVisible().catch(() => false);
@@ -101,8 +97,10 @@ test.describe("Mobile visual QA — iPhone 14 Pro", () => {
   });
 
   test("03 — onboarding tour modal", async ({ page }) => {
-    test.skip(!HAS_CREDENTIALS, "Auth-gated: requires E2E_EMAIL/E2E_PASSWORD.");
-    test.skip(!SUPABASE_CONFIGURED, "Auth-gated: requires real VITE_SUPABASE_* env.");
+    test.skip(
+      !credentials,
+      authenticatedE2ESkipReason ?? "Auth-gated: signed-in E2E credentials are not available.",
+    );
 
     // Force the tour to auto-open: clear the canonical "completed" flag.
     // The production key lives in `src/lib/onboarding.ts` as
@@ -130,8 +128,10 @@ test.describe("Mobile visual QA — iPhone 14 Pro", () => {
   });
 
   test("04 — mobile bottom-sheet account menu", async ({ page }) => {
-    test.skip(!HAS_CREDENTIALS, "Auth-gated: requires E2E_EMAIL/E2E_PASSWORD.");
-    test.skip(!SUPABASE_CONFIGURED, "Auth-gated: requires real VITE_SUPABASE_* env.");
+    test.skip(
+      !credentials,
+      authenticatedE2ESkipReason ?? "Auth-gated: signed-in E2E credentials are not available.",
+    );
 
     // Suppress the onboarding tour so the avatar is the focus.
     await page.addInitScript(() => {
@@ -158,8 +158,10 @@ test.describe("Mobile visual QA — iPhone 14 Pro", () => {
   });
 
   test("05 — two-row event nav (mobile More sheet)", async ({ page }) => {
-    test.skip(!HAS_CREDENTIALS, "Auth-gated: requires E2E_EMAIL/E2E_PASSWORD.");
-    test.skip(!SUPABASE_CONFIGURED, "Auth-gated: requires real VITE_SUPABASE_* env.");
+    test.skip(
+      !credentials,
+      authenticatedE2ESkipReason ?? "Auth-gated: signed-in E2E credentials are not available.",
+    );
 
     await page.addInitScript(() => {
       try {

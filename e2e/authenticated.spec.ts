@@ -2,7 +2,7 @@ import { expect, test, newPreparedBrowserContext } from "./test-fixture";
 import { AuthAgent } from "./agents/auth-agent";
 import { EventAgent } from "./agents/event-agent";
 import { PublicEventAgent } from "./agents/public-event-agent";
-import { getE2ECredentials } from "./agents/test-env";
+import { authenticatedE2ESkipReason, getE2ECredentials } from "./agents/test-env";
 import { formatEventDate } from "../src/lib/format";
 
 const credentials = getE2ECredentials();
@@ -42,7 +42,7 @@ const CHECKLIST_SECTIONS = [
 test.describe("with E2E credentials", () => {
   test.skip(
     !credentials,
-    "add VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, E2E_EMAIL, and E2E_PASSWORD to run signed-in E2E tests"
+    authenticatedE2ESkipReason ?? "signed-in E2E credentials are not available"
   );
 
   test.beforeEach(async ({ page }) => {
