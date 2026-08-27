@@ -2,14 +2,14 @@ import { test } from "./test-fixture";
 import { AuthAgent } from "./agents/auth-agent";
 import { EventAgent } from "./agents/event-agent";
 import { WrapUpAgent } from "./agents/wrap-up-agent";
-import { getE2ECredentials } from "./agents/test-env";
+import { authenticatedE2ESkipReason, getE2ECredentials } from "./agents/test-env";
 
 const credentials = getE2ECredentials();
 
 test.describe("wrap-up persistence", () => {
   test.skip(
     !credentials,
-    "add VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, E2E_EMAIL, and E2E_PASSWORD to run signed-in E2E tests"
+    authenticatedE2ESkipReason ?? "signed-in E2E credentials are not available"
   );
 
   test.beforeEach(async ({ page }) => {

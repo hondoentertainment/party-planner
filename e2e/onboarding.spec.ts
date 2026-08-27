@@ -1,7 +1,7 @@
 import { expect, test } from "./onboarding-fixture";
 import { AuthAgent } from "./agents/auth-agent";
 import { E2E_STORAGE_KEYS } from "./test-fixture";
-import { getE2ECredentials } from "./agents/test-env";
+import { authenticatedE2ESkipReason, getE2ECredentials } from "./agents/test-env";
 
 const credentials = getE2ECredentials();
 const ONBOARDING_KEY = E2E_STORAGE_KEYS.onboarding;
@@ -9,7 +9,7 @@ const ONBOARDING_KEY = E2E_STORAGE_KEYS.onboarding;
 test.describe("with E2E credentials — onboarding tour", () => {
   test.skip(
     !credentials,
-    "add VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, E2E_EMAIL, and E2E_PASSWORD to run signed-in E2E tests"
+    authenticatedE2ESkipReason ?? "signed-in E2E credentials are not available"
   );
 
   test.beforeEach(async ({ page }) => {
