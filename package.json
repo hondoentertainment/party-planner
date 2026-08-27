@@ -48,7 +48,7 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^1.8.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.5",
+    "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
@@ -76,6 +76,7 @@
     "workbox-precaching": "^7.4.1"
   },
   "overrides": {
-    "serialize-javascript": "^7.0.5"
+    "serialize-javascript": "^7.0.5",
+    "react-dom": "$react"
   }
 }

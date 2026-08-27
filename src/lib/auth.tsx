@@ -69,18 +69,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      if (isRecoveryRedirect() && data.session) {
-        setPasswordRecovery(true);
-      }
-      setLoading(false);
-      if (data.session?.user?.id && !isRecoveryRedirect()) {
-        void claimPendingInvitationsOnce(data.session.user.id);
-      }
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!active) return;
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+        if (isRecoveryRedirect() && data.session) {
+          setPasswordRecovery(true);
+        }
+        setLoading(false);
+        if (data.session?.user?.id && !isRecoveryRedirect()) {
+          void claimPendingInvitationsOnce(data.session.user.id);
+        }
+      })
+      .catch((err) => {
+        console.warn("[auth] getSession failed:", err);
+        if (!active) return;
+        setLoading(false);
+      });
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (event === "PASSWORD_RECOVERY") {
         setPasswordRecovery(true);
