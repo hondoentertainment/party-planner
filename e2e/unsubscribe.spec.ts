@@ -1,4 +1,5 @@
 import { expect, test } from "./test-fixture";
+import { supabaseHostResolves } from "./agents/test-env";
 
 // Anonymous smoke: `notify-unsubscribe` must redirect to the SPA landing page
 // (invalid / expired tokens → outcome=invalid). Minting a valid token requires
@@ -11,6 +12,13 @@ test.describe("notify-unsubscribe edge function", () => {
       test.skip(
         true,
         "VITE_SUPABASE_URL is not set; skipping live notify-unsubscribe smoke.",
+      );
+      return;
+    }
+    if (!supabaseHostResolves(supabaseUrl)) {
+      test.skip(
+        true,
+        "configured Supabase host does not resolve; skipping live notify-unsubscribe smoke.",
       );
       return;
     }

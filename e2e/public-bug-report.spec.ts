@@ -1,14 +1,15 @@
 import { expect, test, newPreparedBrowserContext } from "./test-fixture";
 import { AuthAgent } from "./agents/auth-agent";
 import { EventAgent } from "./agents/event-agent";
-import { getE2ECredentials } from "./agents/test-env";
+import { authenticatedE2ESkipReason, getE2ECredentials } from "./agents/test-env";
 
 const credentials = getE2ECredentials();
 
 test.describe("public share — bug report dialog", () => {
   test.skip(
     !credentials,
-    "add VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, E2E_EMAIL, and E2E_PASSWORD to submit a guest bug report against a live share link"
+    authenticatedE2ESkipReason ??
+      "signed-in E2E credentials are not available to submit a guest bug report against a live share link"
   );
 
   test.beforeEach(async ({ page }) => {
