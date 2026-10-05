@@ -40,7 +40,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@sentry/react": "^10.75.0",
+    "@sentry/react": "^11.2.0",
     "@supabase/supabase-js": "^2.117.2",
     "@vercel/functions": "^3.9.8",
     "@vercel/og": "^1.0.2",
