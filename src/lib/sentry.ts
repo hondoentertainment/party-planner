@@ -11,6 +11,12 @@ const IGNORE_ERROR_MESSAGES = [
   /Failed to fetch dynamically imported module/i,
 ];
 
+/**
+ * Network identifiers v10 scrubbed while `sendDefaultPii` was false.
+ * v11 removed that flag; an unset `dataCollection` now collects these.
+ */
+const NETWORK_PII_DENY = ["forwarded", "-ip", "remote-", "via", "-user"];
+
 export function initSentry() {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
   if (!dsn || initialized) return;
@@ -23,7 +29,21 @@ export function initSentry() {
   Sentry.init({
     dsn,
     environment,
-    sendDefaultPii: false,
+    // Preserve the v10 `sendDefaultPii: false` baseline. v11 defaults collect
+    // user info, cookies, and HTTP bodies unless these categories are set.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: {
+        request: { deny: NETWORK_PII_DENY },
+        response: { deny: NETWORK_PII_DENY },
+      },
+      httpBodies: [],
+      urlQueryParams: { deny: NETWORK_PII_DENY },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      graphQL: { document: false, variables: false },
+    },
     initialScope: {
       tags: { app: "party-planner" },
     },
